@@ -1,0 +1,270 @@
+'use client';
+
+import React from 'react';
+import { QualityRule } from '../../types/contract';
+import { convertVndToUsdc } from '../../lib/solana/convertVndUsdc';
+import { FileSignature, Stamp } from 'lucide-react';
+
+interface DraftTerms {
+  san_pham: string;
+  so_luong: number;
+  don_vi_tinh: string;
+  don_gia: number;
+  han_giao_hang: string;
+  dieu_khoan_chat_luong: QualityRule[];
+}
+
+interface DraftContractTableProps {
+  terms: DraftTerms;
+  onChange: (updatedTerms: DraftTerms) => void;
+}
+
+export default function DraftContractTable({ terms, onChange }: DraftContractTableProps) {
+  const handleInputChange = (field: keyof DraftTerms, value: any) => {
+    onChange({ ...terms, [field]: value });
+  };
+
+  const handleQualityRuleChange = (index: number, field: keyof QualityRule, value: any) => {
+    const newRules = [...terms.dieu_khoan_chat_luong];
+    newRules[index] = { ...newRules[index], [field]: value };
+    onChange({ ...terms, dieu_khoan_chat_luong: newRules });
+  };
+
+  const totalVnd = terms.don_gia * terms.so_luong;
+  const totalUsdc = convertVndToUsdc(totalVnd);
+
+  return (
+    <div className="font-serif bg-[#fdfdfc] text-slate-900 p-8 md:p-12 rounded shadow-lg border border-slate-300 relative mx-auto max-w-4xl">
+      
+      {/* WATERMARK */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none overflow-hidden">
+        <Stamp size={500} className="text-slate-900 rotate-[-15deg]" />
+      </div>
+
+      <div className="relative z-10">
+        {/* HEADER */}
+        <div className="text-center space-y-1 pb-6 mb-6 border-b-2 border-slate-800">
+          <p className="text-sm md:text-base font-bold uppercase">Cộng hòa Xã hội Chủ nghĩa Việt Nam</p>
+          <p className="text-sm md:text-base font-bold underline underline-offset-4 decoration-slate-800">Độc lập - Tự do - Hạnh phúc</p>
+          <div className="pt-8">
+            <h3 className="font-extrabold text-2xl uppercase tracking-wide">
+              Hợp đồng Mua bán Nông sản
+            </h3>
+            <p className="text-sm text-slate-600 mt-2 italic">Số: {new Date().getFullYear()}/HĐMB/AGRITRUST-ST25</p>
+          </div>
+        </div>
+
+        {/* CĂN CỨ VÀ NGÀY THÁNG */}
+        <div className="text-base space-y-2 mb-8 italic text-slate-800 text-justify">
+          <p>- Căn cứ Luật Thương mại số 36/2005/QH11 do Quốc hội nước CHXHCN Việt Nam ban hành;</p>
+          <p>- Căn cứ Bộ luật Dân sự số 91/2015/QH13 do Quốc hội nước CHXHCN Việt Nam ban hành;</p>
+          <p>- Căn cứ vào nhu cầu và khả năng thực tế của hai bên.</p>
+          <p className="pt-4 not-italic font-medium text-slate-900">
+            Hôm nay, ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}, thông qua nền tảng bảo chứng hợp đồng thông minh AgriTrust, chúng tôi gồm có:
+          </p>
+        </div>
+
+        {/* THÔNG TIN CÁC BÊN */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-base">
+          {/* BÊN A */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-lg uppercase border-l-4 border-slate-800 pl-3">Bên Bán (Bên A)</h4>
+            <div className="space-y-2">
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Tên đơn vị:</span> <span>Hợp tác xã Nông nghiệp Miền Tây</span></div>
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Địa chỉ:</span> <span>Huyện Trần Đề, Tỉnh Sóc Trăng</span></div>
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Mã số thuế:</span> <span>2200112233</span></div>
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Đại diện:</span> <span>Ông Nguyễn Văn A - Giám đốc</span></div>
+              <div className="flex gap-2 items-center mt-2">
+                <span className="font-semibold min-w-28">Ví điện tử:</span> 
+                <span className="font-mono text-xs bg-slate-100 p-1.5 rounded border border-slate-300 text-slate-600">nong_dan_wallet...demo</span>
+              </div>
+            </div>
+          </div>
+
+          {/* BÊN B */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-lg uppercase border-l-4 border-slate-800 pl-3">Bên Mua (Bên B)</h4>
+            <div className="space-y-2">
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Tên đơn vị:</span> <span>Công ty XNK Nông sản Agri-Export</span></div>
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Địa chỉ:</span> <span>Quận 1, Thành phố Hồ Chí Minh</span></div>
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Mã số thuế:</span> <span>0311223344</span></div>
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Đại diện:</span> <span>Bà Trần Thị B - GĐ Mua hàng</span></div>
+              <div className="flex gap-2 items-center mt-2">
+                <span className="font-semibold min-w-28">Ví điện tử:</span> 
+                <span className="font-mono text-xs bg-slate-100 p-1.5 rounded border border-slate-300 text-slate-600">thuong_lai_wallet...demo</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-base font-bold mb-4 pt-2">Sau khi bàn bạc, hai bên thống nhất ký kết Hợp đồng mua bán với các điều khoản như sau:</p>
+
+        {/* ĐIỀU 1: HÀNG HÓA VÀ TRỊ GIÁ */}
+        <div className="mb-8 text-base">
+          <h4 className="font-bold text-lg mb-4">Điều 1: Thông tin hàng hóa và Giá trị hợp đồng</h4>
+          <div className="border border-slate-400 rounded overflow-hidden shadow-sm">
+            <table className="w-full text-left border-collapse">
+              <tbody className="divide-y divide-slate-300">
+                <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
+                  <th className="py-4 px-5 font-semibold w-2/5 border-r border-slate-300">Tên nông sản</th>
+                  <td className="py-4 px-5">
+                    <input
+                      type="text"
+                      value={terms.san_pham}
+                      onChange={(e) => handleInputChange('san_pham', e.target.value)}
+                      className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900"
+                    />
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-50 transition-colors">
+                  <th className="py-4 px-5 font-semibold border-r border-slate-300">Số lượng & Đơn vị</th>
+                  <td className="py-4 px-5 flex gap-4">
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="number"
+                        value={terms.so_luong}
+                        onChange={(e) => handleInputChange('so_luong', parseFloat(e.target.value) || 0)}
+                        className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-right"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 w-28">
+                      <input
+                        type="text"
+                        value={terms.don_vi_tinh}
+                        onChange={(e) => handleInputChange('don_vi_tinh', e.target.value)}
+                        className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-center"
+                      />
+                    </div>
+                  </td>
+                </tr>
+                <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
+                  <th className="py-4 px-5 font-semibold border-r border-slate-300">Đơn giá (VNĐ)</th>
+                  <td className="py-4 px-5">
+                    <input
+                      type="number"
+                      value={terms.don_gia}
+                      onChange={(e) => handleInputChange('don_gia', parseFloat(e.target.value) || 0)}
+                      className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900"
+                    />
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-50 transition-colors">
+                  <th className="py-4 px-5 font-semibold border-r border-slate-300">Tổng giá trị hợp đồng (VNĐ)</th>
+                  <td className="py-4 px-5 font-black text-lg">
+                    {totalVnd.toLocaleString('vi-VN')} <span className="font-normal text-base ml-1">VNĐ</span>
+                  </td>
+                </tr>
+                <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
+                  <th className="py-4 px-5 font-semibold border-r border-slate-300">Quy đổi ký quỹ Escrow (USDC)</th>
+                  <td className="py-4 px-5 font-bold text-emerald-700">
+                    {totalUsdc.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="font-normal ml-1">USDC</span>
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-50 transition-colors">
+                  <th className="py-4 px-5 font-semibold border-r border-slate-300">Hạn giao hàng muộn nhất</th>
+                  <td className="py-4 px-5">
+                    <input
+                      type="datetime-local"
+                      value={terms.han_giao_hang.slice(0, 16)}
+                      onChange={(e) => handleInputChange('han_giao_hang', new Date(e.target.value).toISOString())}
+                      className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ĐIỀU 2: TIÊU CHUẨN KỸ THUẬT & PHẠT CHẤT LƯỢNG */}
+        <div className="mb-10 text-base">
+          <h4 className="font-bold text-lg mb-4">Điều 2: Tiêu chuẩn kỹ thuật và Phạt vi phạm</h4>
+          <p className="mb-4 text-slate-800 text-justify leading-relaxed">
+            Bên Bán cam kết giao hàng đúng tiêu chuẩn kỹ thuật quy định. Trường hợp chất lượng thực tế khi kiểm định vượt ngưỡng tối đa cho phép, Bên Bán đồng ý áp dụng mức phạt khấu trừ trực tiếp vào tổng giá trị thanh toán như sau:
+          </p>
+          <div className="border border-slate-400 rounded overflow-hidden shadow-sm">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-100 border-b border-slate-400">
+                <tr>
+                  <th className="py-3 px-5 font-semibold w-1/2 border-r border-slate-300">Tiêu chí kiểm định</th>
+                  <th className="py-3 px-5 font-semibold w-1/4 border-r border-slate-300 text-center">Ngưỡng tối đa</th>
+                  <th className="py-3 px-5 font-semibold text-center">Hình thức xử lý / Mức phạt</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-300">
+                {terms.dieu_khoan_chat_luong.map((rule, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-5 border-r border-slate-300">
+                      <input
+                        type="text"
+                        value={rule.tieu_chi}
+                        onChange={(e) => handleQualityRuleChange(idx, 'tieu_chi', e.target.value)}
+                        className="w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900"
+                      />
+                    </td>
+                    <td className="py-3 px-5 border-r border-slate-300 text-center">
+                      <div className="flex justify-center items-center gap-1">
+                        <input
+                          type="number"
+                          value={rule.nguong_phan_tram}
+                          onChange={(e) => handleQualityRuleChange(idx, 'nguong_phan_tram', parseFloat(e.target.value) || 0)}
+                          className="w-16 bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900 text-center"
+                        />
+                        <span className="font-medium">%</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-5 text-center">
+                      <div className="flex justify-center items-center gap-1 text-red-700 font-bold w-full">
+                        <textarea
+                          value={rule.muc_phat || ''}
+                          onChange={(e) => handleQualityRuleChange(idx, 'muc_phat', e.target.value)}
+                          className="w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-red-400 focus:border-red-600 outline-none text-center resize-none overflow-hidden py-1 leading-tight"
+                          placeholder="Ví dụ: Từ chối nhận hàng"
+                          rows={Math.max(1, Math.ceil((rule.muc_phat?.length || 0) / 22))}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ĐIỀU 3: CHỮ KÝ VÀ BẢO CHỨNG SỐ */}
+        <div className="mb-6 text-base">
+          <h4 className="font-bold text-lg mb-4">Điều 3: Cam kết và Ký số</h4>
+          <p className="mb-8 text-slate-800 text-justify leading-relaxed">
+            Hai bên đã đọc, hiểu rõ và đồng ý với mọi điều khoản. Hợp đồng này có hiệu lực pháp lý và được bảo chứng thông qua Smart Contract trên nền tảng Blockchain Solana.
+          </p>
+
+          <div className="grid grid-cols-2 gap-8 text-center pt-6 pb-12">
+            {/* CHỮ KÝ BÊN A */}
+            <div className="space-y-4 flex flex-col items-center">
+              <h5 className="font-bold text-base uppercase">Đại diện Bên A (Bên Bán)</h5>
+              <div className="w-40 h-40 border-4 border-emerald-600 rounded-full flex flex-col items-center justify-center text-emerald-700 bg-emerald-50 opacity-90 rotate-[-8deg] shadow-sm my-4">
+                <Stamp size={32} className="mb-2" />
+                <span className="text-sm font-bold uppercase">Đã xác thực</span>
+                <span className="text-[10px] font-mono mt-2 opacity-90">SOL_HTX_MIENTAY</span>
+                <span className="text-[9px] font-mono opacity-70">{new Date().toISOString().split('T')[0]}</span>
+              </div>
+              <p className="font-bold mt-4 border-t border-slate-400 pt-3 w-3/4 mx-auto text-lg">Ông Nguyễn Văn A</p>
+            </div>
+
+            {/* CHỮ KÝ BÊN B */}
+            <div className="space-y-4 flex flex-col items-center">
+              <h5 className="font-bold text-base uppercase">Đại diện Bên B (Bên Mua)</h5>
+              <div className="w-40 h-40 border-4 border-dashed border-slate-400 rounded-full flex flex-col items-center justify-center text-slate-500 bg-slate-50 my-4">
+                <FileSignature size={36} className="mb-3 opacity-50" />
+                <span className="text-sm font-semibold uppercase">Chờ ký quỹ</span>
+                <span className="text-xs italic mt-2">(Xác thực giao dịch)</span>
+              </div>
+              <p className="font-bold mt-4 border-t border-slate-400 pt-3 w-3/4 mx-auto text-lg text-slate-400">Bà Trần Thị B</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}

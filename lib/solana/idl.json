@@ -1,0 +1,95 @@
+{
+  "address": "AgriTrust1111111111111111111111111111111111",
+  "metadata": {
+    "name": "agritrust_escrow",
+    "version": "0.1.0",
+    "specVersion": "0.1.0",
+    "description": "AgriTrust Escrow Smart Contract"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [175, 175, 109, 95, 234, 143, 219, 12],
+      "docs": ["Khởi tạo escrow PDA và chuyển tiền vào"],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "seller" },
+        { "name": "escrowAccount", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [101, 115, 99, 114, 111, 119] }, { "kind": "account", "path": "buyer" }, { "kind": "account", "path": "seller" }] } },
+        { "name": "systemProgram" }
+      ],
+      "args": [
+        { "name": "unitPrice", "type": "u64" },
+        { "name": "expectedQty", "type": "u64" },
+        { "name": "deadline", "type": "i64" },
+        { "name": "seller", "type": "pubkey" }
+      ]
+    },
+    {
+      "name": "confirmReceipt",
+      "discriminator": [251, 124, 212, 128, 121, 232, 122, 1],
+      "docs": ["Giải ngân 100% cho người bán"],
+      "accounts": [
+        { "name": "buyer", "signer": true },
+        { "name": "seller", "writable": true },
+        { "name": "escrowAccount", "writable": true }
+      ],
+      "args": []
+    },
+    {
+      "name": "resolvePartial",
+      "discriminator": [133, 91, 18, 192, 131, 240, 10, 2],
+      "docs": ["Giải ngân một phần theo tỷ lệ"],
+      "accounts": [
+        { "name": "buyer", "signer": true },
+        { "name": "seller", "writable": true },
+        { "name": "escrowAccount", "writable": true }
+      ],
+      "args": [
+        { "name": "actualQty", "type": "u64" }
+      ]
+    },
+    {
+      "name": "claimTimeout",
+      "discriminator": [201, 12, 233, 11, 212, 88, 77, 4],
+      "docs": ["Người bán tự rút tiền khi hết hạn"],
+      "accounts": [
+        { "name": "seller", "writable": true, "signer": true },
+        { "name": "buyer" },
+        { "name": "escrowAccount", "writable": true }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "EscrowAccount",
+      "discriminator": [123, 22, 33, 44, 55, 66, 77, 88],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "vault", "type": "pubkey" },
+          { "name": "unitPrice", "type": "u64" },
+          { "name": "expectedQty", "type": "u64" },
+          { "name": "deadline", "type": "i64" },
+          { "name": "status", "type": { "defined": { "name": "EscrowStatus" } } },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "EscrowStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Locked" },
+          { "name": "Resolved" },
+          { "name": "TimedOut" }
+        ]
+      }
+    }
+  ]
+}
