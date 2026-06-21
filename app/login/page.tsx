@@ -1,31 +1,40 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { loginUser } from '../../lib/supabase/queries/auth';
 import {
   User,
+  Lock,
   ShieldCheck,
-  ArrowRight,
-  AlertTriangle,
-  Wallet,
+  LogIn,
+  AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+  
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [loadingRole, setLoadingRole] = useState<'nong_dan' | 'thuong_lai' | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleQuickLogin = async (role: 'nong_dan' | 'thuong_lai') => {
-    setLoadingRole(role);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim() || !password) {
+      setErrorMsg('Vui lòng điền đầy đủ Tên đăng nhập và Mật khẩu.');
+      return;
+    }
+
+    setIsLoading(true);
     setErrorMsg('');
 
     try {
-      // Đăng nhập giả lập tương ứng với các user đã seed trong DB
-      const username = role === 'nong_dan' ? 'nongdan' : 'thuonglai';
-      const user = await loginUser(username, '123');
+      const user = await loginUser(username, password);
       
       if (user) {
         login({
@@ -35,124 +44,135 @@ export default function LoginPage() {
           ten_hien_thi: user.ten_hien_thi || user.ten_dang_nhap,
         });
       } else {
-        // Fallback tự sinh session nếu DB chưa seed hoặc lỗi kết nối
-        login({
-          dia_chi_vi: role === 'nong_dan' ? 'nong_dan_wallet_address_demo' : 'thuong_lai_wallet_address_demo',
-          vai_tro: role,
-          ten_dang_nhap: username,
-          ten_hien_thi: role === 'nong_dan' ? 'Nông dân Nguyễn Văn Ruộng' : 'Thương lái Trần Thị Thương',
-        });
+        setErrorMsg('Sai Tên đăng nhập hoặc Mật khẩu. Vui lòng thử lại.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      // Fallback
-      login({
-        dia_chi_vi: role === 'nong_dan' ? 'nong_dan_wallet_address_demo' : 'thuong_lai_wallet_address_demo',
-        vai_tro: role,
-        ten_dang_nhap: role === 'nong_dan' ? 'nongdan' : 'thuonglai',
-        ten_hien_thi: role === 'nong_dan' ? 'Nông dân Nguyễn Văn Ruộng' : 'Thương lái Trần Thị Thương',
-      });
+      setErrorMsg('Đã xảy ra lỗi kết nối với hệ thống. Vui lòng thử lại.');
     } finally {
-      setLoadingRole(null);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen bg-[#FAFAF9] text-neutral-900 antialiased font-sans px-4">
-
-      <div className="w-full max-w-[420px] space-y-8">
-
+    <div className="flex flex-col justify-center items-center min-h-screen bg-[#FAFAF9] text-neutral-900 antialiased font-sans px-4 py-12">
+      <div className="w-full max-w-[480px] space-y-8 animate-fade-in">
+        
         {/* Logo + Heading */}
         <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#15803D] flex items-center justify-center text-white font-black text-xl shadow-md">
+          <div className="w-14 h-14 rounded-2xl bg-[#15803D] flex items-center justify-center text-white font-black text-2xl shadow-lg hover:rotate-6 transition-transform">
             A
           </div>
-          <div className="text-center space-y-1.5">
-            <h1 className="text-xl font-extrabold text-neutral-900 tracking-tight">
-              Đăng nhập Cổng Giao Thương
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-black text-neutral-900 tracking-tight">
+              Đăng nhập AgriTrust
             </h1>
-            <p className="text-[13px] text-neutral-500 max-w-sm">
-              Chọn vai trò kết nối trực tiếp ví để bắt đầu đàm phán ký quỹ nông sản thông minh trên Solana Blockchain.
+            <p className="text-sm text-neutral-500 max-w-md leading-relaxed">
+              Đăng nhập cổng giao dịch nông sản B2B thông minh bảo mật bằng Solana Blockchain.
             </p>
           </div>
         </div>
 
         {/* Card Form */}
-        <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm space-y-6">
-          <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider text-center">
-            Chọn vai trò truy cập hệ thống
-          </h3>
-
-          <div className="grid grid-cols-1 gap-3.5">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 md:p-10 shadow-md space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             
-            {/* Lựa chọn Nông Dân */}
-            <button
-              onClick={() => handleQuickLogin('nong_dan')}
-              disabled={loadingRole !== null}
-              className="flex items-center justify-between p-4 rounded-xl border border-neutral-200 hover:border-[#15803D] hover:bg-[#f0fdf4] text-left transition-all group active:scale-99 cursor-pointer disabled:opacity-50"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#15803D]/10 text-[#15803D] flex items-center justify-center group-hover:bg-[#15803D] group-hover:text-white transition-colors">
-                  <User size={18} />
-                </div>
-                <div>
-                  <span className="font-bold text-[14px] text-neutral-900 block leading-tight">
-                    Nông dân / Hợp tác xã
-                  </span>
-                  <span className="text-[11px] text-neutral-450 mt-1 block">
-                    Đăng bán nông sản, nhận tiền đặt cọc bảo đảm
-                  </span>
-                </div>
+            {errorMsg && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-[12px] text-red-600 flex items-center gap-2">
+                <AlertCircle size={16} className="flex-shrink-0" />
+                <span>{errorMsg}</span>
               </div>
-              <ArrowRight size={16} className="text-neutral-350 group-hover:text-[#15803D] group-hover:translate-x-0.5 transition-all" />
-            </button>
+            )}
 
-            {/* Lựa chọn Thương Lái */}
-            <button
-              onClick={() => handleQuickLogin('thuong_lai')}
-              disabled={loadingRole !== null}
-              className="flex items-center justify-between p-4 rounded-xl border border-neutral-200 hover:border-indigo-600 hover:bg-indigo-50/50 text-left transition-all group active:scale-99 cursor-pointer disabled:opacity-50"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                  <User size={18} />
-                </div>
-                <div>
-                  <span className="font-bold text-[14px] text-neutral-900 block leading-tight">
-                    Thương lái / Nhà thu mua
-                  </span>
-                  <span className="text-[11px] text-neutral-450 mt-1 block">
-                    Tìm kiếm sản phẩm, kết nối đàm thoại & nạp tiền ký quỹ
-                  </span>
-                </div>
+            {/* Input Tên đăng nhập */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                Tên đăng nhập
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                  <User size={16} />
+                </span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="nongdan hoặc thuonglai"
+                  className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
+                  disabled={isLoading}
+                />
               </div>
-              <ArrowRight size={16} className="text-neutral-350 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
-            </button>
+            </div>
 
+            {/* Input Mật khẩu */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                Mật khẩu
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
+                  <Lock size={16} />
+                </span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu"
+                  className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            {/* Nút Đăng nhập */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3.5 bg-[#15803D] hover:bg-[#166534] disabled:bg-slate-300 text-white rounded-2xl text-sm font-bold shadow-md shadow-emerald-900/10 hover:shadow-emerald-900/20 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isLoading ? (
+                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              ) : (
+                <>
+                  <LogIn size={16} />
+                  <span>Đăng nhập</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Quick Demo Tips */}
+          <div className="p-3.5 bg-amber-50/65 border border-amber-200/60 rounded-xl space-y-1.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800">
+              <Sparkles size={13} />
+              <span>Gợi ý tài khoản Demo cho giám khảo:</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[11px] text-amber-700">
+              <div>
+                <p className="font-semibold">Nông dân:</p>
+                <code className="bg-amber-100/50 px-1 py-0.5 rounded text-[10px]">nongdan</code> / <code className="bg-amber-100/50 px-1 py-0.5 rounded text-[10px]">123</code>
+              </div>
+              <div>
+                <p className="font-semibold">Thương lái:</p>
+                <code className="bg-amber-100/50 px-1 py-0.5 rounded text-[10px]">thuonglai</code> / <code className="bg-amber-100/50 px-1 py-0.5 rounded text-[10px]">123</code>
+              </div>
+            </div>
           </div>
 
-          <div className="relative flex items-center py-2">
-            <div className="flex-grow border-t border-neutral-200"></div>
-            <span className="flex-shrink mx-3 text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Hoặc kết nối ví vật lý</span>
-            <div className="flex-grow border-t border-neutral-200"></div>
+          <div className="text-center pt-2">
+            <p className="text-[12px] text-slate-500">
+              Chưa có tài khoản?{' '}
+              <Link href="/register" className="font-bold text-[#15803D] hover:underline">
+                Đăng ký ngay
+              </Link>
+            </p>
           </div>
-
-          {/* Kết nối ví thực tế */}
-          <button
-            onClick={() => handleQuickLogin('thuong_lai')} // Giả lập login Merchant khi nhấn ví
-            disabled={loadingRole !== null}
-            className="w-full py-3 border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 rounded-xl text-[13px] font-bold text-neutral-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Wallet size={16} className="text-indigo-500" />
-            <span>Kết nối Ví Phantom của bạn</span>
-          </button>
-
         </div>
 
         {/* Bottom info */}
-        <div className="text-center text-[11px] text-neutral-400">
-          <ShieldCheck size={14} className="inline mr-1 text-neutral-400 align-text-bottom" />
-          Bảo mật giao dịch bằng Solana Devnet Smart Contract
+        <div className="text-center text-[11px] text-slate-400 flex items-center justify-center gap-1">
+          <ShieldCheck size={14} className="text-slate-400" />
+          <span>Bảo mật giao dịch bằng Solana Devnet Smart Contract</span>
         </div>
 
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { getContractById } from '../../../lib/supabase/queries/contracts';
@@ -28,7 +28,7 @@ import {
   Loader2
 } from 'lucide-react';
 
-export default function ContractPage() {
+function ContractPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -491,5 +491,17 @@ export default function ContractPage() {
 
       </main>
     </div>
+  );
+}
+
+export default function ContractPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-[#15803D]" />
+      </div>
+    }>
+      <ContractPageContent />
+    </Suspense>
   );
 }

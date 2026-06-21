@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
@@ -10,6 +11,7 @@ import { useWallet } from '../../hooks/useWallet';
 import { UserCircle, MapPin, Calendar, ShieldCheck, Mail, Wallet, ChevronLeft, ChevronRight, Loader2, Award, LogOut } from 'lucide-react';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
   const { publicKey, connected: walletConnected, select, wallets } = useWallet();
   const [dbUser, setDbUser] = useState<any>(null);
@@ -60,10 +62,10 @@ export default function ProfilePage() {
       if (user) {
         fetchProfile();
       } else {
-        setLoading(false);
+        router.push('/login');
       }
     }
-  }, [user, authLoading, supabase]);
+  }, [user, authLoading, supabase, router]);
 
   if (authLoading || loading) {
     return (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import VideoCallFrame from '../../components/shared/VideoCallFrame';
@@ -24,7 +24,7 @@ interface TranscriptLine {
   den_canh_bao?: 'binh_thuong' | 'canh_bao_do';
 }
 
-export default function CallPage() {
+function CallPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const scenario = searchParams.get('scenario') || 'A';
@@ -312,5 +312,17 @@ export default function CallPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CallPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-[#15803D]" />
+      </div>
+    }>
+      <CallPageContent />
+    </Suspense>
   );
 }

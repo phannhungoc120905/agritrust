@@ -23,20 +23,19 @@ export default function ConnectWalletButton() {
   return (
     <button
       onClick={handleConnect}
-      className={`btn-secondary gap-2 text-[13px] ${
+      className={`btn-secondary text-[13px] ${
         connected
-          ? 'border-[#15803D] text-[#15803D] bg-[#f0fdf4]'
-          : ''
+          ? 'gap-2 border-[#15803D] text-[#15803D] bg-[#f0fdf4]'
+          : 'w-9 h-9 flex items-center justify-center p-0'
       }`}
+      title={connected ? 'Ví đã kết nối' : 'Kết nối ví Phantom'}
     >
-      <Wallet size={15} />
-      {connected ? (
+      <Wallet size={connected ? 15 : 18} />
+      {connected && (
         <span className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-[#15803D]"></span>
           {publicKey?.toBase58().slice(0, 4)}...{publicKey?.toBase58().slice(-4)}
         </span>
-      ) : (
-        'Kết nối ví'
       )}
     </button>
   );

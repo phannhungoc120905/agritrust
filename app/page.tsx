@@ -45,6 +45,12 @@ export default function HomePage() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [loading, user, router]);
+
   // Navigation State
   const [activeTab, setActiveTab] = useState<'market' | 'negotiation' | 'delivery'>('market');
   
