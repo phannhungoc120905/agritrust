@@ -9,6 +9,7 @@ import PriceWarningBanner from '../../components/negotiation/PriceWarningBanner'
 import ConfirmContractButton from '../../components/negotiation/ConfirmContractButton';
 import { createDraftContract } from '../../lib/supabase/queries/contracts';
 import { AgoraSTTClient } from '../../lib/agora/sttClient';
+import { decodeMeetingParams } from '../../lib/utils/url';
 
 import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
 import WalletBalance from '../../components/shared/WalletBalance';
@@ -26,14 +27,19 @@ interface TranscriptLine {
 function CallPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const scenario = searchParams.get('scenario') || 'A';
-  const channelParam = searchParams.get('channel');
+
+  // Decode compressed parameters from the 'p' query param if present
+  const p = searchParams.get('p');
+  const decoded = p ? decodeMeetingParams(p) : null;
+
+  const scenario = decoded?.scenario || searchParams.get('scenario') || 'A';
+  const channelParam = decoded?.channel || searchParams.get('channel');
   const channelName = channelParam || 'dam-phan-lua-st25';
   
   const { user, loading, logout } = useAuth();
 
-  const productParam = searchParams.get('product') || 'Lúa thơm ST25';
-  const partnerParam = searchParams.get('partner') || 'Đối tác';
+  const productParam = decoded?.product || searchParams.get('product') || 'Lúa thơm ST25';
+  const partnerParam = decoded?.partner || searchParams.get('partner') || 'Đối tác';
 
   const [transcriptLines, setTranscriptLines] = useState<TranscriptLine[]>([]);
   const [proposedPrice, setProposedPrice] = useState(0);
@@ -53,6 +59,7 @@ function CallPageContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRealSTTActive, setIsRealSTTActive] = useState(false);
   const [isMockActive, setIsMockActive] = useState(false);
+  const [inCall, setInCall] = useState(false);
   const [extractError, setExtractError] = useState('');
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualText, setManualText] = useState<string>(() =>
@@ -288,10 +295,12 @@ function CallPageContent() {
       if (response.ok && data.success && data.terms) {
         console.log('[AI] ✅ Trích xuất thành công:', data.terms);
         setContractDraft(data.terms);
+        setIsModalOpen(true);
       } else if (response.status === 422 && data.terms) {
         // Low-confidence case: API returns partial `terms` and a warning message.
         console.warn('[AI] Cảnh báo độ tin cậy thấp nhưng trả về bản nháp:', data.error);
         setContractDraft(data.terms);
+        setIsModalOpen(true);
         setExtractError(data.error || 'Kết quả có độ tin cậy thấp — kiểm tra thủ công.');
       } else {
         console.error('[AI] Lỗi:', data.error);
@@ -421,6 +430,32 @@ function CallPageContent() {
     }
   }, [activeStep, triggerAIExtract]);
 
+  const handleJoinedStateChange = useCallback((joined: boolean, isDemo: boolean) => {
+    setInCall(joined);
+    if (joined) {
+      if (isDemo) {
+        startMockSTT();
+      } else {
+        startRealSTT();
+      }
+    }
+  }, [startMockSTT, startRealSTT]);
+
+  const handleHangUp = useCallback(() => {
+    if (sttClientRef.current) {
+      sttClientRef.current.stopSTT();
+    }
+    setIsRealSTTActive(false);
+    setIsMockActive(false);
+
+    const allLines = transcriptLinesRef.current;
+    if (allLines.length > 0) {
+      triggerAIExtract(allLines);
+    } else {
+      router.push('/');
+    }
+  }, [router, triggerAIExtract]);
+
   // ==========================================
   // LƯU HỢP ĐỒNG VÀ CHUYỂN TRANG
   // ==========================================
@@ -441,7 +476,7 @@ function CallPageContent() {
       if (channelParam) params.set('channel', channelParam);
       params.set('scenario', scenario);
       params.set('tx', txSig);
-      router.push(`/contract/${savedContract.id}?${params.toString()}`);
+      router.push(`/?tab=negotiation&negoId=${savedContract.id}&${params.toString()}`);
     } catch (err) {
       console.error(err);
       alert('Lưu hợp đồng thất bại, nhưng giao dịch on-chain đã gửi: ' + txSig);
@@ -510,69 +545,39 @@ function CallPageContent() {
 
       {/* MAIN CONTENT */}
       <main className="flex-1 flex overflow-hidden relative bg-black">
-        <div className="flex w-full h-full">
-          <div className="flex-1 relative w-full h-full flex flex-col">
-          <VideoCallFrame channelName={channelName} role={isNongDan ? "nong_dan" : "thuong_lai"} />
+        <div className="flex-grow relative w-full h-full flex flex-col">
+          <VideoCallFrame channelName={channelName} role={isNongDan ? "nong_dan" : "thuong_lai"} onJoinedStateChange={handleJoinedStateChange} onHangUp={handleHangUp} />
 
-          {/* OVERLAY: NÚT STT + CẢNH BÁO GIÁ */}
-          <div className="absolute top-4 left-4 z-40 flex flex-col items-start gap-3 pointer-events-none">
-            <div className="flex items-center gap-2 pointer-events-auto flex-wrap">
-              {/* Nút STT Thật */}
-              {(!isRealSTTActive && !isMockActive) ? (
-                <>
-                  <button
-                    onClick={startRealSTT}
-                    disabled={activeStep > 1}
-                    className="px-5 py-2.5 rounded-full bg-emerald-600/90 backdrop-blur-md hover:bg-emerald-500 text-white font-bold text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10"
-                  >
-                    <Mic size={14} />
-                    Bắt đầu nghe (STT Thật)
-                  </button>
-                  <button
-                    onClick={startMockSTT}
-                    disabled={activeStep > 1}
-                    className="px-5 py-2.5 rounded-full bg-indigo-600/90 backdrop-blur-md hover:bg-indigo-500 text-white font-bold text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10"
-                  >
-                    <Sparkles size={14} />
-                    Giả lập Thoại (Demo)
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={stopRealSTT}
-                  className="px-5 py-2.5 rounded-full bg-red-600/90 backdrop-blur-md hover:bg-red-500 text-white font-bold text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2 border border-white/10"
-                >
-                  <MicOff size={14} className="animate-pulse" />
-                  {isMockActive ? 'Dừng giả lập & Trích xuất AI' : 'Dừng nghe & Trích xuất AI'}
-                </button>
+          {/* OVERLAY: BADGES & CẢNH BÁO GIÁ */}
+          {inCall && (
+            <div className="absolute top-4 left-4 z-40 flex flex-col items-start gap-3 pointer-events-none">
+
+              {/* Badge STT thật */}
+              {isRealSTTActive && (
+                <div className="pointer-events-auto px-3 py-1.5 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-[10px] text-emerald-300 font-bold">STT đang nghe tiếng Việt — Hãy nói vào micro</span>
+                </div>
+              )}
+              {isMockActive && (
+                <div className="pointer-events-auto px-3 py-1.5 rounded-full bg-indigo-500/20 backdrop-blur-md border border-indigo-500/30 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                  <span className="text-[10px] text-indigo-300 font-bold">Đang chạy giả lập thoại — Vui lòng chờ...</span>
+                </div>
+              )}
+              
+              {/* Cảnh báo giá */}
+              {proposedPrice > 0 && (
+                <div className="pointer-events-auto shadow-2xl">
+                  <PriceWarningBanner
+                    proposedPrice={proposedPrice}
+                    referencePrice={referencePrice}
+                    productName={productName}
+                  />
+                </div>
               )}
             </div>
-
-            {/* Badge STT thật */}
-            {isRealSTTActive && (
-              <div className="pointer-events-auto px-3 py-1.5 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="text-[10px] text-emerald-300 font-bold">STT đang nghe tiếng Việt — Hãy nói vào micro</span>
-              </div>
-            )}
-            {isMockActive && (
-              <div className="pointer-events-auto px-3 py-1.5 rounded-full bg-indigo-500/20 backdrop-blur-md border border-indigo-500/30 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                <span className="text-[10px] text-indigo-300 font-bold">Đang chạy giả lập thoại — Vui lòng chờ...</span>
-              </div>
-            )}
-            
-            {/* Cảnh báo giá */}
-            {proposedPrice > 0 && (
-              <div className="pointer-events-auto shadow-2xl">
-                <PriceWarningBanner
-                  proposedPrice={proposedPrice}
-                  referencePrice={referencePrice}
-                  productName={productName}
-                />
-              </div>
-            )}
-          </div>
+          )}
 
           {/* FLOATING CLOSED CAPTIONS (phụ đề) */}
           {lastLine && (isRealSTTActive || isMockActive) && (
@@ -620,95 +625,8 @@ function CallPageContent() {
             </div>
           )}
 
-          {/* CONTRACT READY TOAST */}
-          {activeStep === 3 && contractDraft && !isModalOpen && (
-            <div className="absolute bottom-28 right-6 z-40 max-w-sm bg-slate-900/95 backdrop-blur-md border border-emerald-500/30 p-5 rounded-2xl shadow-2xl pointer-events-auto">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center flex-shrink-0 border border-emerald-500/20">
-                  <Sparkles size={18} className="animate-pulse" />
-                </div>
-                <div className="flex-1">
-                  <h5 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    Hợp đồng nháp đã sẵn sàng!
-                  </h5>
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                    AI đã tự động lập điều khoản từ cuộc đàm thoại. Bấm để xem lại và ký quỹ.
-                  </p>
-                  <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="mt-3 w-full py-2.5 bg-gradient-to-r from-emerald-600 to-[#15803D] hover:from-emerald-700 hover:to-[#166534] text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
-                  >
-                    <FileSignature size={14} />
-                    Xem hợp đồng nháp
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+
         </div>
-        <aside className="w-96 bg-slate-900/90 border-l border-white/10 p-4 overflow-y-auto">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-bold text-white">Kịch bản & Bản ghi</h4>
-            <div className="text-xs text-neutral-400">Xác nhận hai bên</div>
-          </div>
-
-          <div className="space-y-3">
-            {transcriptLines.length === 0 ? (
-              <div className="text-sm text-neutral-500">Chưa có lời thoại. Bật STT để bắt đầu.</div>
-            ) : (
-              <ul className="space-y-2">
-                {transcriptLines.map((line) => (
-                  <li key={line.id} className="bg-black/40 p-3 rounded-md border border-white/5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className={`text-xs font-bold ${line.vi_nguoi_noi === 'nong_dan' ? 'text-emerald-300' : 'text-indigo-300'}`}>
-                          {line.vi_nguoi_noi === 'nong_dan' ? 'Nông dân' : 'Thương lái'}
-                          <span className="ml-2 text-[10px] text-neutral-400 font-medium">{new Date(line.thoi_gian_noi).toLocaleTimeString()}</span>
-                        </div>
-                        <p className="mt-1 text-sm leading-snug text-neutral-100">{renderHighlighted(line.noi_dung)}</p>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-2 ml-3">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => toggleConfirmation(line.id, 'nong_dan')}
-                            title="Nông dân xác nhận"
-                            className={`p-1 rounded-md text-xs font-semibold ${confirmations[line.id]?.nong_dan ? 'bg-emerald-600 text-white' : 'bg-white/5 text-neutral-300'}`}
-                          >
-                            <UserCheck size={14} />
-                          </button>
-                          <button
-                            onClick={() => toggleConfirmation(line.id, 'thuong_lai')}
-                            title="Thương lái xác nhận"
-                            className={`p-1 rounded-md text-xs font-semibold ${confirmations[line.id]?.thuong_lai ? 'bg-indigo-600 text-white' : 'bg-white/5 text-neutral-300'}`}
-                          >
-                            <Check size={14} />
-                          </button>
-                        </div>
-
-                        <div className="text-[11px] text-neutral-400">{confirmations[line.id]?.nong_dan && confirmations[line.id]?.thuong_lai ? 'Đã xác nhận' : 'Chưa đầy đủ'}</div>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {proposedSuggestion && (
-            <div className="mt-4 p-3 bg-slate-800 rounded-md border border-slate-700">
-              <div className="text-xs text-neutral-300">Gợi ý từ câu:</div>
-              <div className="text-sm text-white font-semibold mt-1">{proposedSuggestion.phrase}</div>
-              <div className="mt-2 text-sm text-neutral-200">Gợi ý điền <span className="font-bold text-white">{proposedSuggestion.field}</span>: <span className="ml-1 font-medium">{String(proposedSuggestion.value)}</span></div>
-              <div className="mt-3 flex gap-2">
-                <button onClick={acceptSuggestion} className="px-3 py-1 bg-emerald-600 text-white rounded text-sm">Chấp nhận</button>
-                <button onClick={() => addEvidence(proposedSuggestion.phrase)} className="px-3 py-1 bg-slate-700 text-white rounded text-sm">Thêm evidence</button>
-                <button onClick={() => setProposedSuggestion(null)} className="px-3 py-1 bg-slate-600 text-white rounded text-sm">Bỏ</button>
-              </div>
-            </div>
-          )}
-        </aside>
-      </div>
       </main>
 
       {/* CONTRACT MODAL */}

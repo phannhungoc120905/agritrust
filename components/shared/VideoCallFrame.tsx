@@ -7,11 +7,14 @@ import { Mic, MicOff, Video, VideoOff, PhoneOff, PhoneCall, Loader2 } from 'luci
 interface VideoCallFrameProps {
   channelName: string;
   role: 'nong_dan' | 'thuong_lai';
+  onJoinedStateChange?: (joined: boolean, isDemo: boolean) => void;
+  onHangUp?: () => void;
 }
 
-export default function VideoCallFrame({ channelName, role }: VideoCallFrameProps) {
+export default function VideoCallFrame({ channelName, role, onJoinedStateChange, onHangUp }: VideoCallFrameProps) {
   const router = useRouter();
   const [inCall, setInCall] = useState(false);
+  const [isDemoCall, setIsDemoCall] = useState(false);
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
   const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
@@ -21,8 +24,14 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
   const rtcClientRef = useRef<any>(null);
   const localTracksRef = useRef<{ videoTrack: any; audioTrack: any } | null>(null);
 
+  // Sync inCall state with parent
+  useEffect(() => {
+    onJoinedStateChange?.(inCall, isDemoCall);
+  }, [inCall, isDemoCall, onJoinedStateChange]);
+
   // Khởi tạo Agora Client và kết nối cuộc gọi
   const startCall = async () => {
+    setIsDemoCall(false);
     setIsJoining(true);
     try {
       const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
@@ -143,6 +152,7 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
 
   // Vào phòng không cần Camera (Demo Mode an toàn)
   const joinDemoMode = () => {
+    setIsDemoCall(true);
     setInCall(true);
     setCameraOff(true);
     setMuted(true);
@@ -172,6 +182,7 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
 
     setRemoteUsers([]);
     setInCall(false);
+    setIsDemoCall(false);
     setMuted(false);
     setCameraOff(false);
   };
@@ -179,7 +190,11 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
   // Rời phòng và quay lại Dashboard
   const handleExitCall = async () => {
     await endCall();
-    router.push('/');
+    if (onHangUp) {
+      onHangUp();
+    } else {
+      router.push('/');
+    }
   };
 
   // Mute / Unmute âm thanh

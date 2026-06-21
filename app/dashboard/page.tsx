@@ -7,6 +7,7 @@ import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
 import WalletBalance from '../../components/shared/WalletBalance';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase/client';
+import { encodeMeetingParams } from '../../lib/utils/url';
 import {
   Video,
   FileText,
@@ -251,7 +252,12 @@ export default function DashboardPage() {
                         )}
                         {c.trang_thai === 'da_ket_noi' && (
                           <Link
-                            href={`/call?channel=${encodeURIComponent(c.id)}`}
+                            href={`/call?p=${encodeMeetingParams({
+                              channel: c.id,
+                              scenario: 'A',
+                              product: c.san_pham,
+                              partner: isNongDan ? c.nguoi_mua_ten || 'Thương lái' : c.nong_dan_ten || 'Nông dân'
+                            })}`}
                             className="btn-primary bg-indigo-600 hover:bg-indigo-750 text-xs py-1.5 px-3 font-bold gap-1.5"
                           >
                             <Video size={13} /> Vào phòng

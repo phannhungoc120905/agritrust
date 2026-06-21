@@ -7,7 +7,8 @@ export async function loginUser(ten_dang_nhap: string, mat_khau: string) {
     .select('*')
     .eq('ten_dang_nhap', ten_dang_nhap.trim())
     .eq('mat_khau', mat_khau)
-    .single();
+    .limit(1)
+    .maybeSingle();
 
   if (error) {
     console.error('Lỗi khi đăng nhập:', error.message);

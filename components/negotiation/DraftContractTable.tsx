@@ -26,7 +26,7 @@ export default function DraftContractTable({ terms, onChange, isLocked = false }
   };
 
   const handleQualityRuleChange = (index: number, field: keyof QualityRule, value: any) => {
-    const newRules = [...terms.dieu_khoan_chat_luong];
+    const newRules = [...(terms.dieu_khoan_chat_luong || [])];
     newRules[index] = { ...newRules[index], [field]: value };
     onChange({ ...terms, dieu_khoan_chat_luong: newRules });
   };
@@ -198,7 +198,7 @@ export default function DraftContractTable({ terms, onChange, isLocked = false }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
-                {terms.dieu_khoan_chat_luong.map((rule, idx) => (
+                {(terms.dieu_khoan_chat_luong || []).map((rule, idx) => (
                   <tr key={idx} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-5 border-r border-slate-300">
                       <input

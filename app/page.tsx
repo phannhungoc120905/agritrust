@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ConnectWalletButton from '../components/shared/ConnectWalletButton';
 import WalletBalance from '../components/shared/WalletBalance';
 import VideoCallFrame from '../components/shared/VideoCallFrame';
@@ -11,15 +11,16 @@ import DraftContractTable from '../components/negotiation/DraftContractTable';
 import { getMarketListings, createMarketListing } from '../lib/supabase/queries/listings';
 import { createDraftContract, updateContractStatus } from '../lib/supabase/queries/contracts';
 import { supabase } from '../lib/supabase/client';
-import { 
-  ShoppingBag, 
-  FileSignature, 
-  Truck, 
-  ChevronRight, 
-  Loader2, 
-  FileDown, 
-  CheckCircle2, 
-  AlertTriangle, 
+import { encodeMeetingParams } from '../lib/utils/url';
+import {
+  ShoppingBag,
+  FileSignature,
+  Truck,
+  ChevronRight,
+  Loader2,
+  FileDown,
+  CheckCircle2,
+  AlertTriangle,
   ShieldCheck,
   Camera,
   Mic,
@@ -45,7 +46,8 @@ const MARKET_LISTINGS = [
   { id: 'm4', name: '3 Tấn Thanh Long Ruột Đỏ', location: 'Bình Thuận', qty: '3 tấn', desc: 'Thanh long xuất khẩu ruột đỏ, vỏ bóng tai xanh dẻo dai.', farmer: 'HTX Hàm Thuận Nam' },
 ];
 
-export default function HomePage() {
+function HomePageContent() {
+  const searchParams = useSearchParams();
   const { user, loading, logout } = useAuth();
   const router = useRouter();
 
@@ -57,7 +59,7 @@ export default function HomePage() {
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<'market' | 'negotiation' | 'delivery'>('market');
-  
+
   const [negotiations, setNegotiations] = useState<any[]>([
     {
       id: 'a1b2c3d4-e5f6-7890-abcd-100000000003',
@@ -114,6 +116,31 @@ export default function HomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [contractDraft, setContractDraft] = useState<any>(null);
   const [isContractLocked, setIsContractLocked] = useState(false);
+
+
+
+  // Read URL params
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    const negoIdParam = searchParams.get('negoId');
+    if (tabParam) {
+      setActiveTab(tabParam as any);
+    }
+    if (negoIdParam) {
+      setActiveNegotiationId(negoIdParam);
+    }
+  }, [searchParams]);
+
+  // Sync contractDraft when activeNegotiationId changes
+  useEffect(() => {
+    if (activeNegotiationId) {
+      const nego = negotiations.find(n => n.id === activeNegotiationId);
+      if (nego && nego.status === 'da_chot' && nego.contract) {
+        setContractDraft(nego.contract.noi_dung_nhap_ai || nego.contract);
+        setIsContractLocked(true);
+      }
+    }
+  }, [activeNegotiationId, negotiations]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // --- TAB 1 STATE (Farmer listings) ---
@@ -124,7 +151,7 @@ export default function HomePage() {
   // --- TAB 3 STATE (Delivery List & Detail) ---
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
   const [deliveryStage, setDeliveryStage] = useState(0); // 0: Đang giao, 1: Hàng đã tới (chờ check), 2: Xong
-  
+
   // Dispute State
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
   const [disputeStage, setDisputeStage] = useState(0); // 0: Form khiếu nại, 1: Nông dân xác nhận, 2: AI Loading, 3: Kết quả AI
@@ -173,30 +200,30 @@ export default function HomePage() {
   useEffect(() => {
     if (!user) return;
     const userWallet = user.dia_chi_vi;
-    
+
     async function loadDbContracts() {
       try {
         const { data: dbContracts, error } = await supabase
           .from('hop_dong')
           .select('*')
           .or(`vi_nguoi_ban.eq.${userWallet},vi_nguoi_mua.eq.${userWallet}`);
-          
+
         if (error) throw error;
-        
+
         if (dbContracts) {
           const mappedContracts = dbContracts.map((c: any) => {
             const isSeller = c.vi_nguoi_ban === userWallet;
             const partnerAddress = isSeller ? c.vi_nguoi_mua : c.vi_nguoi_ban;
             const partnerName = getPartnerName(partnerAddress);
-              
+
             return {
               id: c.id,
               title: `Thương vụ: ${c.so_luong} ${c.don_vi_tinh} ${c.san_pham}`,
               partnerName: partnerName,
               status: c.trang_thai === 'du_thao' ? 'dang_dam_phan' : 'da_chot',
-              deliveryStatus: c.trang_thai === 'da_khoa_tien' ? 'dang_van_chuyen' : 
-                              c.trang_thai === 'dang_tranh_chap' ? 'cho_nghiem_thu' : 
-                              c.trang_thai === 'da_xac_nhan' || c.trang_thai === 'da_giai_quyet' ? 'da_hoan_thanh' : 'dang_van_chuyen',
+              deliveryStatus: c.trang_thai === 'da_khoa_tien' ? 'dang_van_chuyen' :
+                c.trang_thai === 'dang_tranh_chap' ? 'cho_nghiem_thu' :
+                  c.trang_thai === 'da_xac_nhan' || c.trang_thai === 'da_giai_quyet' ? 'da_hoan_thanh' : 'dang_van_chuyen',
               contract: c,
               stt: c.noi_dung_nhap_ai?.stt || [
                 { sender: 'thuong_lai', text: 'Chào anh, tôi muốn thương lượng lô hàng này.' },
@@ -204,7 +231,7 @@ export default function HomePage() {
               ]
             };
           });
-          
+
           setNegotiations(prev => {
             const filteredPrev = prev.filter(p => !mappedContracts.some((m: any) => m.id === p.id));
             return [...mappedContracts, ...filteredPrev];
@@ -214,9 +241,9 @@ export default function HomePage() {
         console.error('Lỗi khi tải hợp đồng từ database:', err);
       }
     }
-    
+
     loadDbContracts();
-    
+
     // Đăng ký realtime lắng nghe thay đổi trên bảng hop_dong để cập nhật tức thời
     const channel = supabase
       .channel('homepage_contracts')
@@ -232,7 +259,7 @@ export default function HomePage() {
         }
       )
       .subscribe();
-      
+
     return () => {
       supabase.removeChannel(channel);
     };
@@ -259,16 +286,28 @@ export default function HomePage() {
       status: 'dang_dam_phan',
       listingRef: listing
     };
-    
+
     setNegotiations(prev => [newNego, ...prev]);
-    router.push(`/call?channel=${newId}&scenario=A&product=${encodeURIComponent(listing.name)}&partner=${encodeURIComponent(listing.farmer)}`);
+    const encoded = encodeMeetingParams({
+      channel: newId,
+      scenario: 'A',
+      product: listing.name,
+      partner: listing.farmer
+    });
+    router.push(`/call?p=${encoded}`);
   };
 
   const openNegotiation = (nego: any) => {
     if (nego.status === 'da_chot') {
-      router.push(`/contract/${nego.id}`);
+      setActiveNegotiationId(nego.id);
     } else {
-      router.push(`/call?channel=${nego.id}&scenario=A&product=${encodeURIComponent(nego.title.replace('Thương vụ: ', ''))}&partner=${encodeURIComponent(nego.partnerName)}`);
+      const encoded = encodeMeetingParams({
+        channel: nego.id,
+        scenario: 'A',
+        product: nego.title.replace('Thương vụ: ', ''),
+        partner: nego.partnerName
+      });
+      router.push(`/call?p=${encoded}`);
     }
   };
 
@@ -333,7 +372,7 @@ export default function HomePage() {
 
   const handleLockEscrow = async () => {
     if (!contractDraft) return;
-    
+
     try {
       // 1. Tạo hợp đồng dạng dự thảo để lấy mã UUID thật từ database
       const dbContract = await createDraftContract({
@@ -360,15 +399,15 @@ export default function HomePage() {
 
       setIsContractLocked(true);
       setContractDraft(lockedContract);
-      
+
       // Đồng bộ ID hợp đồng mới tạo vào danh sách đàm phán để Tab Giao Nhận lấy đúng ID
-      setNegotiations(prev => prev.map(n => n.id === activeNegotiationId ? { 
-        ...n, 
-        id: lockedContract.id, 
-        status: 'da_chot', 
-        deliveryStatus: 'dang_van_chuyen', 
-        contract: lockedContract, 
-        stt: sttMessages 
+      setNegotiations(prev => prev.map(n => n.id === activeNegotiationId ? {
+        ...n,
+        id: lockedContract.id,
+        status: 'da_chot',
+        deliveryStatus: 'dang_van_chuyen',
+        contract: lockedContract,
+        stt: sttMessages
       } : n));
 
       alert('Khóa tiền thành công! Hợp đồng đã được ghi nhận vào Database thật.');
@@ -424,7 +463,7 @@ export default function HomePage() {
 
   return (
     <div className="flex-grow flex flex-col min-h-screen bg-slate-50 font-sans">
-      
+
       {/* HEADER & TABS */}
       <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm print:hidden">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -525,7 +564,7 @@ export default function HomePage() {
               <button
                 onClick={async () => {
                   if (!newListing.name || !newListing.qty) return alert('Vui lòng nhập tên và số lượng nông sản.');
-                  
+
                   const newListingData = {
                     vi_nguoi_ban: user?.dia_chi_vi || 'nong_dan_wallet_address_demo',
                     ten_san_pham: newListing.name,
@@ -582,7 +621,7 @@ export default function HomePage() {
                   <h3 className="text-lg font-bold text-slate-900">{item.name}</h3>
                   <p className="text-[#15803D] font-bold text-sm mt-2">Số lượng: {item.qty}</p>
                   <p className="text-xs text-slate-500 mt-3 line-clamp-2">{item.desc}</p>
-                  
+
                   <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
                     <ShieldCheck size={14} className="text-emerald-500" />
                     <span className="text-xs font-medium text-slate-700">{item.farmer}</span>
@@ -594,7 +633,7 @@ export default function HomePage() {
                       Đang chờ Thương lái liên hệ
                     </div>
                   ) : (
-                    <button 
+                    <button
                       onClick={() => handleContactNegotiation(item)}
                       className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors"
                     >
@@ -610,7 +649,7 @@ export default function HomePage() {
 
       {/* 🟡 TAB 2: ĐÀM PHÁN & HỢP ĐỒNG */}
       {activeTab === 'negotiation' && (
-        <main className="flex-grow w-full max-w-7xl mx-auto px-6 py-6 h-[calc(100vh-120px)] flex flex-col">
+        <main className="flex-grow w-full max-w-7xl mx-auto px-6 py-6 flex flex-col">
           {!activeNegotiationId ? (
             // DANH SÁCH THƯƠNG VỤ
             <div className="animate-fade-in-up">
@@ -628,9 +667,9 @@ export default function HomePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
-                      {nego.status === 'da_chot' 
+                      {nego.status === 'da_chot'
                         ? <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-200">Đã Chốt & Khóa</span>
-                        : nego.status === 'dang_lien_he' 
+                        : nego.status === 'dang_lien_he'
                           ? <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-lg text-xs font-bold border border-amber-200 animate-pulse">Đang Liên hệ...</span>
                           : <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold border border-indigo-200 animate-pulse">Đang Đàm phán...</span>
                       }
@@ -645,14 +684,14 @@ export default function HomePage() {
             <div className="fixed inset-0 z-[200] bg-black flex flex-col animate-fade-in">
               {/* Header của phòng họp riêng */}
               <div className="absolute top-0 left-0 w-full h-16 bg-gradient-to-b from-black/80 to-transparent z-50 flex items-center px-6 pointer-events-none">
-                 <h2 className="text-white font-bold text-lg drop-shadow-md">Phòng Đàm Phán: {negotiations.find(n => n.id === activeNegotiationId)?.title}</h2>
+                <h2 className="text-white font-bold text-lg drop-shadow-md">Phòng Đàm Phán: {negotiations.find(n => n.id === activeNegotiationId)?.title}</h2>
               </div>
 
               {/* Full screen video */}
               <div className="flex-1 relative w-full h-full">
                 <VideoCallFrame channelName={activeNegotiationId} role={user.vai_tro as 'nong_dan' | 'thuong_lai'} />
               </div>
-              
+
               {/* Overlay button */}
               <div className="absolute top-20 left-6 z-40 flex flex-col items-start gap-3 pointer-events-none">
                 <button onClick={() => setActiveNegotiationId(null)} className="pointer-events-auto px-4 py-2 bg-black/50 hover:bg-black/80 text-white rounded-xl text-xs font-bold border border-white/10 flex items-center gap-1 backdrop-blur-sm">
@@ -664,7 +703,7 @@ export default function HomePage() {
                   disabled={isTyping || contractDraft}
                   className="pointer-events-auto mt-2 px-5 py-2.5 rounded-full bg-indigo-600/90 backdrop-blur-md hover:bg-indigo-500 text-white font-bold text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2 border border-white/10"
                 >
-                  <Mic size={14} className={isTyping ? "animate-pulse text-red-300" : ""} /> 
+                  <Mic size={14} className={isTyping ? "animate-pulse text-red-300" : ""} />
                   {isTyping ? "Hệ thống AI đang nghe..." : "Giả lập Thoại thương lượng"}
                 </button>
               </div>
@@ -713,31 +752,37 @@ export default function HomePage() {
               {contractDraft && !isContractLocked && isModalOpen && (
                 <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-scaleUp pointer-events-auto">
                   <div className="w-full max-w-5xl bg-slate-50 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                     <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-white">
-                        <div>
-                          <h2 className="font-black text-xl text-slate-900">Hợp Đồng Tự Động Ký Quỹ</h2>
-                          <p className="text-xs text-slate-500 mt-1">AI đã trích xuất thành công điều khoản từ hội thoại</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <button onClick={() => setIsModalOpen(false)} className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all">
-                            Đóng Modal
-                          </button>
-                          <button onClick={handleLockEscrow} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-md transition-all">
-                            <ShieldCheck size={16} className="inline mr-2"/> Khóa Tiền & Chốt
-                          </button>
-                        </div>
-                     </div>
-                     <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                    <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-white">
+                      <div>
+                        <h2 className="font-black text-xl text-slate-900">Hợp Đồng Tự Động Ký Quỹ</h2>
+                        <p className="text-xs text-slate-500 mt-1">AI đã trích xuất thành công điều khoản từ hội thoại</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => setIsModalOpen(false)} className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all">
+                          Đóng Modal
+                        </button>
+                        <button onClick={handleLockEscrow} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-md transition-all">
+                          <ShieldCheck size={16} className="inline mr-2" /> Khóa Tiền & Chốt
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                      {contractDraft ? (
                         <DraftContractTable terms={contractDraft} onChange={setContractDraft} isLocked={false} />
-                     </div>
+                      ) : (
+                        <div className="flex justify-center items-center h-full text-slate-400">
+                          <Loader2 className="w-6 h-6 animate-spin" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           ) : (
             // GIAO DIỆN CHIA ĐÔI CHO THƯƠNG VỤ ĐÃ CHỐT
-            <div className="flex flex-1 overflow-hidden rounded-2xl border border-slate-200 shadow-sm animate-fade-in-up">
-              
+            <div className="flex flex-1 min-h-[75vh] md:min-h-[700px] overflow-hidden rounded-2xl border border-slate-200 shadow-sm animate-fade-in-up">
+
               {/* KHUNG STT - BÊN TRÁI */}
               <div className="w-1/3 bg-white border-r border-slate-200 flex flex-col print:hidden">
                 <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
@@ -747,11 +792,11 @@ export default function HomePage() {
                     <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded uppercase">Đã kết thúc</span>
                   </div>
                 </div>
-                
+
                 {/* STT CHAT */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-100" ref={scrollRef}>
                   {sttMessages.map((msg, idx) => {
-                    if(!msg) return null;
+                    if (!msg) return null;
                     return (
                       <div key={idx} className={`flex flex-col ${msg.sender === user?.vai_tro ? 'items-end' : 'items-start'}`}>
                         <span className="text-[10px] font-bold text-slate-400 mb-1 px-1 uppercase">
@@ -788,7 +833,13 @@ export default function HomePage() {
 
                 <div className="flex-1 overflow-y-auto p-6 flex justify-center">
                   <div className="w-full max-w-3xl">
-                    <DraftContractTable terms={contractDraft} onChange={setContractDraft} isLocked={isContractLocked} />
+                    {contractDraft ? (
+                      <DraftContractTable terms={contractDraft} onChange={setContractDraft} isLocked={isContractLocked} />
+                    ) : (
+                      <div className="flex justify-center items-center h-full text-slate-400">
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -850,7 +901,7 @@ export default function HomePage() {
               </div>
 
               <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-8">
-                
+
                 <div className="text-center pb-6 border-b border-slate-100">
                   <PackageCheck size={48} className="mx-auto mb-4 text-[#15803D]" />
                   <h2 className="text-2xl font-black text-slate-900">Kiểm tra Hàng hóa</h2>
@@ -904,7 +955,7 @@ export default function HomePage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Link 
+                      <Link
                         href={`/contract/${activeDeliveryId}?action=confirm`}
                         className="p-6 bg-emerald-50/60 hover:bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group active:scale-98 shadow-sm hover:shadow-md cursor-pointer text-center"
                       >
@@ -917,7 +968,7 @@ export default function HomePage() {
                         </div>
                       </Link>
 
-                      <Link 
+                      <Link
                         href={`/contract/${activeDeliveryId}?action=dispute`}
                         className="p-6 bg-rose-50/60 hover:bg-rose-50 border border-rose-200 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group active:scale-98 shadow-sm hover:shadow-md cursor-pointer text-center"
                       >
@@ -949,13 +1000,13 @@ export default function HomePage() {
                 ✕
               </button>
             </div>
-            
+
             <div className="p-6">
               {/* Timeline Progress */}
               <div className="flex items-center justify-between mb-8 px-4 relative">
                 <div className="absolute left-8 right-8 top-5 h-0.5 bg-slate-100 -z-10"></div>
-                <div className="absolute left-8 right-8 top-5 h-0.5 bg-indigo-500 -z-10 transition-all duration-500" style={{width: `${(disputeStage / 3) * 100}%`}}></div>
-                
+                <div className="absolute left-8 right-8 top-5 h-0.5 bg-indigo-500 -z-10 transition-all duration-500" style={{ width: `${(disputeStage / 3) * 100}%` }}></div>
+
                 <div className={`flex flex-col items-center gap-2 ${disputeStage >= 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 bg-white ${disputeStage >= 0 ? 'border-indigo-600' : 'border-slate-200'}`}>1</div>
                   <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Tạo Báo Cáo</span>
@@ -1000,9 +1051,9 @@ export default function HomePage() {
                       }} className="absolute top-2 right-2 text-[10px] text-slate-300 hover:text-slate-500 underline">Demo: TL gửi báo cáo</button>
                     </div>
                   ) : (
-                    <DisputeReportForm 
-                      contract={negotiations.find(n => n.id === activeDeliveryId)!} 
-                      onSubmitted={handleDisputeSubmitted} 
+                    <DisputeReportForm
+                      contract={negotiations.find(n => n.id === activeDeliveryId)!}
+                      onSubmitted={handleDisputeSubmitted}
                     />
                   )}
                 </div>
@@ -1014,7 +1065,7 @@ export default function HomePage() {
                     <h3 className="font-extrabold text-neutral-800 text-xs uppercase tracking-wider">Chờ Nông dân xác nhận báo cáo</h3>
                     <p className="text-[11px] text-neutral-450 mt-1">Thương lái đã gửi khiếu nại. Nông dân cần xác nhận tình trạng thực tế để AI phân xử.</p>
                   </div>
-                  
+
                   <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3 text-sm">
                     <div className="flex justify-between border-b border-neutral-200 pb-2">
                       <span className="text-neutral-500 font-medium">Số lượng thực nhận:</span>
@@ -1058,12 +1109,12 @@ export default function HomePage() {
 
               {disputeStage === 3 && disputeReport && (
                 <div className="space-y-5 animate-fade-in-up">
-                  
-                  <SettlementProposal 
-                    proposedRatio={disputeReport.ty_le_giai_ngan_ai_de_xuat || 1} 
-                    payoutAmount={disputeReport.so_tien_giai_ngan_de_xuat || 0} 
-                    refundAmount={disputeReport.so_tien_hoan_lai_de_xuat || 0} 
-                    note={disputeReport.ghi_chu_chat_luong || 'Dựa trên hình ảnh và tỉ lệ lỗi được báo cáo.'} 
+
+                  <SettlementProposal
+                    proposedRatio={disputeReport.ty_le_giai_ngan_ai_de_xuat || 1}
+                    payoutAmount={disputeReport.so_tien_giai_ngan_de_xuat || 0}
+                    refundAmount={disputeReport.so_tien_hoan_lai_de_xuat || 0}
+                    note={disputeReport.ghi_chu_chat_luong || 'Dựa trên hình ảnh và tỉ lệ lỗi được báo cáo.'}
                   />
 
                   <div className="space-y-2">
@@ -1085,5 +1136,17 @@ export default function HomePage() {
       )}
 
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-grow flex items-center justify-center bg-white text-neutral-400 min-h-screen gap-2">
+        <span className="text-sm font-semibold">Đang tải ứng dụng...</span>
+      </div>
+    }>
+      <HomePageContent />
+    </Suspense>
   );
 }
