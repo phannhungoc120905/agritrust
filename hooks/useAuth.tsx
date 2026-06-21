@@ -15,6 +15,7 @@ interface AuthContextType {
   loading: boolean;
   login: (userData: AuthUser) => void;
   logout: () => void;
+  updateUser: (userData: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,8 +51,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     router.push('/login');
   };
 
+  const updateUser = (userData: AuthUser) => {
+    setUser(userData);
+    localStorage.setItem('agritrust_session', JSON.stringify(userData));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

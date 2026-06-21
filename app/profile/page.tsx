@@ -13,7 +13,7 @@ import { UserCircle, MapPin, Calendar, ShieldCheck, Mail, Wallet, ChevronLeft, C
 export default function ProfilePage() {
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
-  const { publicKey, connected: walletConnected, select, wallets } = useWallet();
+  const { wallet, publicKey, connected: walletConnected, select, wallets } = useWallet();
   const [dbUser, setDbUser] = useState<any>(null);
   const [contractCount, setContractCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -180,10 +180,19 @@ export default function ProfilePage() {
                   
                   <div className="flex justify-between items-center mb-4 relative z-10">
                     <div className="flex items-center gap-2">
-                      <Wallet size={18} className={walletConnected ? 'text-emerald-600' : 'text-amber-500'} />
-                      <p className={`text-xs font-black uppercase tracking-wider ${walletConnected ? 'text-emerald-800' : 'text-amber-800'}`}>
-                        Địa chỉ ví Solana
-                      </p>
+                      {walletConnected && wallet?.adapter?.icon ? (
+                        <img src={wallet.adapter.icon} alt={wallet.adapter.name} className="w-5 h-5 rounded-full" />
+                      ) : (
+                        <Wallet size={18} className={walletConnected ? 'text-emerald-600' : 'text-amber-500'} />
+                      )}
+                      <div className="flex flex-col">
+                        <p className={`text-xs font-black uppercase tracking-wider ${walletConnected ? 'text-emerald-800' : 'text-amber-800'}`}>
+                          {walletConnected && wallet ? `Ví ${wallet.adapter.name}` : 'Địa chỉ ví Solana'}
+                        </p>
+                        {walletConnected && (
+                          <p className="text-[10px] font-medium text-emerald-600">Mạng: Solana Devnet</p>
+                        )}
+                      </div>
                     </div>
                     {walletConnected && (
                        <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-full border border-emerald-200 shadow-sm">
@@ -193,16 +202,43 @@ export default function ProfilePage() {
                   </div>
                   
                   <div className="flex flex-col gap-4 relative z-10">
-                    <div className={`p-3 rounded-xl border ${walletConnected ? 'bg-white border-emerald-100 shadow-sm' : 'bg-white/60 border-amber-100'}`}>
-                      <p className={`text-sm font-mono font-medium break-all ${walletConnected ? 'text-emerald-900' : 'text-slate-500 italic'}`}>
-                        {walletConnected && publicKey ? (
-                          <span className="flex items-center gap-2">
-                            {publicKey.toBase58()}
-                          </span>
-                        ) : (
-                          dbUser.dia_chi_vi
+                    <div className={`p-4 rounded-xl border ${walletConnected ? 'bg-white border-emerald-100 shadow-sm' : 'bg-white/60 border-amber-100'}`}>
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Chủ sở hữu (Định danh hệ thống)</p>
+                          <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                            <ShieldCheck size={14} className="text-blue-500" />
+                            {dbUser.ten_hien_thi || 'Chưa cập nhật'}
+                          </p>
+                        </div>
+                        
+                        <div className="h-px w-full bg-slate-100"></div>
+
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Địa chỉ mã hoá (Public Key)</p>
+                          <p className={`text-sm font-mono font-medium break-all ${walletConnected ? 'text-emerald-900' : 'text-slate-500 italic'}`}>
+                            {dbUser.dia_chi_vi ? (
+                              <span className="flex items-center gap-2">
+                                {dbUser.dia_chi_vi.slice(0, 8)}...{dbUser.dia_chi_vi.slice(-8)}
+                              </span>
+                            ) : walletConnected && publicKey ? (
+                              <span className="flex items-center gap-2">
+                                {publicKey.toBase58().slice(0, 8)}...{publicKey.toBase58().slice(-8)}
+                              </span>
+                            ) : (
+                              'Chưa cập nhật'
+                            )}
+                          </p>
+                        </div>
+                        
+                        {walletConnected && publicKey && dbUser.dia_chi_vi && publicKey.toBase58() !== dbUser.dia_chi_vi && (
+                          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-xs text-red-600 font-semibold">
+                              ⚠️ Ví đang kết nối KHÔNG PHẢI là ví của tài khoản này! Vui lòng mở Phantom và chuyển sang đúng Account.
+                            </p>
+                          </div>
                         )}
-                      </p>
+                      </div>
                     </div>
 
                     {!walletConnected && (

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { getConnection } from '../lib/solana/program';
 
 export function useWallet() {
-  const { publicKey, connected, sendTransaction, select, disconnect, wallets } = useSolanaWallet();
+  const { wallet, publicKey, connected, sendTransaction, select, disconnect, wallets } = useSolanaWallet();
   const [balance, setBalance] = useState<number>(0);
 
   // Cập nhật số dư ví SOL tự động khi kết nối
@@ -31,6 +31,7 @@ export function useWallet() {
   }, [publicKey]);
 
   return {
+    wallet,
     publicKey,
     connected,
     balance,

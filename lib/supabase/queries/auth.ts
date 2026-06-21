@@ -37,6 +37,26 @@ export async function registerUser(userData: {
   return data;
 }
 
+// Cập nhật địa chỉ ví của người dùng
+export async function updateWalletAddress(ten_dang_nhap: string, dia_chi_vi: string) {
+  const { data, error } = await supabase
+    .from('nguoi_dung')
+    .update({ dia_chi_vi })
+    .eq('ten_dang_nhap', ten_dang_nhap)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      console.warn('Lỗi cập nhật ví: Trùng lặp địa chỉ ví (đã liên kết với tài khoản khác).');
+    } else {
+      console.error('Lỗi cập nhật ví:', error.message);
+    }
+    throw error;
+  }
+  return data;
+}
+
 // Script tự động chèn 2 tài khoản demo khi khởi chạy dự án
 export async function seedDemoUsers() {
   const demoUsers = [

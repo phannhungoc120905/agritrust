@@ -29,9 +29,13 @@ export const WalletContextProvider: FC<Props> = ({ children }) => {
     []
   );
 
+  const onError = React.useCallback((error: any) => {
+    console.log('Lỗi kết nối ví (Có thể do người dùng hủy):', error.message);
+  }, []);
+
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
+      <WalletProvider wallets={wallets} autoConnect onError={onError}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
