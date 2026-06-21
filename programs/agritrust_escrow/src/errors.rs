@@ -2,12 +2,16 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum EscrowError {
-    #[msg("Hợp đồng không ở trạng thái khóa tiền.")]
+    #[msg("Escrow is not locked.")]
     NotLocked,
-    #[msg("Chưa đến thời hạn hết hạn giao hàng.")]
+    #[msg("Delivery deadline has not passed.")]
     DeadlineNotPassed,
-    #[msg("Đã quá hạn giao hàng, không thể thực hiện giao dịch thông thường.")]
+    #[msg("Delivery deadline already passed.")]
     DeadlinePassed,
-    #[msg("Số lượng hàng nhận được lớn hơn số lượng dự kiến.")]
+    #[msg("Actual quantity is greater than expected quantity.")]
     InvalidQuantity,
+    #[msg("Math overflow.")]
+    MathOverflow,
+    #[msg("Seller account does not match the seller argument.")]
+    SellerMismatch,
 }

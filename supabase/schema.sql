@@ -68,7 +68,11 @@ CREATE TABLE nguoi_dung (
 -- ---------------------------------------------------------------------
 CREATE TABLE tin_dang_cho (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+<<<<<<< HEAD
     vi_nguoi_ban    TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi) ON UPDATE CASCADE ON DELETE CASCADE,
+=======
+    vi_nguoi_ban    TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi) ON DELETE CASCADE,
+>>>>>>> origin/p1
     ten_san_pham    TEXT NOT NULL,
     so_luong        TEXT NOT NULL,
     khu_vuc         TEXT NOT NULL,
@@ -82,8 +86,13 @@ CREATE TABLE tin_dang_cho (
 -- ---------------------------------------------------------------------
 CREATE TABLE hop_dong (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+<<<<<<< HEAD
     vi_nguoi_ban            TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi) ON UPDATE CASCADE,  -- nông dân
     vi_nguoi_mua            TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi) ON UPDATE CASCADE,  -- thương lái
+=======
+    vi_nguoi_ban            TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi),  -- nông dân
+    vi_nguoi_mua            TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi),  -- thương lái
+>>>>>>> origin/p1
 
     san_pham                TEXT NOT NULL,            -- ví dụ: "Lúa"
     so_luong                NUMERIC(12,2) NOT NULL,    -- số lượng theo don_vi_tinh
@@ -118,7 +127,11 @@ CREATE INDEX idx_hopdong_trangthai ON hop_dong(trang_thai);
 CREATE TABLE ban_ghi_dam_phan (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     id_hop_dong     UUID REFERENCES hop_dong(id),   -- có thể để trống vì lúc đàm phán chưa chốt hợp đồng
+<<<<<<< HEAD
     vi_nguoi_noi    TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi) ON UPDATE CASCADE,
+=======
+    vi_nguoi_noi    TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi),
+>>>>>>> origin/p1
     noi_dung        TEXT NOT NULL,                   -- đoạn chữ do Agora STT chuyển ra
     den_canh_bao    den_canh_bao_gia NOT NULL DEFAULT 'binh_thuong',
 
@@ -185,7 +198,11 @@ CREATE TABLE nhat_ky_giao_dich (
     ten_ham         ten_ham_smart_contract NOT NULL,
     chu_ky_giao_dich TEXT,        -- transaction signature trả về từ Solana
     trang_thai      trang_thai_giao_dich NOT NULL DEFAULT 'dang_xu_ly',
+<<<<<<< HEAD
     nguoi_goi        TEXT REFERENCES nguoi_dung(dia_chi_vi) ON UPDATE CASCADE,
+=======
+    nguoi_goi        TEXT REFERENCES nguoi_dung(dia_chi_vi),
+>>>>>>> origin/p1
     thoi_gian_goi    TIMESTAMPTZ NOT NULL DEFAULT now(),
     thoi_gian_xac_nhan TIMESTAMPTZ
 );
