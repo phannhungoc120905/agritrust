@@ -14,7 +14,7 @@ import { decodeMeetingParams } from '../../lib/utils/url';
 import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
 import WalletBalance from '../../components/shared/WalletBalance';
 import { useAuth } from '../../hooks/useAuth';
-import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft } from 'lucide-react';
+import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft, MessageSquare } from 'lucide-react';
 
 interface TranscriptLine {
   id: string;
@@ -60,7 +60,20 @@ function CallPageContent() {
   const [isRealSTTActive, setIsRealSTTActive] = useState(false);
   const [isMockActive, setIsMockActive] = useState(false);
   const [inCall, setInCall] = useState(false);
+
+  const isRealSTTActiveRef = useRef(isRealSTTActive);
+  const isMockActiveRef = useRef(isMockActive);
+
+  useEffect(() => {
+    isRealSTTActiveRef.current = isRealSTTActive;
+  }, [isRealSTTActive]);
+
+  useEffect(() => {
+    isMockActiveRef.current = isMockActive;
+  }, [isMockActive]);
   const [extractError, setExtractError] = useState('');
+  const [displayedSubtitle, setDisplayedSubtitle] = useState<{ text: string; role: string } | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualText, setManualText] = useState<string>(() =>
     JSON.stringify(
@@ -237,6 +250,15 @@ function CallPageContent() {
   // Ref để lưu AgoraSTTClient và các câu thoại
   const sttClientRef = useRef<AgoraSTTClient | null>(null);
   const transcriptLinesRef = useRef<TranscriptLine[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isChatOpen) {
+      setTimeout(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+    }
+  }, [transcriptLines, isChatOpen]);
 
   // Khởi tạo STT Client theo channelName
   useEffect(() => {
@@ -303,16 +325,17 @@ function CallPageContent() {
         setIsModalOpen(true);
         setExtractError(data.error || 'Kết quả có độ tin cậy thấp — kiểm tra thủ công.');
       } else {
-        console.error('[AI] Lỗi:', data.error);
         if (response.status === 422) {
+          console.warn('[AI] Cảnh báo dữ liệu:', data.error);
           setExtractError(data.error || 'Không đủ dữ liệu để tạo hợp đồng. Hãy thu thập thêm thông tin.');
         } else {
+          console.warn('[AI] Lỗi:', data.error);
           setExtractError(data.error || 'Lỗi trích xuất AI — thử lại sau.');
         }
         setContractDraft(null);
       }
     } catch (error: any) {
-      console.error('[AI] Lỗi gọi API:', error);
+      console.warn('[AI] Lỗi gọi API:', error);
       setExtractError('Không thể kết nối AI — thử lại sau.');
       setContractDraft(null);
     } finally {
@@ -325,48 +348,63 @@ function CallPageContent() {
   // 1. GIẢ LẬP THOẠI (Mock STT)
   // ==========================================
   const startMockSTT = useCallback(() => {
-    if (isRealSTTActive || isMockActive) return;
+    if (isRealSTTActiveRef.current || isMockActiveRef.current) return;
     if (!sttClientRef.current) return;
 
     setTranscriptLines([]);
     setContractDraft(null);
     setExtractError('');
+    setDisplayedSubtitle(null);
     setActiveStep(1);
 
     const userRole = user?.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai';
 
     sttClientRef.current.startSTT(
-      (text, userId) => {
+      (text, userId, isFinal) => {
         if (!text.trim()) return;
 
-        const priceMatch = text.match(/(\d+)\s*(triệu|tr)/i);
-        if (priceMatch) {
-          setProposedPrice(parseInt(priceMatch[1]) * 1000000);
-        }
+        // Cập nhật phụ đề tức thời (realtime)
+        setDisplayedSubtitle({ text, role: userId });
 
-        const newLine: TranscriptLine = {
-          id: Math.random().toString(36).substring(7),
-          vi_nguoi_noi: userId,
-          noi_dung: text,
-          thoi_gian_noi: new Date().toISOString(),
-          den_canh_bao: 'binh_thuong',
-        };
+        if (isFinal) {
+          // Ẩn phụ đề sau 3 giây nếu không có câu mới
+          const timer = setTimeout(() => {
+            setDisplayedSubtitle(prev => {
+              if (prev?.text === text) return null;
+              return prev;
+            });
+          }, 3000);
 
-        setTranscriptLines(prev => {
-          const next = [...prev, newLine];
-          
-          if (next.length === 4) {
-            setTimeout(() => {
-              if (sttClientRef.current) {
-                sttClientRef.current.stopSTT();
-              }
-              setIsRealSTTActive(false);
-              setIsMockActive(false);
-              triggerAIExtract(next);
-            }, 1000);
+          const priceMatch = text.match(/(\d+)\s*(triệu|tr)/i);
+          if (priceMatch) {
+            setProposedPrice(parseInt(priceMatch[1]) * 1000000);
           }
-          return next;
-        });
+
+          const newLine: TranscriptLine = {
+            id: Math.random().toString(36).substring(7),
+            vi_nguoi_noi: userId,
+            noi_dung: text,
+            thoi_gian_noi: new Date().toISOString(),
+            den_canh_bao: 'binh_thuong',
+          };
+
+          setTranscriptLines(prev => {
+            const next = [...prev, newLine];
+            
+            if (next.length === 4) {
+              setTimeout(() => {
+                if (sttClientRef.current) {
+                  sttClientRef.current.stopSTT();
+                }
+                setIsRealSTTActive(false);
+                setIsMockActive(false);
+                setDisplayedSubtitle(null);
+                triggerAIExtract(next);
+              }, 1000);
+            }
+            return next;
+          });
+        }
       },
       userRole,
       true // useMock = true
@@ -374,40 +412,54 @@ function CallPageContent() {
 
     setIsRealSTTActive(false);
     setIsMockActive(true);
-  }, [isRealSTTActive, isMockActive, user, triggerAIExtract]);
+  }, [user, triggerAIExtract]);
 
   // ==========================================
   // 2. STT THẬT (Web Speech API tiếng Việt qua STT Client)
   // ==========================================
   const startRealSTT = useCallback(() => {
-    if (isRealSTTActive || isMockActive) return;
+    if (isRealSTTActiveRef.current || isMockActiveRef.current) return;
     if (!sttClientRef.current) return;
 
     setTranscriptLines([]);
     setContractDraft(null);
     setExtractError('');
+    setDisplayedSubtitle(null);
     setActiveStep(1);
 
     const userRole = user?.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai';
 
     sttClientRef.current.startSTT(
-      (text, userId) => {
+      (text, userId, isFinal) => {
         if (!text.trim()) return;
 
-        const priceMatch = text.match(/(\d+)\s*(triệu|tr)/i);
-        if (priceMatch) {
-          setProposedPrice(parseInt(priceMatch[1]) * 1000000);
+        // Cập nhật phụ đề tức thời (realtime)
+        setDisplayedSubtitle({ text, role: userId });
+
+        if (isFinal) {
+          // Ẩn phụ đề sau 3 giây nếu không có câu mới
+          const timer = setTimeout(() => {
+            setDisplayedSubtitle(prev => {
+              if (prev?.text === text) return null;
+              return prev;
+            });
+          }, 3000);
+
+          const priceMatch = text.match(/(\d+)\s*(triệu|tr)/i);
+          if (priceMatch) {
+            setProposedPrice(parseInt(priceMatch[1]) * 1000000);
+          }
+
+          const newLine: TranscriptLine = {
+            id: Math.random().toString(36).substring(7),
+            vi_nguoi_noi: userId,
+            noi_dung: text,
+            thoi_gian_noi: new Date().toISOString(),
+            den_canh_bao: 'binh_thuong',
+          };
+
+          setTranscriptLines(prev => [...prev, newLine]);
         }
-
-        const newLine: TranscriptLine = {
-          id: Math.random().toString(36).substring(7),
-          vi_nguoi_noi: userId,
-          noi_dung: text,
-          thoi_gian_noi: new Date().toISOString(),
-          den_canh_bao: 'binh_thuong',
-        };
-
-        setTranscriptLines(prev => [...prev, newLine]);
       },
       userRole,
       false // useMock = false
@@ -415,7 +467,7 @@ function CallPageContent() {
 
     setIsRealSTTActive(true);
     setIsMockActive(false);
-  }, [isRealSTTActive, isMockActive, user]);
+  }, [user]);
 
   const stopRealSTT = useCallback(() => {
     if (sttClientRef.current) {
@@ -423,6 +475,7 @@ function CallPageContent() {
     }
     setIsRealSTTActive(false);
     setIsMockActive(false);
+    setDisplayedSubtitle(null);
 
     const allLines = transcriptLinesRef.current;
     if (allLines.length > 0 && activeStep === 1) {
@@ -438,6 +491,13 @@ function CallPageContent() {
       } else {
         startRealSTT();
       }
+    } else {
+      if (sttClientRef.current) {
+        sttClientRef.current.stopSTT();
+      }
+      setIsRealSTTActive(false);
+      setIsMockActive(false);
+      setDisplayedSubtitle(null);
     }
   }, [startMockSTT, startRealSTT]);
 
@@ -447,6 +507,7 @@ function CallPageContent() {
     }
     setIsRealSTTActive(false);
     setIsMockActive(false);
+    setDisplayedSubtitle(null);
 
     const allLines = transcriptLinesRef.current;
     if (allLines.length > 0) {
@@ -493,6 +554,9 @@ function CallPageContent() {
   }
 
   const isNongDan = user.vai_tro === 'nong_dan';
+  const currentUserName = user?.ten_hien_thi || 'Tôi';
+  const nongDanName = isNongDan ? currentUserName : partnerParam;
+  const thuongLaiName = isNongDan ? partnerParam : currentUserName;
   const lastLine = transcriptLines.length > 0 ? transcriptLines[transcriptLines.length - 1] : null;
 
   return (
@@ -546,7 +610,74 @@ function CallPageContent() {
       {/* MAIN CONTENT */}
       <main className="flex-1 flex overflow-hidden relative bg-black">
         <div className="flex-grow relative w-full h-full flex flex-col">
-          <VideoCallFrame channelName={channelName} role={isNongDan ? "nong_dan" : "thuong_lai"} onJoinedStateChange={handleJoinedStateChange} onHangUp={handleHangUp} />
+          <VideoCallFrame
+            channelName={channelName}
+            role={isNongDan ? "nong_dan" : "thuong_lai"}
+            onJoinedStateChange={handleJoinedStateChange}
+            onHangUp={handleHangUp}
+            onToggleChat={() => setIsChatOpen(!isChatOpen)}
+            isChatOpen={isChatOpen}
+          />
+
+          {/* FLOATING CHAT HISTORY PANEL */}
+          {isChatOpen && (
+            <div className="absolute top-4 right-4 bottom-28 w-80 md:w-96 bg-neutral-950/85 backdrop-blur-xl border border-white/10 rounded-2xl z-40 flex flex-col overflow-hidden shadow-2xl animate-scaleUp">
+              <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={16} className="text-indigo-400" />
+                  <span className="text-sm font-bold text-white">Nội dung đàm thoại</span>
+                </div>
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-white/15 text-neutral-400 hover:text-white transition-colors"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* Chat messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col min-h-0">
+                {transcriptLines.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-neutral-500">
+                    <MessageSquare size={24} className="opacity-30 mb-2" />
+                    <p className="text-xs">Chưa có hội thoại nào được ghi nhận.</p>
+                    <p className="text-[10px] mt-1 opacity-70">Các câu nói của bạn và đối tác sẽ xuất hiện tại đây.</p>
+                  </div>
+                ) : (
+                  transcriptLines.map((line) => {
+                    const isLineNongDan = line.vi_nguoi_noi === 'nong_dan';
+                    return (
+                      <div
+                        key={line.id}
+                        className={`flex flex-col max-w-[85%] ${
+                          isLineNongDan ? 'self-start items-start' : 'self-end items-end'
+                        }`}
+                      >
+                        <span className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${
+                          isLineNongDan ? 'text-emerald-400' : 'text-indigo-400'
+                        }`}>
+                          {isLineNongDan ? nongDanName : thuongLaiName}
+                        </span>
+                        <div
+                          className={`px-3 py-2.5 rounded-2xl text-xs font-semibold leading-relaxed ${
+                            isLineNongDan
+                              ? 'bg-emerald-950/60 border border-emerald-500/20 text-emerald-100 rounded-tl-none'
+                              : 'bg-indigo-950/60 border border-indigo-500/20 text-indigo-100 rounded-tr-none'
+                          }`}
+                        >
+                          {line.noi_dung}
+                        </div>
+                        <span className="text-[9px] text-neutral-500 mt-1">
+                          {new Date(line.thoi_gian_noi).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={chatEndRef} />
+              </div>
+            </div>
+          )}
 
           {/* OVERLAY: BADGES & CẢNH BÁO GIÁ */}
           {inCall && (
@@ -554,15 +685,23 @@ function CallPageContent() {
 
               {/* Badge STT thật */}
               {isRealSTTActive && (
-                <div className="pointer-events-auto px-3 py-1.5 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="text-[10px] text-emerald-300 font-bold">STT đang nghe tiếng Việt — Hãy nói vào micro</span>
+                <div className="pointer-events-auto px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 flex items-center gap-1.5 shadow-lg shadow-emerald-950/20 animate-fadeIn">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <Mic size={11} className="text-emerald-300 animate-pulse" />
+                  <span className="text-[9px] text-emerald-300 font-extrabold tracking-wider uppercase">STT</span>
                 </div>
               )}
               {isMockActive && (
-                <div className="pointer-events-auto px-3 py-1.5 rounded-full bg-indigo-500/20 backdrop-blur-md border border-indigo-500/30 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                  <span className="text-[10px] text-indigo-300 font-bold">Đang chạy giả lập thoại — Vui lòng chờ...</span>
+                <div className="pointer-events-auto px-2.5 py-1 rounded-full bg-indigo-500/20 backdrop-blur-md border border-indigo-500/30 flex items-center gap-1.5 shadow-lg shadow-indigo-950/20 animate-fadeIn">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                  </span>
+                  <Sparkles size={11} className="text-indigo-300 animate-pulse" />
+                  <span className="text-[9px] text-indigo-300 font-extrabold tracking-wider uppercase">Demo</span>
                 </div>
               )}
               
@@ -580,16 +719,16 @@ function CallPageContent() {
           )}
 
           {/* FLOATING CLOSED CAPTIONS (phụ đề) */}
-          {lastLine && (isRealSTTActive || isMockActive) && (
+          {displayedSubtitle && (isRealSTTActive || isMockActive) && (
             <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 z-45 text-center pointer-events-none animate-fadeIn">
               <div className="bg-black/75 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 shadow-2xl text-white inline-block max-w-full">
                 <span className={`text-[9px] uppercase tracking-wider font-extrabold block mb-1 ${
-                  lastLine.vi_nguoi_noi === 'nong_dan' ? 'text-emerald-400' : 'text-indigo-400'
+                  displayedSubtitle.role === 'nong_dan' ? 'text-emerald-400' : 'text-indigo-400'
                 }`}>
-                  {lastLine.vi_nguoi_noi === 'nong_dan' ? 'Nông dân' : 'Thương lái'}
+                  {displayedSubtitle.role === 'nong_dan' ? nongDanName : thuongLaiName}
                 </span>
                 <p className="text-sm font-semibold leading-relaxed">
-                  &ldquo;{lastLine.noi_dung}&rdquo;
+                  &ldquo;{displayedSubtitle.text}&rdquo;
                 </p>
               </div>
             </div>

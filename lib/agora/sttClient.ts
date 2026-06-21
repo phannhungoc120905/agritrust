@@ -6,10 +6,12 @@ export class AgoraSTTClient {
   private appId: string;
   private channelName: string;
   private isListening: boolean = false;
-  private onTranscriptCallback?: (text: string, userId: string) => void;
+  private onTranscriptCallback?: (text: string, userId: string, isFinal: boolean) => void;
   private recognition: any = null;
   private currentUserId: string = 'nong_dan';
   private usingMock: boolean = false;
+  private sentenceBuffer: string = '';
+  private flushTimer: NodeJS.Timeout | null = null;
 
   constructor(channelName: string) {
     this.appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || '';
@@ -23,7 +25,7 @@ export class AgoraSTTClient {
    * @param useMock Bắt buộc dùng mock (để giả lập khi demo)
    */
   public async startSTT(
-    onTranscript: (text: string, userId: string) => void,
+    onTranscript: (text: string, userId: string, isFinal: boolean) => void,
     userId: string = 'nong_dan',
     useMock: boolean = false
   ) {
@@ -56,32 +58,49 @@ export class AgoraSTTClient {
     }
   }
 
-  /**
-   * Tích hợp Web Speech API thật cho nhận diện giọng nói tiếng Việt
-   */
   private startRealSTT(SpeechRecognition: any) {
     const recognition = new SpeechRecognition();
     this.recognition = recognition;
 
     // Cấu hình SpeechRecognition
     recognition.lang = 'vi-VN';           // Tiếng Việt
-    recognition.continuous = true;         // Liên tục nhận diện
-    recognition.interimResults = false;    // Chỉ lấy kết quả cuối cùng (final)
+    recognition.continuous = true;          // Giữ kết nối liên tục để nhận diện trôi chảy
+    recognition.interimResults = true;     // Lấy kết quả tức thời thời gian thực
     recognition.maxAlternatives = 1;       // Chỉ lấy 1 kết quả tốt nhất
 
     // Sự kiện nhận kết quả nhận diện
     recognition.onresult = (event: any) => {
       if (!this.isListening) return;
 
+      let currentInterim = '';
+
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
+        const transcript = result[0].transcript.trim();
+        
         if (result.isFinal) {
-          const transcript = result[0].transcript.trim();
-          if (transcript.length > 0 && this.onTranscriptCallback) {
-            console.log(`[STT Real] ${this.currentUserId}: "${transcript}"`);
-            this.onTranscriptCallback(transcript, this.currentUserId);
+          // Gộp vào buffer
+          if (this.sentenceBuffer) {
+            this.sentenceBuffer += ' ' + transcript;
+          } else {
+            this.sentenceBuffer = transcript;
           }
+
+          // Restart timer để chờ xem người dùng có nói tiếp không
+          if (this.flushTimer) clearTimeout(this.flushTimer);
+          this.flushTimer = setTimeout(() => {
+            this.flushSentenceBuffer();
+          }, 300); // Đợi 0.3s im lặng thì chốt câu (tách cực nhanh)
+        } else {
+          currentInterim += transcript;
         }
+      }
+
+      // Phát phụ đề tạm thời: kết hợp những câu đã chốt trong buffer và phần đang nói dở
+      const combinedText = (this.sentenceBuffer + (this.sentenceBuffer && currentInterim ? ' ' : '') + currentInterim).trim();
+      
+      if (combinedText.length > 0 && this.onTranscriptCallback) {
+        this.onTranscriptCallback(combinedText, this.currentUserId, false);
       }
     };
 
@@ -99,6 +118,10 @@ export class AgoraSTTClient {
 
     // Xử lý lỗi
     recognition.onerror = (event: any) => {
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        console.warn('[STT] Trạng thái:', event.error);
+        return;
+      }
       console.error('[STT] Lỗi nhận diện:', event.error);
       // Nếu lỗi "not-allowed" (user từ chối mic), chuyển sang mock
       if (event.error === 'not-allowed' || event.error === 'service-not-available') {
@@ -106,7 +129,6 @@ export class AgoraSTTClient {
         this.usingMock = true;
         this.mockSTT();
       }
-      // Các lỗi khác (no-speech, aborted) sẽ tự restart qua onend
     };
 
     // Bắt đầu nhận diện
@@ -124,7 +146,22 @@ export class AgoraSTTClient {
    * Đổi vai trò người nói (khi đang dùng STT thật, mỗi lượt nói có thể đổi người)
    */
   public setSpeaker(userId: string) {
+    if (this.currentUserId !== userId) {
+      this.flushSentenceBuffer();
+    }
     this.currentUserId = userId;
+  }
+
+  private flushSentenceBuffer() {
+    if (this.sentenceBuffer.length > 0 && this.onTranscriptCallback) {
+      console.log(`[STT Buffered Final] ${this.currentUserId}: "${this.sentenceBuffer}"`);
+      this.onTranscriptCallback(this.sentenceBuffer, this.currentUserId, true);
+      this.sentenceBuffer = '';
+    }
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
   }
 
   /**
@@ -144,6 +181,7 @@ export class AgoraSTTClient {
   // Dừng dịch hội thoại
   public stopSTT() {
     this.isListening = false;
+    this.flushSentenceBuffer();
 
     // Dừng Web Speech API nếu đang chạy
     if (this.recognition) {
@@ -177,12 +215,20 @@ export class AgoraSTTClient {
       if (index < conversation.length) {
         const item = conversation[index];
         if (this.onTranscriptCallback) {
-          this.onTranscriptCallback(item.text, item.user);
+          // Gửi phụ đề tạm trước (chữ chạy)
+          this.onTranscriptCallback(item.text, item.user, false);
+          
+          // Sau đó 300ms thì xác thực hoàn thành
+          setTimeout(() => {
+            if (this.isListening && this.onTranscriptCallback) {
+              this.onTranscriptCallback(item.text, item.user, true);
+            }
+          }, 300);
         }
         index++;
       } else {
         clearInterval(interval);
       }
-    }, 600); // Giả lập siêu tốc (0.6 giây gửi 1 câu để demo diễn ra cực kỳ nhanh chóng)
+    }, 2000); // 2 giây mỗi câu để trải nghiệm dễ theo dõi hơn
   }
 }

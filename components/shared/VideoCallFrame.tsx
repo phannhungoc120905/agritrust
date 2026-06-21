@@ -2,16 +2,18 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, PhoneCall, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, PhoneCall, Loader2, MessageSquare } from 'lucide-react';
 
 interface VideoCallFrameProps {
   channelName: string;
   role: 'nong_dan' | 'thuong_lai';
   onJoinedStateChange?: (joined: boolean, isDemo: boolean) => void;
   onHangUp?: () => void;
+  onToggleChat?: () => void;
+  isChatOpen?: boolean;
 }
 
-export default function VideoCallFrame({ channelName, role, onJoinedStateChange, onHangUp }: VideoCallFrameProps) {
+export default function VideoCallFrame({ channelName, role, onJoinedStateChange, onHangUp, onToggleChat, isChatOpen }: VideoCallFrameProps) {
   const router = useRouter();
   const [inCall, setInCall] = useState(false);
   const [isDemoCall, setIsDemoCall] = useState(false);
@@ -24,10 +26,15 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
   const rtcClientRef = useRef<any>(null);
   const localTracksRef = useRef<{ videoTrack: any; audioTrack: any } | null>(null);
 
+  const onJoinedStateChangeRef = useRef(onJoinedStateChange);
+  useEffect(() => {
+    onJoinedStateChangeRef.current = onJoinedStateChange;
+  }, [onJoinedStateChange]);
+
   // Sync inCall state with parent
   useEffect(() => {
-    onJoinedStateChange?.(inCall, isDemoCall);
-  }, [inCall, isDemoCall, onJoinedStateChange]);
+    onJoinedStateChangeRef.current?.(inCall, isDemoCall);
+  }, [inCall, isDemoCall]);
 
   // Khởi tạo Agora Client và kết nối cuộc gọi
   const startCall = async () => {
@@ -299,11 +306,7 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
             </div>
           </div>
 
-          {/* Thông tin kênh ở góc trái */}
-          <div className="absolute top-6 left-6 px-4 py-2 bg-black/50 backdrop-blur-md rounded-xl text-white z-20 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-semibold">{channelName}</span>
-          </div>
+
 
           {/* Floating Control Bar (Toolbar) */}
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/50 backdrop-blur-xl px-6 py-3 rounded-full z-30 border border-white/10 shadow-2xl transition-transform duration-300 transform group-hover:translate-y-0">
@@ -327,6 +330,17 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
               title={cameraOff ? 'Bật Camera' : 'Tắt Camera'}
             >
               {cameraOff ? <VideoOff size={20} /> : <Video size={20} />}
+            </button>
+
+            {/* Nút Lịch Sử Trò Chuyện */}
+            <button
+              onClick={onToggleChat}
+              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 ${
+                isChatOpen ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
+              }`}
+              title={isChatOpen ? 'Ẩn lịch sử đàm thoại' : 'Xem lịch sử đàm thoại'}
+            >
+              <MessageSquare size={20} />
             </button>
 
             {/* Nút Tắt Cuộc Gọi */}
