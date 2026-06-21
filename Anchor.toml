@@ -1,0 +1,19 @@
+[features]
+seeds = false
+skip-lint = false
+
+[programs.localnet]
+agritrust_escrow = "AgriTrust1111111111111111111111111111111111"
+
+[programs.devnet]
+agritrust_escrow = "AgriTrust1111111111111111111111111111111111"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npx mocha -r tsx/register tests/escrow.test.ts --timeout 1000000"
