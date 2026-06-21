@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, PhoneCall, Loader2 } from 'lucide-react';
 
 interface VideoCallFrameProps {
@@ -9,6 +10,7 @@ interface VideoCallFrameProps {
 }
 
 export default function VideoCallFrame({ channelName, role }: VideoCallFrameProps) {
+  const router = useRouter();
   const [inCall, setInCall] = useState(false);
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
@@ -50,7 +52,7 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
 
       const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || '';
       if (!appId || appId === 'YOUR_AGORA_APP_ID') {
-        console.warn('Thiếu NEXT_PUBLIC_AGORA_APP_ID. Bật chế độ Demo Video Call (chỉ hiển thị cục bộ) để test chức năng STT.');
+        console.warn('Thiếu NEXT_PUBLIC_AGORA_APP_ID. Chạy Demo Video Call cục bộ.');
         setIsJoining(false);
         return;
       }
@@ -60,35 +62,73 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
       rtcClientRef.current = client;
 
       // Lắng nghe sự kiện người khác tham gia & stream video/audio
-      client.on('user-published', async (user, mediaType) => {
-        await client.subscribe(user, mediaType);
-        
-        if (mediaType === 'video') {
-          setRemoteUsers((prev) => {
-            if (prev.find((u) => u.uid === user.uid)) return prev;
-            return [...prev, user];
-          });
-        }
-        if (mediaType === 'audio') {
-          user.audioTrack?.play();
+      client.on('user-published', async (user: any, mediaType: 'video' | 'audio') => {
+        try {
+          await client.subscribe(user, mediaType);
+          if (mediaType === 'video') {
+            setRemoteUsers((prev) => {
+              if (prev.find((u) => u.uid === user.uid)) return prev;
+              return [...prev, user];
+            });
+          }
+          if (mediaType === 'audio') {
+            user.audioTrack?.play();
+          }
+        } catch (subErr) {
+          console.error('Lỗi khi subscribe user:', subErr);
         }
       });
 
-      client.on('user-unpublished', (user) => {
+      client.on('user-unpublished', (user: any) => {
         setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
       });
 
-      // 3. Join Kênh và Publish
-      const uid = await client.join(appId, channelName, null, null);
-      
-      const tracksToPublish = [];
-      if (audioTrack) tracksToPublish.push(audioTrack);
-      if (videoTrack) tracksToPublish.push(videoTrack);
-
-      if (tracksToPublish.length > 0) {
-        await client.publish(tracksToPublish);
+      // 3. Lấy token từ API route nếu dự án dùng Secured Mode
+      let token: string | null = null;
+      try {
+        const tokenRes = await fetch(`/api/agora-token?channelName=${encodeURIComponent(channelName)}`);
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          token = tokenData.token;
+        }
+      } catch (tokenFetchErr) {
+        console.warn('Không thể lấy Agora Token từ API route, thử dùng null token:', tokenFetchErr);
       }
-      console.log(`Đã kết nối cuộc gọi thật thành công, UID: ${uid}`);
+
+      // 4. Join Kênh và Publish
+      try {
+        const uid = await client.join(appId, channelName, token, null);
+        
+        const tracksToPublish = [];
+        if (audioTrack) tracksToPublish.push(audioTrack);
+        if (videoTrack) tracksToPublish.push(videoTrack);
+
+        if (tracksToPublish.length > 0) {
+          await client.publish(tracksToPublish);
+        }
+        console.log(`Đã kết nối cuộc gọi thật thành công, UID: ${uid}`);
+      } catch (joinErr: any) {
+        console.error('Lỗi khi join channel Agora:', joinErr);
+        const isTokenError = 
+          joinErr.message?.includes('dynamic use static key') || 
+          joinErr.code === 'CAN_NOT_GET_GATEWAY_SERVER' ||
+          (joinErr.message && joinErr.message.indexOf('static key') !== -1);
+          
+        if (isTokenError) {
+          console.warn('CẢNH BÁO: Agora App ID yêu cầu Token (Secured Mode) nhưng token chưa hợp lệ.');
+          alert(
+            'LƯU Ý: Agora App ID của bạn yêu cầu Token xác thực (Secured Mode).\n\n' +
+            'Để kết nối cuộc gọi Video Call thật giữa hai bên, hãy làm theo 1 trong 2 cách sau:\n' +
+            'Cách 1 (Nhanh & Khuyên dùng): Copy dòng "Primary Certificate" trong Agora Console của dự án, mở file .env thêm dòng:\n' +
+            '  AGORA_APP_CERTIFICATE=mã_certificate_của_bạn\n' +
+            'Sau đó khởi động lại server dev.\n\n' +
+            'Cách 2: Nếu Agora cho phép, tạo một dự án mới ở chế độ "Testing Mode: App ID only" (không tạo App Certificate), copy App ID mới dán vào .env.'
+          );
+        } else {
+          console.warn('Không thể kết nối Agora RTC. Chạy ở chế độ cục bộ.');
+        }
+      }
+      setIsJoining(false);
 
     } catch (err) {
       console.error('Lỗi kết nối Video Call:', err);
@@ -134,6 +174,12 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
     setInCall(false);
     setMuted(false);
     setCameraOff(false);
+  };
+
+  // Rời phòng và quay lại Dashboard
+  const handleExitCall = async () => {
+    await endCall();
+    router.push('/');
   };
 
   // Mute / Unmute âm thanh
@@ -191,9 +237,16 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
 
             <button
               onClick={joinDemoMode}
-              className="flex items-center justify-center gap-2 px-8 py-3 w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-semibold transition-all"
+              className="flex items-center justify-center gap-2 px-8 py-3 w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-semibold transition-all animate-pulse"
             >
               Vào phòng nhanh (Demo an toàn)
+            </button>
+
+            <button
+              onClick={() => router.push('/')}
+              className="flex items-center justify-center gap-2 px-8 py-3 w-full bg-neutral-900/60 hover:bg-neutral-900 border border-white/10 text-neutral-400 hover:text-white rounded-full text-sm font-semibold transition-all"
+            >
+              Hủy / Quay lại
             </button>
           </div>
         </div>
@@ -263,7 +316,7 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
 
             {/* Nút Tắt Cuộc Gọi */}
             <button
-              onClick={endCall}
+              onClick={handleExitCall}
               className="w-16 h-12 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white transition-transform active:scale-95 shadow-lg ml-2"
               title="Rời cuộc gọi"
             >

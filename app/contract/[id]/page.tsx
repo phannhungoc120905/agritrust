@@ -53,65 +53,46 @@ function ContractPageContent() {
   const loadData = async () => {
     try {
       setLoading(true);
-      if (contractId === 'HD-8902' || contractId === 'HD-8899' || contractId === 'dummy') {
-        // Fallback dữ liệu mock chất lượng cao để chạy demo các dòng cũ
-        const mockCon = {
-          id: contractId,
-          san_pham: contractId === 'HD-8899' ? 'Cà phê Robusta' : 'Xoài cát Hòa Lộc',
-          so_luong: contractId === 'HD-8899' ? 1.2 : 3,
-          don_vi_tinh: 'tấn',
-          don_gia: contractId === 'HD-8899' ? 78000000 : 45000000,
-          han_giao_hang: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-          dia_chi_vi_escrow: 'Solana_Escrow_PDA_Vault_Demo_Address',
-          tong_tien_usdc_khoa: contractId === 'HD-8899' ? 3744 : 5400,
-          trang_thai: contractId === 'HD-8899' ? 'da_xac_nhan' : 'da_khoa_tien',
+      if (contractId === 'a1b2c3d4-e5f6-7890-abcd-100000000001') {
+        setContract({
+          id: 'a1b2c3d4-e5f6-7890-abcd-100000000001',
           vi_nguoi_ban: 'nong_dan_wallet_address_demo',
           vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
+          san_pham: 'Cà phê Robusta',
+          so_luong: 2,
+          don_vi_tinh: 'tấn',
+          don_gia: 75000000,
+          han_giao_hang: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          dieu_khoan_chat_luong: [{ tieu_chi: 'Hạt đen vỡ', nguong_phan_tram: 5, muc_phat: 'Trừ 1% giá trị' }],
           ty_gia_vnd_usdc: 25000,
-          noi_dung_nhap_ai: { nguon: 'Mock data demo' },
-          dieu_khoan_chat_luong: [
-            { tieu_chi: 'Độ ẩm', nguong_phan_tram: 14, muc_phat: 'Trừ 2% giá trị' },
-            { tieu_chi: 'Tạp chất', nguong_phan_tram: 5, muc_phat: 'Trừ 1% giá trị' }
-          ],
+          tong_tien_usdc_khoa: 6000,
+          dia_chi_vi_escrow: 'Solana_Escrow_PDA_Demo',
+          trang_thai: 'da_khoa_tien',
           ngay_tao: new Date().toISOString(),
-          ngay_xac_nhan: new Date().toISOString()
-        };
-        setContract(mockCon);
+          ngay_xac_nhan: new Date().toISOString(),
+          noi_dung_nhap_ai: {
+            san_pham: 'Cà phê Robusta',
+            so_luong: 2,
+            don_gia: 75000000,
+            nguon: 'Trích xuất từ đàm phán thoại AI'
+          }
+        });
+        setDispute(null);
         setLoading(false);
         return;
       }
 
       const con = await getContractById(contractId);
       setContract(con);
-      
+
       const disp = await getDisputeByContractId(contractId);
       setDispute(disp);
       if (disp) {
         setInspectionDecision('issue');
       }
     } catch (err) {
-      console.error('Lỗi khi tải dữ liệu hợp đồng, khởi tạo dữ liệu giả lập để trình diễn:', err);
-      // Fallback khi gặp lỗi kết nối hoặc UUID không tìm thấy
-      const mockCon = {
-        id: contractId,
-        san_pham: 'Lúa thơm ST25',
-        so_luong: 10,
-        don_vi_tinh: 'tấn',
-        don_gia: 9000000,
-        han_giao_hang: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-        dia_chi_vi_escrow: 'Solana_Escrow_PDA_Vault_Demo_Address',
-        tong_tien_usdc_khoa: 3600,
-        trang_thai: 'da_khoa_tien',
-        vi_nguoi_ban: 'nong_dan_wallet_address_demo',
-        vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
-        ty_gia_vnd_usdc: 25000,
-        noi_dung_nhap_ai: { nguon: 'Fallback mock data' },
-        dieu_khoan_chat_luong: [
-          { tieu_chi: 'Độ ẩm', nguong_phan_tram: 14, muc_phat: 'Trừ 2% giá trị' }
-        ],
-        ngay_tao: new Date().toISOString()
-      };
-      setContract(mockCon);
+      console.error('Lỗi khi tải dữ liệu hợp đồng:', err);
+      setContract(null);
     } finally {
       setLoading(false);
     }

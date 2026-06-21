@@ -40,6 +40,7 @@ const MARKET_LISTINGS = [
   { id: 'm1', name: '5 Tấn Lúa ST25', location: 'Long An', qty: '5 tấn', desc: 'Lúa đẹp, độ ẩm <14%, cam kết thu hoạch đúng ngày.', farmer: 'HTX Nông Nghiệp Vàm Cỏ' },
   { id: 'm2', name: '2 Tấn Cà Phê Robusta', location: 'Đắk Lắk', qty: '2 tấn', desc: 'Cà phê nhân xô chế biến ướt, hạt sàn 18.', farmer: 'Nông dân Y Thắng' },
   { id: 'm3', name: '1 Tấn Sầu Riêng Ri6', location: 'Tiền Giang', qty: '1 tấn', desc: 'Bao ăn, rụng cuống tự nhiên, cơm vàng hạt lép.', farmer: 'Nhà vườn Út Trọc' },
+  { id: 'm4', name: '3 Tấn Thanh Long Ruột Đỏ', location: 'Bình Thuận', qty: '3 tấn', desc: 'Thanh long xuất khẩu ruột đỏ, vỏ bóng tai xanh dẻo dai.', farmer: 'HTX Hàm Thuận Nam' },
 ];
 
 export default function HomePage() {
@@ -178,25 +179,14 @@ export default function HomePage() {
     };
     
     setNegotiations(prev => [newNego, ...prev]);
-    setActiveTab('negotiation');
-    openNegotiation(newNego);
+    router.push(`/call?channel=${newId}&scenario=A&product=${encodeURIComponent(listing.name)}&partner=${encodeURIComponent(listing.farmer)}`);
   };
 
   const openNegotiation = (nego: any) => {
-    setActiveNegotiationId(nego.id);
-    
     if (nego.status === 'da_chot') {
-      setSttMessages(nego.stt);
-      setContractDraft(nego.contract);
-      setIsContractLocked(true);
-      setIsTyping(false);
+      router.push(`/contract/${nego.id}`);
     } else {
-      // Bắt đầu luồng đàm phán mới (Không auto chạy STT)
-      setSttMessages([]);
-      setContractDraft(null);
-      setIsContractLocked(false);
-      setIsTyping(false);
-      setIsModalOpen(false);
+      router.push(`/call?channel=${nego.id}&scenario=A&product=${encodeURIComponent(nego.title.replace('Thương vụ: ', ''))}&partner=${encodeURIComponent(nego.partnerName)}`);
     }
   };
 
@@ -256,7 +246,7 @@ export default function HomePage() {
           ngay_tao: new Date().toISOString()
         });
       }
-    }, 2500);
+    }, 600); // Tốc độ siêu nhanh cho chế độ giả lập demo
   };
 
   const handleLockEscrow = () => {
@@ -270,12 +260,7 @@ export default function HomePage() {
 
   // --- ACTIONS TAB 3 ---
   const openDelivery = (nego: any) => {
-    setActiveDeliveryId(nego.id);
-    if (nego.deliveryStatus === 'cho_nghiem_thu') {
-      setDeliveryStage(1);
-    } else {
-      setDeliveryStage(0);
-    }
+    router.push(`/contract/${nego.id}`);
   };
 
   const handleGoodsArrived = () => {

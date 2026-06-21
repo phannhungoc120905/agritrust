@@ -82,14 +82,8 @@ export default function DashboardPage() {
 
       if (error) throw error;
 
-      // Hợp đồng mặc định để giao diện không bị trống trải
-      const defaultContracts = [
-        { id: 'HD-8902', san_pham: 'Xoài cát Hòa Lộc', so_luong: '3 tấn', gia: '135,000,000 VNĐ', trang_thai: 'da_khoa_tien', doi_tac: user?.vai_tro === 'nong_dan' ? 'Thương lái Trần Thị Thương' : 'Nông dân Nguyễn Văn Ruộng' },
-        { id: 'HD-8899', san_pham: 'Cà phê Robusta', so_luong: '1.2 tấn', gia: '93,600,000 VNĐ', trang_thai: 'da_xac_nhan', doi_tac: user?.vai_tro === 'nong_dan' ? 'Thương lái Ngô Sĩ Cà' : 'Nông dân Trần Văn Phê' },
-      ];
-
       if (!data || data.length === 0) {
-        setContracts(defaultContracts);
+        setContracts([]);
       } else {
         const formattedDb = data.map((d: any) => ({
           id: d.id.slice(0, 8),
@@ -100,7 +94,7 @@ export default function DashboardPage() {
           trang_thai: d.trang_thai,
           doi_tac: user?.vai_tro === 'nong_dan' ? 'Thương lái Trần Thị Thương' : 'Nông dân Nguyễn Văn Ruộng',
         }));
-        setContracts([...formattedDb, ...defaultContracts]);
+        setContracts(formattedDb);
       }
     } catch (err) {
       console.error(err);
@@ -257,7 +251,7 @@ export default function DashboardPage() {
                         )}
                         {c.trang_thai === 'da_ket_noi' && (
                           <Link
-                            href={`/call?scenario=${localStorage.getItem('agritrust_demo_scenario') || 'A'}`}
+                            href={`/call?channel=${encodeURIComponent(c.id)}`}
                             className="btn-primary bg-indigo-600 hover:bg-indigo-750 text-xs py-1.5 px-3 font-bold gap-1.5"
                           >
                             <Video size={13} /> Vào phòng

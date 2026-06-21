@@ -170,8 +170,8 @@ export default function DraftContractTable({ terms, onChange, isLocked = false }
                   <td className="py-4 px-5">
                     <input
                       type="datetime-local"
-                      value={terms.han_giao_hang.slice(0, 16)}
-                      onChange={(e) => handleInputChange('han_giao_hang', new Date(e.target.value).toISOString())}
+                      value={terms.han_giao_hang ? terms.han_giao_hang.slice(0, 16) : ''}
+                      onChange={(e) => handleInputChange('han_giao_hang', e.target.value ? new Date(e.target.value).toISOString() : null)}
                       disabled={isLocked}
                       className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                     />
