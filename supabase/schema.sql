@@ -64,6 +64,20 @@ CREATE TABLE nguoi_dung (
 
 
 -- ---------------------------------------------------------------------
+-- BẢNG PHỤ: TIN ĐĂNG BÁN TRÊN CHỢ NÔNG SẢN
+-- ---------------------------------------------------------------------
+CREATE TABLE tin_dang_cho (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vi_nguoi_ban    TEXT NOT NULL REFERENCES nguoi_dung(dia_chi_vi) ON DELETE CASCADE,
+    ten_san_pham    TEXT NOT NULL,
+    so_luong        TEXT NOT NULL,
+    khu_vuc         TEXT NOT NULL,
+    mo_ta           TEXT,
+    ngay_tao        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
+-- ---------------------------------------------------------------------
 -- BẢNG 2: HỢP ĐỒNG  (P3 tạo bằng AI, P1 đồng bộ trạng thái on-chain)
 -- ---------------------------------------------------------------------
 CREATE TABLE hop_dong (

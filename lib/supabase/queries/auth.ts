@@ -54,6 +54,27 @@ export async function seedDemoUsers() {
       mat_khau: '123',
       ten_hien_thi: 'Thương lái Trần Thị Thương',
     },
+    {
+      dia_chi_vi: 'nong_dan_wallet_address_vamco',
+      vai_tro: 'nong_dan' as const,
+      ten_dang_nhap: 'vamco',
+      mat_khau: '123',
+      ten_hien_thi: 'HTX Nông Nghiệp Vàm Cỏ',
+    },
+    {
+      dia_chi_vi: 'nong_dan_wallet_address_ythang',
+      vai_tro: 'nong_dan' as const,
+      ten_dang_nhap: 'ythang',
+      mat_khau: '123',
+      ten_hien_thi: 'Nông dân Y Thắng',
+    },
+    {
+      dia_chi_vi: 'nong_dan_wallet_address_uttroc',
+      vai_tro: 'nong_dan' as const,
+      ten_dang_nhap: 'uttroc',
+      mat_khau: '123',
+      ten_hien_thi: 'Nhà vườn Út Trọc',
+    },
   ];
 
   console.log('⚡ Đang kiểm tra và khởi tạo dữ liệu tài khoản demo...');

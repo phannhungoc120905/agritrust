@@ -8,6 +8,7 @@ import WalletBalance from '../components/shared/WalletBalance';
 import VideoCallFrame from '../components/shared/VideoCallFrame';
 import { useAuth } from '../hooks/useAuth';
 import DraftContractTable from '../components/negotiation/DraftContractTable';
+import { getMarketListings, createMarketListing } from '../lib/supabase/queries/listings';
 import { 
   ShoppingBag, 
   FileSignature, 
@@ -130,6 +131,29 @@ export default function HomePage() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [sttMessages]);
+
+  useEffect(() => {
+    async function loadListings() {
+      try {
+        const dbListings = await getMarketListings();
+        if (dbListings && dbListings.length > 0) {
+          const mapped = dbListings.map((l: any) => ({
+            id: l.id,
+            name: l.ten_san_pham,
+            qty: l.so_luong,
+            location: l.khu_vuc,
+            desc: l.mo_ta || 'Nông sản chất lượng từ nông dân đã xác thực.',
+            farmer: l.nguoi_dung?.ten_hien_thi || 'Nông dân AgriTrust',
+            vi_nguoi_ban: l.vi_nguoi_ban
+          }));
+          setMyListings(mapped);
+        }
+      } catch (err) {
+        console.error('Không thể tải tin đăng từ Supabase, dùng dữ liệu giả lập:', err);
+      }
+    }
+    loadListings();
+  }, []);
 
   if (loading || !user) {
     return (
@@ -388,17 +412,45 @@ export default function HomePage() {
                 </div>
               </div>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!newListing.name || !newListing.qty) return alert('Vui lòng nhập tên và số lượng nông sản.');
-                  const item = {
-                    id: `my-${Date.now()}`,
-                    name: newListing.name,
-                    qty: newListing.qty,
-                    location: newListing.location || 'Đồng bằng Sông Cửu Long',
-                    desc: newListing.desc || 'Nông sản chất lượng từ nông dân đã xác thực.',
-                    farmer: user?.ten_hien_thi || 'Nông dân AgriTrust'
+                  
+                  const newListingData = {
+                    vi_nguoi_ban: user?.dia_chi_vi || 'nong_dan_wallet_address_demo',
+                    ten_san_pham: newListing.name,
+                    so_luong: newListing.qty,
+                    khu_vuc: newListing.location || 'Đồng bằng Sông Cửu Long',
+                    mo_ta: newListing.desc || 'Nông sản chất lượng từ nông dân đã xác thực.'
                   };
-                  setMyListings(prev => [item, ...prev]);
+
+                  try {
+                    // Thử lưu vào Supabase
+                    const saved = await createMarketListing(newListingData);
+                    const item = {
+                      id: saved.id,
+                      name: saved.ten_san_pham,
+                      qty: saved.so_luong,
+                      location: saved.khu_vuc,
+                      desc: saved.mo_ta || '',
+                      farmer: user?.ten_hien_thi || 'Nông dân AgriTrust',
+                      vi_nguoi_ban: saved.vi_nguoi_ban
+                    };
+                    setMyListings(prev => [item, ...prev]);
+                  } catch (err) {
+                    console.error('Lỗi khi lưu lên Supabase, lưu tạm vào state để demo:', err);
+                    // Fallback sang local state để đảm bảo chương trình không bị gián đoạn khi demo
+                    const item = {
+                      id: `my-${Date.now()}`,
+                      name: newListing.name,
+                      qty: newListing.qty,
+                      location: newListing.location || 'Đồng bằng Sông Cửu Long',
+                      desc: newListing.desc || 'Nông sản chất lượng từ nông dân đã xác thực.',
+                      farmer: user?.ten_hien_thi || 'Nông dân AgriTrust',
+                      vi_nguoi_ban: user?.dia_chi_vi || 'nong_dan_wallet_address_demo'
+                    };
+                    setMyListings(prev => [item, ...prev]);
+                  }
+
                   setNewListing({ name: '', qty: '', location: '', desc: '' });
                   setShowAddForm(false);
                 }}
