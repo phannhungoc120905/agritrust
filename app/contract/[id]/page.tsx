@@ -67,6 +67,14 @@ export default function ContractPage() {
           trang_thai: contractId === 'HD-8899' ? 'da_xac_nhan' : 'da_khoa_tien',
           vi_nguoi_ban: 'nong_dan_wallet_address_demo',
           vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
+          ty_gia_vnd_usdc: 25000,
+          noi_dung_nhap_ai: { nguon: 'Mock data demo' },
+          dieu_khoan_chat_luong: [
+            { tieu_chi: 'Độ ẩm', nguong_phan_tram: 14, muc_phat: 'Trừ 2% giá trị' },
+            { tieu_chi: 'Tạp chất', nguong_phan_tram: 5, muc_phat: 'Trừ 1% giá trị' }
+          ],
+          ngay_tao: new Date().toISOString(),
+          ngay_xac_nhan: new Date().toISOString()
         };
         setContract(mockCon);
         setLoading(false);
@@ -96,6 +104,12 @@ export default function ContractPage() {
         trang_thai: 'da_khoa_tien',
         vi_nguoi_ban: 'nong_dan_wallet_address_demo',
         vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
+        ty_gia_vnd_usdc: 25000,
+        noi_dung_nhap_ai: { nguon: 'Fallback mock data' },
+        dieu_khoan_chat_luong: [
+          { tieu_chi: 'Độ ẩm', nguong_phan_tram: 14, muc_phat: 'Trừ 2% giá trị' }
+        ],
+        ngay_tao: new Date().toISOString()
       };
       setContract(mockCon);
     } finally {
@@ -120,12 +134,12 @@ export default function ContractPage() {
       if (result.success) {
         setTxSignature(result.txSignature);
         setSuccessMsg('✓ Giải ngân 100% thành công! Tiền từ Escrow PDA đã được chuyển vào ví Nông dân.');
-        setContract(prev => ({ ...prev, trang_thai: 'da_xac_nhan' }));
+        setContract((prev: any) => ({ ...prev, trang_thai: 'da_xac_nhan' }));
       }
     } catch (err) {
       console.error(err);
       setSuccessMsg('✓ Giải ngân thành công! (Chế độ giả lập)');
-      setContract(prev => ({ ...prev, trang_thai: 'da_xac_nhan' }));
+      setContract((prev: any) => ({ ...prev, trang_thai: 'da_xac_nhan' }));
     }
   };
 

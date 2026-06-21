@@ -61,3 +61,41 @@ export async function getDisputeByContractId(contractId: string) {
   }
   return data || null;
 }
+
+// Nông dân xác nhận đã xem báo cáo khiếu nại
+export async function updateSellerApproval(disputeId: string, approved: boolean) {
+  const { data, error } = await supabase
+    .from('bao_cao_tranh_chap')
+    .update({
+      nguoi_ban_da_duyet: approved,
+      trang_thai: approved ? 'dang_xem_xet' : 'moi_gui'
+    })
+    .eq('id', disputeId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Lỗi khi cập nhật xác nhận nông dân:', error);
+    throw error;
+  }
+  return data;
+}
+
+// Cập nhật ngày giải quyết khi tranh chấp hoàn tất
+export async function updateDisputeResolved(disputeId: string) {
+  const { data, error } = await supabase
+    .from('bao_cao_tranh_chap')
+    .update({
+      trang_thai: 'da_giai_ngan',
+      ngay_giai_quyet: new Date().toISOString()
+    })
+    .eq('id', disputeId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Lỗi khi cập nhật giải quyết tranh chấp:', error);
+    throw error;
+  }
+  return data;
+}

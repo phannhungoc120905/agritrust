@@ -30,11 +30,15 @@ import {
   FileText
 } from 'lucide-react';
 
+import DisputeReportForm from '../components/dispute/DisputeReportForm';
+import SettlementProposal from '../components/dispute/SettlementProposal';
+import { DisputeReport } from '../types/disputeReport';
+
 // --- MOCK DATA CHO TAB 1 ---
 const MARKET_LISTINGS = [
-  { id: 'm1', name: '5 Tấn Lúa ST25', location: 'Long An', price: 9000000, priceStr: '9,000,000 đ/tấn', desc: 'Lúa đẹp, độ ẩm <14%, cam kết thu hoạch đúng ngày.', farmer: 'HTX Nông Nghiệp Vàm Cỏ' },
-  { id: 'm2', name: '2 Tấn Cà Phê Robusta', location: 'Đắk Lắk', price: 75000000, priceStr: '75,000,000 đ/tấn', desc: 'Cà phê nhân xô chế biến ướt, hạt sàn 18.', farmer: 'Nông dân Y Thắng' },
-  { id: 'm3', name: '1 Tấn Sầu Riêng Ri6', location: 'Tiền Giang', price: 85000, priceStr: '85,000 đ/kg', desc: 'Bao ăn, rụng cuống tự nhiên, cơm vàng hạt lép.', farmer: 'Nhà vườn Út Trọc' },
+  { id: 'm1', name: '5 Tấn Lúa ST25', location: 'Long An', qty: '5 tấn', desc: 'Lúa đẹp, độ ẩm <14%, cam kết thu hoạch đúng ngày.', farmer: 'HTX Nông Nghiệp Vàm Cỏ' },
+  { id: 'm2', name: '2 Tấn Cà Phê Robusta', location: 'Đắk Lắk', qty: '2 tấn', desc: 'Cà phê nhân xô chế biến ướt, hạt sàn 18.', farmer: 'Nông dân Y Thắng' },
+  { id: 'm3', name: '1 Tấn Sầu Riêng Ri6', location: 'Tiền Giang', qty: '1 tấn', desc: 'Bao ăn, rụng cuống tự nhiên, cơm vàng hạt lép.', farmer: 'Nhà vườn Út Trọc' },
 ];
 
 export default function HomePage() {
@@ -46,31 +50,47 @@ export default function HomePage() {
   
   const [negotiations, setNegotiations] = useState<any[]>([
     {
-      id: 'n-old-3',
+      id: 'a1b2c3d4-e5f6-7890-abcd-100000000003',
       title: 'Thương vụ: 5 Tấn Lúa ST25',
       partnerName: 'HTX Nông Nghiệp Vàm Cỏ',
       status: 'dang_lien_he',
       listingRef: MARKET_LISTINGS[0]
     },
     {
-      id: 'n-old-2',
+      id: 'a1b2c3d4-e5f6-7890-abcd-100000000002',
       title: 'Thương vụ: Sầu Riêng Ri6',
       partnerName: 'Nhà vườn Út Trọc',
       status: 'dang_dam_phan',
       listingRef: MARKET_LISTINGS[2]
     },
     {
-      id: 'n-old-1',
+      id: 'a1b2c3d4-e5f6-7890-abcd-100000000001',
       title: 'Thương vụ: Cà phê Robusta',
       partnerName: 'Nông dân Y Thắng',
-      status: 'da_chot', // Đã chốt
+      status: 'da_chot',
+      deliveryStatus: 'dang_van_chuyen',
       contract: {
+        id: 'a1b2c3d4-e5f6-7890-abcd-100000000001',
+        vi_nguoi_ban: 'nong_dan_wallet_address_demo',
+        vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
         san_pham: '2 Tấn Cà Phê Robusta',
         so_luong: 2,
         don_vi_tinh: 'tấn',
         don_gia: 75000000,
         han_giao_hang: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        dieu_khoan_chat_luong: [{ tieu_chi: 'Hạt đen vỡ', nguong_phan_tram: 5, muc_phat: 'Trừ 1% giá trị' }]
+        noi_dung_nhap_ai: {
+          san_pham: 'Cà phê Robusta',
+          so_luong: 2,
+          don_gia: 75000000,
+          nguon: 'Trích xuất từ đàm phán thoại AI'
+        },
+        dieu_khoan_chat_luong: [{ tieu_chi: 'Hạt đen vỡ', nguong_phan_tram: 5, muc_phat: 'Trừ 1% giá trị' }],
+        ty_gia_vnd_usdc: 25000,
+        tong_tien_usdc_khoa: 6000,
+        dia_chi_vi_escrow: 'Solana_Escrow_PDA_Demo',
+        trang_thai: 'da_khoa_tien',
+        ngay_tao: new Date().toISOString(),
+        ngay_xac_nhan: new Date().toISOString()
       },
       stt: [
         { sender: 'thuong_lai', text: 'Giá 75 củ chốt nhé. Hạt đen vỡ dưới 5% thôi.' },
@@ -86,15 +106,20 @@ export default function HomePage() {
   const [isContractLocked, setIsContractLocked] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // --- TAB 1 STATE (Farmer listings) ---
+  const [myListings, setMyListings] = useState<any[]>(MARKET_LISTINGS);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newListing, setNewListing] = useState({ name: '', qty: '', location: '', desc: '' });
+
   // --- TAB 3 STATE (Delivery List & Detail) ---
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
   const [deliveryStage, setDeliveryStage] = useState(0); // 0: Đang giao, 1: Hàng đã tới (chờ check), 2: Xong
   
   // Dispute State
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
-  const [disputeStage, setDisputeStage] = useState(0); // 0: input, 1: AI analyzing, 2: result
+  const [disputeStage, setDisputeStage] = useState(0); // 0: Form khiếu nại, 1: Nông dân xác nhận, 2: AI Loading, 3: Kết quả AI
   const [disputeInput, setDisputeInput] = useState('');
-  const [disputeResult, setDisputeResult] = useState<any>(null);
+  const [disputeReport, setDisputeReport] = useState<DisputeReport | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -150,11 +175,10 @@ export default function HomePage() {
     setIsTyping(true);
     const nego = negotiations.find(n => n.id === activeNegotiationId);
     const listingName = nego?.listingRef?.name || 'Nông sản';
-    const listingPrice = nego?.listingRef?.priceStr || 'Thỏa thuận';
-    const listingPriceNum = nego?.listingRef?.price || 0;
+    const listingQty = nego?.listingRef?.qty || '1 tấn';
 
     const msgs = [
-      { sender: 'nong_dan', text: `Chào anh, tôi có ${listingName}. Giá chốt là ${listingPrice} nhé.` },
+      { sender: 'nong_dan', text: `Chào anh, tôi có ${listingName}, số lượng ${listingQty}. Liên hệ để thương lượng giá nhé.` },
       { sender: 'thuong_lai', text: `Ok anh. Nhưng nếu độ ẩm quá cao thì tôi phải trừ tiền nha.` },
       { sender: 'nong_dan', text: `Đồng ý. Trên 14% trừ 2% giá trị. Nếu trên 15% tôi cho anh trả hàng luôn.` },
       { sender: 'thuong_lai', text: `Chốt. Hệ thống AI lập hợp đồng đi.` }
@@ -168,17 +192,38 @@ export default function HomePage() {
       } else {
         clearInterval(interval);
         setIsTyping(false);
-        // Không tự động bật Modal, để nó hiện Thông báo Toast cho người dùng tự bấm
+        const soLuong = parseFloat(listingName.split(' ')[0]) || 1;
+        const donViTinh = listingName.includes('Lúa') || listingName.includes('Cà') ? 'tấn' : 'kg';
+        const donGia = 9000000; // Giá mặc định demo — sẽ do 2 bên thương lượng qua thoại
+        const tongVnd = donGia * soLuong;
+        const tongUsdc = Math.round(tongVnd / 25000);
+        const newContractId = crypto.randomUUID ? crypto.randomUUID() : `demo-${Date.now()}`;
+
         setContractDraft({
+          id: newContractId,
+          vi_nguoi_ban: 'nong_dan_wallet_address_demo',
+          vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
           san_pham: listingName,
-          so_luong: parseFloat(listingName.split(' ')[0]) || 1,
-          don_vi_tinh: listingName.includes('Lúa') || listingName.includes('Cà') ? 'tấn' : 'kg',
-          don_gia: listingPriceNum,
+          so_luong: soLuong,
+          don_vi_tinh: donViTinh,
+          don_gia: donGia,
           han_giao_hang: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          noi_dung_nhap_ai: {
+            san_pham: listingName,
+            so_luong: soLuong,
+            don_gia: donGia,
+            nguon: 'Trích xuất từ đàm phán thoại AI',
+            cac_cau_dam_phan: msgs.map(m => m.text)
+          },
           dieu_khoan_chat_luong: [
             { tieu_chi: 'Độ ẩm > 14%', nguong_phan_tram: 14, muc_phat: 'Trừ 2% giá trị thanh toán' },
             { tieu_chi: 'Độ ẩm > 15%', nguong_phan_tram: 15, muc_phat: 'Trả hàng, hủy hợp đồng' }
-          ]
+          ],
+          ty_gia_vnd_usdc: 25000,
+          tong_tien_usdc_khoa: tongUsdc,
+          dia_chi_vi_escrow: null, // Sẽ được set khi initialize on-chain
+          trang_thai: 'du_thao',
+          ngay_tao: new Date().toISOString()
         });
       }
     }, 2500);
@@ -186,39 +231,54 @@ export default function HomePage() {
 
   const handleLockEscrow = () => {
     setIsContractLocked(true);
-    // Cập nhật trạng thái list
-    setNegotiations(prev => prev.map(n => n.id === activeNegotiationId ? { ...n, status: 'da_chot', contract: contractDraft, stt: sttMessages } : n));
+    const now = new Date().toISOString();
+    const lockedDraft = { ...contractDraft, trang_thai: 'da_khoa_tien', ngay_xac_nhan: now, dia_chi_vi_escrow: 'Solana_Escrow_PDA_' + Date.now().toString(36) };
+    setContractDraft(lockedDraft);
+    setNegotiations(prev => prev.map(n => n.id === activeNegotiationId ? { ...n, status: 'da_chot', deliveryStatus: 'dang_van_chuyen', contract: lockedDraft, stt: sttMessages } : n));
     alert('Khóa tiền thành công! Hợp đồng đã chuyển sang Tab Giao Nhận.');
   };
 
   // --- ACTIONS TAB 3 ---
   const openDelivery = (nego: any) => {
     setActiveDeliveryId(nego.id);
-    setDeliveryStage(0);
+    if (nego.deliveryStatus === 'cho_nghiem_thu') {
+      setDeliveryStage(1);
+    } else {
+      setDeliveryStage(0);
+    }
   };
 
-  const submitDispute = (e: React.FormEvent) => {
-    e.preventDefault();
-    setDisputeStage(1); 
+  const handleGoodsArrived = () => {
+    setDeliveryStage(1);
+    setNegotiations(prev => prev.map(n => n.id === activeDeliveryId ? { ...n, deliveryStatus: 'cho_nghiem_thu' } : n));
+  };
+
+  const handleDisputeSubmitted = (report: DisputeReport) => {
+    setDisputeReport(report);
+    // Chuyển sang bước Nông dân xác nhận (Stage 1)
+    setDisputeStage(1);
+  };
+
+  const handleSellerConfirmReport = () => {
+    // Nông dân xác nhận xong -> Chuyển sang AI xử lý (Stage 2)
+    setDisputeStage(2);
     setTimeout(() => {
-      setDisputeResult({
-        ly_do: disputeInput,
-        can_cu: "Dựa theo Điều 2 hợp đồng, phát hiện lỗi vi phạm tiêu chuẩn.",
-        de_xuat: "Trừ 10% giá trị thanh toán. Hoàn 10% về ví Thương lái, giải ngân 90% cho Nông dân."
-      });
-      setDisputeStage(2);
-    }, 3000);
+      // Sau 2.5s -> Hiện kết quả (Stage 3)
+      setDisputeStage(3);
+    }, 2500);
   };
 
   const handleAIResolutionAgree = () => {
     alert("Smart Contract Resolve Partial thực thi: Đã chia tiền theo phán quyết của AI!");
     setIsDisputeModalOpen(false);
     setActiveDeliveryId(null); // Back to list
+    setNegotiations(prev => prev.map(n => n.id === activeDeliveryId ? { ...n, deliveryStatus: 'da_hoan_thanh' } : n));
   };
 
   const handleFullDisbursement = () => {
     alert("Giải ngân 100% thành công! Toàn bộ số tiền đã được chuyển cho Nông dân.");
     setActiveDeliveryId(null);
+    setNegotiations(prev => prev.map(n => n.id === activeDeliveryId ? { ...n, deliveryStatus: 'da_hoan_thanh' } : n));
   };
 
   return (
@@ -236,11 +296,14 @@ export default function HomePage() {
             <WalletBalance />
             <ConnectWalletButton />
             <div className="flex items-center gap-2 pl-4 border-l border-slate-200">
-              <div className="text-right">
-                <p className="text-xs font-bold text-slate-700">{user.ten_hien_thi}</p>
-                <p className="text-[10px] text-slate-500 font-medium uppercase">{isNongDan ? 'Nông Dân' : 'Thương Lái'}</p>
-              </div>
-              <button onClick={logout} className="p-1.5 text-slate-400 hover:text-red-500"><LogOut size={16} /></button>
+              <Link href="/profile" className="text-right group cursor-pointer flex items-center justify-center h-full">
+                <p className="text-sm font-bold text-slate-700 group-hover:text-[#15803D] transition-colors">
+                  {isNongDan ? 'Nông dân Nguyễn Văn Ruộng' : user.ten_hien_thi}
+                </p>
+              </Link>
+              <button onClick={logout} className="p-1.5 ml-2 text-slate-400 hover:text-red-500 transition-colors">
+                <LogOut size={16} />
+              </button>
             </div>
           </div>
         </div>
@@ -261,20 +324,94 @@ export default function HomePage() {
       {/* 🟢 TAB 1: CHỢ NÔNG SẢN */}
       {activeTab === 'market' && (
         <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-8 animate-fade-in-up">
-          <div className="mb-6">
-            <h1 className="text-2xl font-black text-slate-900">Chợ Nông Sản B2B</h1>
-            <p className="text-sm text-slate-500 mt-1">Nguồn hàng nông sản chất lượng, sẵn sàng kết nối qua Smart Contract.</p>
+          <div className="mb-6 flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-black text-slate-900">Chợ Nông Sản B2B</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                {isNongDan ? 'Đăng bán nông sản của bạn để Thương lái liên hệ đàm phán.' : 'Nguồn hàng nông sản chất lượng, sẵn sàng kết nối qua Smart Contract.'}
+              </p>
+            </div>
+            {isNongDan && (
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="px-5 py-2.5 bg-[#15803D] hover:bg-[#166534] text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-md"
+              >
+                {showAddForm ? 'Đóng' : '+ Đăng bán Nông sản'}
+              </button>
+            )}
           </div>
 
+          {/* FORM ĐĂNG BÁN CHO NÔNG DÂN */}
+          {isNongDan && showAddForm && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6 animate-fade-in-up">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <ShoppingBag size={16} className="text-[#15803D]" /> Thêm nông sản của bạn
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tên nông sản</label>
+                  <input
+                    type="text" placeholder="Ví dụ: 3 Tấn Lúa ST25" value={newListing.name}
+                    onChange={e => setNewListing({ ...newListing, name: e.target.value })}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#15803D] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Số lượng</label>
+                  <input
+                    type="text" placeholder="Ví dụ: 3 tấn" value={newListing.qty}
+                    onChange={e => setNewListing({ ...newListing, qty: e.target.value })}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#15803D] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vùng miền</label>
+                  <input
+                    type="text" placeholder="Ví dụ: Long An" value={newListing.location}
+                    onChange={e => setNewListing({ ...newListing, location: e.target.value })}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#15803D] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mô tả chi tiết</label>
+                  <input
+                    type="text" placeholder="Độ ẩm, chất lượng, cam kết..." value={newListing.desc}
+                    onChange={e => setNewListing({ ...newListing, desc: e.target.value })}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#15803D] outline-none"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (!newListing.name || !newListing.qty) return alert('Vui lòng nhập tên và số lượng nông sản.');
+                  const item = {
+                    id: `my-${Date.now()}`,
+                    name: newListing.name,
+                    qty: newListing.qty,
+                    location: newListing.location || 'Đồng bằng Sông Cửu Long',
+                    desc: newListing.desc || 'Nông sản chất lượng từ nông dân đã xác thực.',
+                    farmer: user?.ten_hien_thi || 'Nông dân AgriTrust'
+                  };
+                  setMyListings(prev => [item, ...prev]);
+                  setNewListing({ name: '', qty: '', location: '', desc: '' });
+                  setShowAddForm(false);
+                }}
+                className="mt-4 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-colors"
+              >
+                Đăng lên Chợ
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {MARKET_LISTINGS.map(item => (
+            {myListings.map(item => (
               <div key={item.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
                 <div className="p-5 flex-1">
-                  <div className="inline-block px-2.5 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase rounded-full mb-3 flex items-center gap-1 w-max">
-                    <MapPin size={10} /> {item.location}
+                  <div className="inline-flex px-3 py-1.5 bg-blue-50 text-blue-700 text-[11px] font-bold uppercase rounded-full mb-3 items-center gap-1.5">
+                    <MapPin size={12} /> {item.location}
                   </div>
                   <h3 className="text-lg font-bold text-slate-900">{item.name}</h3>
-                  <p className="text-[#15803D] font-mono font-bold text-base mt-2">{item.priceStr}</p>
+                  <p className="text-[#15803D] font-bold text-sm mt-2">Số lượng: {item.qty}</p>
                   <p className="text-xs text-slate-500 mt-3 line-clamp-2">{item.desc}</p>
                   
                   <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
@@ -283,12 +420,18 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="p-4 bg-slate-50 border-t border-slate-100">
-                  <button 
-                    onClick={() => handleContactNegotiation(item)}
-                    className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <Video size={16} /> Liên hệ Đàm phán
-                  </button>
+                  {isNongDan ? (
+                    <div className="text-center text-xs text-slate-400 font-medium py-1">
+                      Đang chờ Thương lái liên hệ
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => handleContactNegotiation(item)}
+                      className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Video size={16} /> Liên hệ Đàm phán
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -507,7 +650,15 @@ export default function HomePage() {
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-900 text-lg">{nego.title}</h3>
-                          <p className="text-sm text-slate-500 mt-0.5">Tiến độ: Đang vận chuyển</p>
+                          <p className="text-sm font-medium mt-1">
+                            {nego.deliveryStatus === 'dang_van_chuyen' ? (
+                              <span className="text-amber-600 flex items-center gap-1.5"><Truck size={14} /> Đang vận chuyển</span>
+                            ) : nego.deliveryStatus === 'cho_nghiem_thu' ? (
+                              <span className="text-indigo-600 flex items-center gap-1.5"><PackageCheck size={14} /> Hàng đã tới - Chờ kiểm tra</span>
+                            ) : (
+                              <span className="text-emerald-600 flex items-center gap-1.5"><CheckCircle2 size={14} /> Đã hoàn tất thanh toán</span>
+                            )}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
@@ -538,47 +689,72 @@ export default function HomePage() {
 
                 {deliveryStage === 0 && (
                   <div className="text-center space-y-4">
-                    <p className="text-slate-700 font-bold">Hàng đã được giao tới kho của bạn chưa?</p>
-                    <button onClick={() => setDeliveryStage(1)} className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md">
-                      Xác nhận Hàng đã tới
-                    </button>
+                    {isNongDan ? (
+                      <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 relative">
+                        <Truck size={32} className="mx-auto mb-3 text-slate-400" />
+                        <p className="text-slate-700 font-bold">Đang vận chuyển hàng hóa tới Thương lái</p>
+                        <p className="text-sm text-slate-500 mt-2">Vui lòng chờ Thương lái xác nhận khi hàng tới kho.</p>
+                        <button onClick={handleGoodsArrived} className="absolute top-2 right-2 text-[10px] text-slate-300 hover:text-slate-500 underline">Demo: TL xác nhận tới</button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-slate-700 font-bold">Hàng đã được giao tới kho của bạn chưa?</p>
+                        <button onClick={handleGoodsArrived} className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md transition-all active:scale-95">
+                          Xác nhận Hàng đã tới
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
 
                 {deliveryStage === 1 && (
                   <div className="space-y-6 animate-fade-in-up">
-                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-center">
+                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-center relative">
                       <p className="text-indigo-900 font-bold">Kiểm tra chất lượng hàng hóa</p>
                       <p className="text-xs text-indigo-700 mt-1">Hàng hóa có đúng cam kết trong Hợp đồng không?</p>
+                      {isNongDan && (
+                        <div className="absolute top-2 right-2 flex gap-2">
+                          <button onClick={handleFullDisbursement} className="text-[10px] text-indigo-300 hover:text-indigo-500 underline">Demo: TL báo Đạt</button>
+                          <button onClick={() => { setIsDisputeModalOpen(true); setDisputeStage(0); setDisputeInput(''); }} className="text-[10px] text-indigo-300 hover:text-indigo-500 underline">Demo: TL báo Lỗi</button>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <button 
-                        onClick={handleFullDisbursement}
-                        className="p-6 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex flex-col items-center justify-center gap-3 transition-colors group"
-                      >
-                        <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
-                          <CheckCircle2 size={32} />
-                        </div>
-                        <div className="text-center">
-                          <h4 className="font-bold text-emerald-900 text-lg">Đạt Chuẩn</h4>
-                          <p className="text-xs text-emerald-700 mt-1">Giải ngân 100% cho Nông dân</p>
-                        </div>
-                      </button>
+                    {isNongDan ? (
+                      <div className="p-6 bg-white border border-slate-200 rounded-xl text-center">
+                        <PackageCheck size={32} className="mx-auto mb-3 text-indigo-400" />
+                        <p className="text-slate-700 font-bold">Hàng đã tới nơi. Thương lái đang kiểm tra chất lượng.</p>
+                        <p className="text-sm text-slate-500 mt-2">Hệ thống sẽ tự động giải ngân khi Thương lái xác nhận đạt chuẩn.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <button 
+                          onClick={handleFullDisbursement}
+                          className="p-6 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex flex-col items-center justify-center gap-3 transition-colors group"
+                        >
+                          <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
+                            <CheckCircle2 size={32} />
+                          </div>
+                          <div className="text-center">
+                            <h4 className="font-bold text-emerald-900 text-lg">Đạt Chuẩn</h4>
+                            <p className="text-xs text-emerald-700 mt-1">Giải ngân 100% cho Nông dân</p>
+                          </div>
+                        </button>
 
-                      <button 
-                        onClick={() => { setIsDisputeModalOpen(true); setDisputeStage(0); setDisputeInput(''); }}
-                        className="p-6 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl flex flex-col items-center justify-center gap-3 transition-colors group"
-                      >
-                        <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-rose-600 shadow-sm group-hover:scale-110 transition-transform">
-                          <AlertTriangle size={32} />
-                        </div>
-                        <div className="text-center">
-                          <h4 className="font-bold text-rose-900 text-lg">Hàng Có Lỗi</h4>
-                          <p className="text-xs text-rose-700 mt-1">Báo cáo để AI phân xử phạt</p>
-                        </div>
-                      </button>
-                    </div>
+                        <button 
+                          onClick={() => { setIsDisputeModalOpen(true); setDisputeStage(0); setDisputeInput(''); }}
+                          className="p-6 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl flex flex-col items-center justify-center gap-3 transition-colors group"
+                        >
+                          <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-rose-600 shadow-sm group-hover:scale-110 transition-transform">
+                            <AlertTriangle size={32} />
+                          </div>
+                          <div className="text-center">
+                            <h4 className="font-bold text-rose-900 text-lg">Hàng Có Lỗi</h4>
+                            <p className="text-xs text-rose-700 mt-1">Báo cáo để AI phân xử phạt</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -591,34 +767,108 @@ export default function HomePage() {
       {/* MODAL TRỌNG TÀI AI */}
       {isDisputeModalOpen && (
         <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-scaleUp">
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-scaleUp">
             <div className="bg-slate-900 px-5 py-4 flex items-center justify-between">
               <h3 className="text-white font-bold flex items-center gap-2"><Scale size={18} /> Hệ Thống Phân Xử Kỹ Thuật Số</h3>
+              <button onClick={() => setIsDisputeModalOpen(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+                ✕
+              </button>
             </div>
             
             <div className="p-6">
+              {/* Timeline Progress */}
+              <div className="flex items-center justify-between mb-8 px-4 relative">
+                <div className="absolute left-8 right-8 top-5 h-0.5 bg-slate-100 -z-10"></div>
+                <div className="absolute left-8 right-8 top-5 h-0.5 bg-indigo-500 -z-10 transition-all duration-500" style={{width: `${(disputeStage / 3) * 100}%`}}></div>
+                
+                <div className={`flex flex-col items-center gap-2 ${disputeStage >= 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 bg-white ${disputeStage >= 0 ? 'border-indigo-600' : 'border-slate-200'}`}>1</div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Tạo Báo Cáo</span>
+                </div>
+                <div className={`flex flex-col items-center gap-2 ${disputeStage >= 1 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 bg-white ${disputeStage >= 1 ? 'border-indigo-600' : 'border-slate-200'}`}>2</div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Xác Nhận</span>
+                </div>
+                <div className={`flex flex-col items-center gap-2 ${disputeStage >= 2 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 bg-white ${disputeStage >= 2 ? 'border-indigo-600' : 'border-slate-200'}`}>3</div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Trọng Tài AI</span>
+                </div>
+                <div className={`flex flex-col items-center gap-2 ${disputeStage >= 3 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 bg-white ${disputeStage >= 3 ? 'border-indigo-600' : 'border-slate-200'}`}>4</div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Thực Thi SC</span>
+                </div>
+              </div>
+
               {disputeStage === 0 && (
-                <form onSubmit={submitDispute} className="space-y-4">
-                  <p className="text-sm text-slate-600 font-medium">Cung cấp bằng chứng cho hệ thống phân tích:</p>
-                  <textarea 
-                    value={disputeInput}
-                    onChange={(e) => setDisputeInput(e.target.value)}
-                    placeholder="Mô tả lỗi (Ví dụ: Lúa bị mốc, độ ẩm đo được 14.5%)"
-                    className="w-full h-24 p-3 border border-slate-200 rounded-xl text-sm focus:border-indigo-500 outline-none"
-                    required
-                  />
-                  <div className="flex gap-2">
-                    <button type="button" className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors"><Camera size={14}/> Chụp ảnh</button>
-                    <button type="button" className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors"><Mic size={14}/> Đọc lỗi</button>
-                  </div>
-                  <button type="submit" className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm shadow-md transition-colors">
-                    Gửi cho Trọng Tài AI
-                  </button>
-                  <button type="button" onClick={() => setIsDisputeModalOpen(false)} className="w-full py-2 text-slate-500 hover:text-slate-900 font-bold text-xs transition-colors">Hủy</button>
-                </form>
+                <div className="animate-fade-in-up">
+                  {isNongDan ? (
+                    <div className="text-center p-8 bg-slate-50 rounded-xl border border-slate-200 relative">
+                      <AlertTriangle size={32} className="mx-auto mb-3 text-slate-400" />
+                      <p className="font-bold text-slate-700">Thương lái đang điền Báo cáo Khiếu nại Chất lượng.</p>
+                      <p className="text-sm text-slate-500 mt-2">Vui lòng chờ Thương lái gửi báo cáo lên hệ thống để bạn xác nhận.</p>
+                      <button onClick={() => {
+                        handleDisputeSubmitted({
+                          id: 'mock-report-demo',
+                          id_hop_dong: activeDeliveryId || 'demo',
+                          so_luong_thuc_nhan: 1800,
+                          ghi_chu_chat_luong: "Hàng bị ướt, hạt đen vỡ vượt quá 5% (tầm 8%). Độ ẩm cao.",
+                          danh_sach_url_anh: [],
+                          ty_le_giai_ngan_ai_de_xuat: 0.98,
+                          so_tien_giai_ngan_de_xuat: 1764,
+                          so_tien_hoan_lai_de_xuat: 36,
+                          nguoi_ban_da_duyet: false,
+                          nguoi_mua_dong_y: false,
+                          nguoi_ban_dong_y: false,
+                          trang_thai: 'moi_gui',
+                          ngay_tao: new Date().toISOString()
+                        });
+                      }} className="absolute top-2 right-2 text-[10px] text-slate-300 hover:text-slate-500 underline">Demo: TL gửi báo cáo</button>
+                    </div>
+                  ) : (
+                    <DisputeReportForm 
+                      contract={negotiations.find(n => n.id === activeDeliveryId)!} 
+                      onSubmitted={handleDisputeSubmitted} 
+                    />
+                  )}
+                </div>
               )}
 
-              {disputeStage === 1 && (
+              {disputeStage === 1 && disputeReport && (
+                <div className="animate-fade-in-up bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-5">
+                  <div className="text-center">
+                    <h3 className="font-extrabold text-neutral-800 text-xs uppercase tracking-wider">Chờ Nông dân xác nhận báo cáo</h3>
+                    <p className="text-[11px] text-neutral-450 mt-1">Thương lái đã gửi khiếu nại. Nông dân cần xác nhận tình trạng thực tế để AI phân xử.</p>
+                  </div>
+                  
+                  <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 space-y-3 text-sm">
+                    <div className="flex justify-between border-b border-neutral-200 pb-2">
+                      <span className="text-neutral-500 font-medium">Số lượng thực nhận:</span>
+                      <span className="font-bold text-neutral-900">{disputeReport.so_luong_thuc_nhan} kg</span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500 font-medium block mb-1">Chi tiết lỗi:</span>
+                      <p className="text-neutral-800 bg-white p-3 border border-neutral-200 rounded-lg">{disputeReport.ghi_chu_chat_luong}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button onClick={() => setIsDisputeModalOpen(false)} className="flex-1 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-sm transition-colors">
+                      Đóng
+                    </button>
+                    {isNongDan ? (
+                      <button onClick={handleSellerConfirmReport} className="flex-1 py-3 bg-emerald-600 text-white hover:bg-emerald-700 font-bold rounded-xl text-sm shadow-md transition-colors">
+                        Nông Dân Xác Nhận
+                      </button>
+                    ) : (
+                      <button disabled className="flex-1 py-3 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm cursor-not-allowed">
+                        Đang chờ Nông dân xác nhận
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {disputeStage === 2 && (
                 <div className="py-8 flex flex-col items-center text-center space-y-4">
                   <div className="relative">
                     <div className="w-16 h-16 border-4 border-indigo-100 rounded-full border-t-indigo-600 animate-spin"></div>
@@ -631,19 +881,15 @@ export default function HomePage() {
                 </div>
               )}
 
-              {disputeStage === 2 && disputeResult && (
+              {disputeStage === 3 && disputeReport && (
                 <div className="space-y-5 animate-fade-in-up">
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-amber-600 tracking-wider">Căn cứ pháp lý</span>
-                      <p className="text-xs text-amber-900 font-medium">{disputeResult.can_cu}</p>
-                    </div>
-                    <div className="h-px w-full bg-amber-200/50"></div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Quyết định giải ngân</span>
-                      <p className="text-sm font-bold text-emerald-800">{disputeResult.de_xuat}</p>
-                    </div>
-                  </div>
+                  
+                  <SettlementProposal 
+                    proposedRatio={disputeReport.ty_le_giai_ngan_ai_de_xuat || 1} 
+                    payoutAmount={disputeReport.so_tien_giai_ngan_de_xuat || 0} 
+                    refundAmount={disputeReport.so_tien_hoan_lai_de_xuat || 0} 
+                    note={disputeReport.ghi_chu_chat_luong || 'Dựa trên hình ảnh và tỉ lệ lỗi được báo cáo.'} 
+                  />
 
                   <div className="space-y-2">
                     <p className="text-center text-[10px] text-slate-500 font-medium uppercase">YÊU CẦU 2 BÊN XÁC NHẬN ĐỂ THỰC THI SMART CONTRACT</p>

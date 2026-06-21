@@ -9,7 +9,7 @@ export interface DisputeReport {
   id_hop_dong: string;
   so_luong_thuc_nhan: number;
   ghi_chu_chat_luong?: string;
-  danh_sach_url_anh: string[];
+  danh_sach_url_anh: any[];  // JSONB in DB
   url_video?: string;
   nguoi_ban_da_duyet: boolean;
   
