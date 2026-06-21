@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import UploadEvidenceForm from './UploadEvidenceForm';
 import { createDisputeReport } from '../../lib/supabase/queries/disputes';
 import { updateContractStatus } from '../../lib/supabase/queries/contracts';
-import { proposeSettlement } from '../../lib/settlement/proposeSettlement';
+import { resolveDisputeWithGemini } from '../../lib/settlement/resolveDisputeGemini';
 import { Contract } from '../../types/contract';
 import { DisputeReport } from '../../types/disputeReport';
 import { AlertTriangle, Loader2 } from 'lucide-react';
@@ -27,30 +27,17 @@ export default function DisputeReportForm({ contract, onSubmitted }: DisputeRepo
     setErrorMsg('');
 
     try {
-      // 1. Tính toán đề xuất phân chia tiền bằng AI logic
-      const qualityIssues: Record<string, number> = {};
-      
-      // Giả lập AI trích xuất con số vi phạm từ văn bản mô tả
-      const noteLower = qualityNote.toLowerCase();
-      if (contract.dieu_khoan_chat_luong) {
-        contract.dieu_khoan_chat_luong.forEach(rule => {
-          const keyword = rule.tieu_chi.toLowerCase().replace('tỉ lệ ', '').replace('độ ', '');
-          if (noteLower.includes(keyword)) {
-            const match = noteLower.match(/(\d+(?:\.\d+)?)%/);
-            if (match && match[1]) {
-              qualityIssues[rule.tieu_chi] = parseFloat(match[1]);
-            }
-          }
-        });
-      }
+      // 1. Gọi API Gemini để phân xử tranh chấp thực tế (có fallback nếu thiếu key)
+      const proposal = await resolveDisputeWithGemini(contract, actualQty, qualityNote, imageUrls);
 
-      const proposal = proposeSettlement(contract, actualQty, qualityIssues);
+      // Kết hợp mô tả của thương lái và phần giải trình chi tiết của AI
+      const detailedNote = `[Ý kiến Thương lái]: ${qualityNote || 'Hàng hoá có lỗi.'}\n\n[AI Phán quyết]: ${proposal.ly_do}`;
 
       const reportObj: DisputeReport = {
         id: 'mock-report-' + Date.now(),
         id_hop_dong: contract.id,
         so_luong_thuc_nhan: actualQty,
-        ghi_chu_chat_luong: qualityNote || `Hàng hoá có lỗi.`,
+        ghi_chu_chat_luong: detailedNote,
         danh_sach_url_anh: imageUrls,
         ty_le_giai_ngan_ai_de_xuat: proposal.ty_le_giai_ngan,
         so_tien_giai_ngan_de_xuat: proposal.tien_giai_ngan_usdc,
@@ -89,33 +76,33 @@ export default function DisputeReportForm({ contract, onSubmitted }: DisputeRepo
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-4">
+    <form onSubmit={handleSubmit} className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-5">
       <div>
-        <h3 className="font-extrabold text-neutral-800 text-xs uppercase tracking-wider">Khởi tạo khiếu nại & nghiệm thu (Kịch bản B)</h3>
-        <p className="text-[11px] text-neutral-450 mt-1">Ghi nhận thông số nghiệm thu vào cơ sở dữ liệu để Hệ thống AI đối chiếu.</p>
+        <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Khởi tạo khiếu nại & nghiệm thu (Kịch bản B)</h3>
+        <p className="text-[11px] text-slate-450 mt-1">Ghi nhận thông số nghiệm thu vào cơ sở dữ liệu để Hệ thống AI đối chiếu.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Số lượng thực nhận ({contract.don_vi_tinh})</label>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Số lượng thực nhận ({contract.don_vi_tinh})</label>
           <input
             type="number"
             step="0.01"
             value={actualQty}
             onChange={(e) => setActualQty(parseFloat(e.target.value) || 0)}
-            className="w-full bg-neutral-50 border border-neutral-250 focus:border-[#15803D] rounded-lg px-3.5 py-2.5 text-sm text-neutral-900 outline-none"
+            className="w-full bg-slate-50 border border-slate-200 focus:border-[#15803D] focus:bg-white rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none transition-all"
             required
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Mô tả tình trạng lỗi nông sản</label>
+        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Mô tả tình trạng lỗi nông sản</label>
         <textarea
           value={qualityNote}
           onChange={(e) => setQualityNote(e.target.value)}
           placeholder="Mô tả các vấn đề về chất lượng (Ví dụ: Lúa bị mốc, độ ẩm đo được 14.5%)"
-          className="w-full h-24 bg-neutral-50 border border-neutral-250 focus:border-[#15803D] rounded-lg px-3.5 py-3 text-sm text-neutral-900 outline-none resize-none"
+          className="w-full h-24 bg-slate-50 border border-slate-200 focus:border-[#15803D] focus:bg-white rounded-xl px-4 py-3 text-sm text-slate-900 outline-none resize-none transition-all"
           required
         />
       </div>
@@ -123,7 +110,7 @@ export default function DisputeReportForm({ contract, onSubmitted }: DisputeRepo
       <UploadEvidenceForm onUrlsChange={setImageUrls} />
 
       {errorMsg && (
-        <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700 font-semibold flex items-center gap-1.5">
+        <div className="p-3.5 bg-red-50 border border-red-100 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
           <AlertTriangle size={14} className="text-red-400" />
           <span>{errorMsg}</span>
         </div>
@@ -132,7 +119,7 @@ export default function DisputeReportForm({ contract, onSubmitted }: DisputeRepo
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-2.5 btn-primary bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 rounded-xl"
+        className="w-full py-3 bg-[#15803D] hover:bg-[#166534] disabled:bg-slate-300 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 rounded-xl shadow-md hover:shadow-lg active:scale-98"
       >
         {loading ? (
           <>

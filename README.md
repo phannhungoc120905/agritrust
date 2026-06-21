@@ -37,7 +37,9 @@ AI_MODEL=MiniMax-M3
 ```
 
 ### 3. Cập nhật Database & Tạo Dữ liệu mẫu (Seed)
-*   **Bước 1 (Chỉ cần 1 người chạy trên Supabase Dashboard):** Chạy đoạn script SQL trong file `supabase/schema.sql` (đặc biệt là bảng mới `tin_dang_cho` của Chợ Nông Sản) tại công cụ **SQL Editor** trên Supabase console.
+*   **Bước 1 (Chỉ cần 1 người chạy trên Supabase Dashboard):** 
+    *   Chạy toàn bộ cấu trúc bảng trong `supabase/schema.sql` tại công cụ **SQL Editor** trên Supabase console.
+    *   *Lưu ý sửa lỗi kết nối ví:* Nếu gặp lỗi ràng buộc khóa ngoại (foreign key constraint) khi đổi/kết nối ví, hãy chạy script SQL trong file `supabase/update_constraints.sql` tại SQL Editor để cập nhật cơ chế đồng bộ tự động `ON UPDATE CASCADE`.
 *   **Bước 2 (Chèn dữ liệu demo):** Chạy lệnh dưới đây ở terminal máy của bạn để tự động tạo tài khoản demo và tin đăng bán mẫu trên Supabase:
     ```bash
     npm run seed:users

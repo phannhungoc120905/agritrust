@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useEscrow } from '../../hooks/useEscrow';
-import { updateAgreement } from '../../lib/supabase/queries/disputes';
+import { useAuth } from '../../hooks/useAuth';
+import { updateAgreement, updateDisputeResolved } from '../../lib/supabase/queries/disputes';
 import AgreeButton from '../shared/buttons/AgreeButton';
 
 interface AgreeButtonsProps {
@@ -27,17 +28,22 @@ export default function AgreeButtons({
   onSuccess,
 }: AgreeButtonsProps) {
   const { resolvePartial, loading: txLoading } = useEscrow();
+  const { user } = useAuth();
   const [buyerLoading, setBuyerLoading] = useState(false);
   const [sellerLoading, setSellerLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const isNongDan = user?.vai_tro === 'nong_dan';
+  const isThuongLai = user?.vai_tro === 'thuong_lai';
 
   const handleBuyerAgree = async () => {
     setBuyerLoading(true);
     setErrorMsg('');
     try {
-      await updateAgreement(disputeId, 'nguoi_mua_dong_y', true);
-      // Kiểm tra xem người bán đã đồng ý chưa, nếu rồi tiến hành gọi smart contract
-      if (sellerAgreed) {
+      // Cập nhật đồng ý của người mua và nhận về dữ liệu mới nhất
+      const updatedData = await updateAgreement(disputeId, 'nguoi_mua_dong_y', true);
+      // Kiểm tra xem cả hai bên đã đồng ý chưa để gọi smart contract
+      if (updatedData.nguoi_ban_dong_y && updatedData.nguoi_mua_dong_y) {
         await executeResolvePartial();
       } else {
         window.location.reload();
@@ -53,9 +59,10 @@ export default function AgreeButtons({
     setSellerLoading(true);
     setErrorMsg('');
     try {
-      await updateAgreement(disputeId, 'nguoi_ban_dong_y', true);
-      // Kiểm tra xem người mua đã đồng ý chưa, nếu rồi tiến hành gọi smart contract
-      if (buyerAgreed) {
+      // Cập nhật đồng ý của người bán và nhận về dữ liệu mới nhất
+      const updatedData = await updateAgreement(disputeId, 'nguoi_ban_dong_y', true);
+      // Kiểm tra xem cả hai bên đã đồng ý chưa để gọi smart contract
+      if (updatedData.nguoi_ban_dong_y && updatedData.nguoi_mua_dong_y) {
         await executeResolvePartial();
       } else {
         window.location.reload();
@@ -76,6 +83,12 @@ export default function AgreeButtons({
       { disputeId }
     );
     if (result.success) {
+      try {
+        // Đồng bộ trạng thái tranh chấp thành 'da_giai_ngan' trong DB sau khi giải ngân on-chain thành công
+        await updateDisputeResolved(disputeId);
+      } catch (dbErr) {
+        console.error('Lỗi khi đồng bộ trạng thái giải quyết tranh chấp trong DB:', dbErr);
+      }
       onSuccess(result.txSignature);
     }
   };
@@ -100,6 +113,7 @@ export default function AgreeButtons({
               label="Bấm Đồng ý"
               onClick={handleBuyerAgree}
               loading={buyerLoading || txLoading}
+              disabled={!isThuongLai}
             />
           )}
         </div>
@@ -116,6 +130,7 @@ export default function AgreeButtons({
               label="Bấm Đồng ý"
               onClick={handleSellerAgree}
               loading={sellerLoading || txLoading}
+              disabled={!isNongDan}
             />
           )}
         </div>

@@ -7,8 +7,9 @@ import { getContractById } from '../../../lib/supabase/queries/contracts';
 import { getDisputeByContractId } from '../../../lib/supabase/queries/disputes';
 import { useEscrow } from '../../../hooks/useEscrow';
 import { useAuth } from '../../../hooks/useAuth';
+import { supabase } from '../../../lib/supabase/client';
 
-import ConfirmReceiptButton from '../../../components/shared/buttons/ConfirmReceiptButton';
+import ConfirmReceiptButton from '../../../components/dispute/ConfirmReceiptButton';
 import DisputeReportForm from '../../../components/dispute/DisputeReportForm';
 import ApproveReportButtons from '../../../components/dispute/ApproveReportButtons';
 import SettlementProposal from '../../../components/dispute/SettlementProposal';
@@ -46,6 +47,15 @@ function ContractPageContent() {
   
   // Trạng thái hiển thị form khiếu nại (Nghiệm thu đạt chuẩn hay Phát hiện sự cố)
   const [inspectionDecision, setInspectionDecision] = useState<'undecided' | 'ok' | 'issue'>('undecided');
+
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'confirm') {
+      setInspectionDecision('ok');
+    } else if (action === 'dispute') {
+      setInspectionDecision('issue');
+    }
+  }, [searchParams]);
 
   const { confirmReceipt, loading: escrowLoading } = useEscrow();
 
@@ -87,9 +97,6 @@ function ContractPageContent() {
 
       const disp = await getDisputeByContractId(contractId);
       setDispute(disp);
-      if (disp) {
-        setInspectionDecision('issue');
-      }
     } catch (err) {
       console.error('Lỗi khi tải dữ liệu hợp đồng:', err);
       setContract(null);
@@ -99,9 +106,44 @@ function ContractPageContent() {
   };
 
   useEffect(() => {
-    if (contractId) {
-      loadData();
-    }
+    if (!contractId) return;
+
+    loadData();
+
+    // Thiết lập realtime subscription để tự động cập nhật UI khi có thay đổi từ bên kia
+    const contractChannel = supabase
+      .channel(`contract_changes_${contractId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bao_cao_tranh_chap',
+          filter: `id_hop_dong=eq.${contractId}`,
+        },
+        (payload) => {
+          console.log('Realtime: phát hiện thay đổi báo cáo tranh chấp:', payload);
+          loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'hop_dong',
+          filter: `id=eq.${contractId}`,
+        },
+        (payload) => {
+          console.log('Realtime: phát hiện thay đổi hợp đồng:', payload);
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(contractChannel);
+    };
   }, [contractId]);
 
   // Xử lý kịch bản A: Giải ngân 100% khi người mua bấm nhận hàng đủ
@@ -270,7 +312,7 @@ function ContractPageContent() {
         {/* CỘT PHẢI: QUY TRÌNH NGHIỆM THU, GIAO NHẬN VÀ KHIẾU NẠI */}
         <div className="lg:col-span-6 space-y-6">
           
-          {contract.trang_thai === 'da_khoa_tien' && (
+          {contract.trang_thai === 'da_khoa_tien' && !dispute && (
             <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm space-y-5">
               
               <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
@@ -322,7 +364,12 @@ function ContractPageContent() {
                         </p>
                       </div>
                       <div className="flex justify-center gap-2">
-                        <ConfirmReceiptButton onClick={handleConfirmReceipt} loading={escrowLoading} />
+                        <ConfirmReceiptButton
+                          contractId={contract.id}
+                          buyerAddress={contract.vi_nguoi_mua}
+                          sellerAddress={contract.vi_nguoi_ban}
+                          onSuccess={handleTxSuccess}
+                        />
                         <button 
                           onClick={() => setInspectionDecision('undecided')}
                           className="btn-secondary text-xs border-neutral-250 py-2"
@@ -334,7 +381,7 @@ function ContractPageContent() {
                   )}
 
                   {/* Lựa chọn 2: Phát hiện lỗi - hiển thị form khiếu nại */}
-                  {inspectionDecision === 'issue' && (
+                  {inspectionDecision === 'issue' && !dispute && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between bg-red-50/50 p-3 rounded-lg border border-red-150">
                         <span className="text-[11px] text-red-700 font-bold">✓ Đang kích hoạt luồng Khiếu nại (Kịch bản B)</span>

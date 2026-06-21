@@ -9,6 +9,8 @@ import VideoCallFrame from '../components/shared/VideoCallFrame';
 import { useAuth } from '../hooks/useAuth';
 import DraftContractTable from '../components/negotiation/DraftContractTable';
 import { getMarketListings, createMarketListing } from '../lib/supabase/queries/listings';
+import { createDraftContract, updateContractStatus } from '../lib/supabase/queries/contracts';
+import { supabase } from '../lib/supabase/client';
 import { 
   ShoppingBag, 
   FileSignature, 
@@ -156,6 +158,86 @@ export default function HomePage() {
     loadListings();
   }, []);
 
+  // Helper map to translate static wallet addresses to readable names
+  const getPartnerName = (walletAddress: string) => {
+    const mapping: Record<string, string> = {
+      'nong_dan_wallet_address_demo': 'Nông dân Nguyễn Văn Ruộng',
+      'thuong_lai_wallet_address_demo': 'Thương lái Trần Thị Thương',
+      'nong_dan_wallet_address_vamco': 'HTX Nông Nghiệp Vàm Cỏ',
+      'nong_dan_wallet_address_ythang': 'Nông dân Y Thắng',
+      'nong_dan_wallet_address_uttroc': 'Nhà vườn Út Trọc'
+    };
+    return mapping[walletAddress] || `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    const userWallet = user.dia_chi_vi;
+    
+    async function loadDbContracts() {
+      try {
+        const { data: dbContracts, error } = await supabase
+          .from('hop_dong')
+          .select('*')
+          .or(`vi_nguoi_ban.eq.${userWallet},vi_nguoi_mua.eq.${userWallet}`);
+          
+        if (error) throw error;
+        
+        if (dbContracts) {
+          const mappedContracts = dbContracts.map((c: any) => {
+            const isSeller = c.vi_nguoi_ban === userWallet;
+            const partnerAddress = isSeller ? c.vi_nguoi_mua : c.vi_nguoi_ban;
+            const partnerName = getPartnerName(partnerAddress);
+              
+            return {
+              id: c.id,
+              title: `Thương vụ: ${c.so_luong} ${c.don_vi_tinh} ${c.san_pham}`,
+              partnerName: partnerName,
+              status: c.trang_thai === 'du_thao' ? 'dang_dam_phan' : 'da_chot',
+              deliveryStatus: c.trang_thai === 'da_khoa_tien' ? 'dang_van_chuyen' : 
+                              c.trang_thai === 'dang_tranh_chap' ? 'cho_nghiem_thu' : 
+                              c.trang_thai === 'da_xac_nhan' || c.trang_thai === 'da_giai_quyet' ? 'da_hoan_thanh' : 'dang_van_chuyen',
+              contract: c,
+              stt: c.noi_dung_nhap_ai?.stt || [
+                { sender: 'thuong_lai', text: 'Chào anh, tôi muốn thương lượng lô hàng này.' },
+                { sender: 'nong_dan', text: 'Vâng chào anh, chúng ta cùng thống nhất điều khoản.' }
+              ]
+            };
+          });
+          
+          setNegotiations(prev => {
+            const filteredPrev = prev.filter(p => !mappedContracts.some((m: any) => m.id === p.id));
+            return [...mappedContracts, ...filteredPrev];
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải hợp đồng từ database:', err);
+      }
+    }
+    
+    loadDbContracts();
+    
+    // Đăng ký realtime lắng nghe thay đổi trên bảng hop_dong để cập nhật tức thời
+    const channel = supabase
+      .channel('homepage_contracts')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'hop_dong',
+        },
+        () => {
+          loadDbContracts();
+        }
+      )
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   if (loading || !user) {
     return (
       <div className="flex-grow flex items-center justify-center bg-white text-neutral-400 min-h-screen gap-2">
@@ -221,8 +303,8 @@ export default function HomePage() {
 
         setContractDraft({
           id: newContractId,
-          vi_nguoi_ban: 'nong_dan_wallet_address_demo',
-          vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
+          vi_nguoi_ban: nego?.listingRef?.vi_nguoi_ban || 'nong_dan_wallet_address_demo',
+          vi_nguoi_mua: user?.dia_chi_vi || 'thuong_lai_wallet_address_demo',
           san_pham: listingName,
           so_luong: soLuong,
           don_vi_tinh: donViTinh,
@@ -249,13 +331,57 @@ export default function HomePage() {
     }, 600); // Tốc độ siêu nhanh cho chế độ giả lập demo
   };
 
-  const handleLockEscrow = () => {
-    setIsContractLocked(true);
-    const now = new Date().toISOString();
-    const lockedDraft = { ...contractDraft, trang_thai: 'da_khoa_tien', ngay_xac_nhan: now, dia_chi_vi_escrow: 'Solana_Escrow_PDA_' + Date.now().toString(36) };
-    setContractDraft(lockedDraft);
-    setNegotiations(prev => prev.map(n => n.id === activeNegotiationId ? { ...n, status: 'da_chot', deliveryStatus: 'dang_van_chuyen', contract: lockedDraft, stt: sttMessages } : n));
-    alert('Khóa tiền thành công! Hợp đồng đã chuyển sang Tab Giao Nhận.');
+  const handleLockEscrow = async () => {
+    if (!contractDraft) return;
+    
+    try {
+      // 1. Tạo hợp đồng dạng dự thảo để lấy mã UUID thật từ database
+      const dbContract = await createDraftContract({
+        vi_nguoi_ban: contractDraft.vi_nguoi_ban || 'nong_dan_wallet_address_demo',
+        vi_nguoi_mua: contractDraft.vi_nguoi_mua || 'thuong_lai_wallet_address_demo',
+        san_pham: contractDraft.san_pham,
+        so_luong: contractDraft.so_luong,
+        don_vi_tinh: contractDraft.don_vi_tinh,
+        don_gia: contractDraft.don_gia,
+        han_giao_hang: contractDraft.han_giao_hang,
+        noi_dung_nhap_ai: contractDraft.noi_dung_nhap_ai,
+        dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
+      });
+
+      const now = new Date().toISOString();
+      const escrowAddress = 'Solana_Escrow_PDA_' + Date.now().toString(36);
+
+      // 2. Cập nhật trạng thái hợp đồng thành 'da_khoa_tien' on-chain (giả lập lưu DB)
+      const lockedContract = await updateContractStatus(dbContract.id, 'da_khoa_tien', {
+        dia_chi_vi_escrow: escrowAddress,
+        tong_tien_usdc_khoa: contractDraft.tong_tien_usdc_khoa,
+        ngay_xac_nhan: now,
+      });
+
+      setIsContractLocked(true);
+      setContractDraft(lockedContract);
+      
+      // Đồng bộ ID hợp đồng mới tạo vào danh sách đàm phán để Tab Giao Nhận lấy đúng ID
+      setNegotiations(prev => prev.map(n => n.id === activeNegotiationId ? { 
+        ...n, 
+        id: lockedContract.id, 
+        status: 'da_chot', 
+        deliveryStatus: 'dang_van_chuyen', 
+        contract: lockedContract, 
+        stt: sttMessages 
+      } : n));
+
+      alert('Khóa tiền thành công! Hợp đồng đã được ghi nhận vào Database thật.');
+    } catch (err) {
+      console.error('Lỗi khi chốt hợp đồng trong database:', err);
+      // Fallback cục bộ
+      setIsContractLocked(true);
+      const now = new Date().toISOString();
+      const lockedDraft = { ...contractDraft, trang_thai: 'da_khoa_tien', ngay_xac_nhan: now, dia_chi_vi_escrow: 'Solana_Escrow_PDA_' + Date.now().toString(36) };
+      setContractDraft(lockedDraft);
+      setNegotiations(prev => prev.map(n => n.id === activeNegotiationId ? { ...n, status: 'da_chot', deliveryStatus: 'dang_van_chuyen', contract: lockedDraft, stt: sttMessages } : n));
+      alert('Khóa tiền thành công! (Chế độ giả lập do lỗi DB)');
+    }
   };
 
   // --- ACTIONS TAB 3 ---
@@ -693,6 +819,7 @@ export default function HomePage() {
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-900 text-lg">{nego.title}</h3>
+                          <p className="text-[11px] font-mono text-slate-400 mt-0.5 select-all">UUID: {nego.id}</p>
                           <p className="text-sm font-medium mt-1">
                             {nego.deliveryStatus === 'dang_van_chuyen' ? (
                               <span className="text-amber-600 flex items-center gap-1.5"><Truck size={14} /> Đang vận chuyển</span>
@@ -728,78 +855,83 @@ export default function HomePage() {
                   <PackageCheck size={48} className="mx-auto mb-4 text-[#15803D]" />
                   <h2 className="text-2xl font-black text-slate-900">Kiểm tra Hàng hóa</h2>
                   <p className="text-sm text-slate-500 mt-2">Xác nhận tình trạng lô hàng khi vận chuyển đến nơi.</p>
+                  <div className="mt-4 p-4 bg-gradient-to-r from-emerald-50/60 to-green-50/30 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20 flex-shrink-0">
+                        <FileText size={18} />
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Hồ sơ nghiệm thu trực tuyến</h5>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-mono font-bold text-[11px] text-emerald-700 bg-emerald-100/50 px-1.5 py-0.5 rounded select-all">{activeDeliveryId}</span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(activeDeliveryId || '');
+                              alert('Đã sao chép mã UUID hợp đồng!');
+                            }}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[9px] font-bold transition-all cursor-pointer shadow-sm active:scale-95 border-none"
+                            type="button"
+                          >
+                            Sao chép
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <Link
+                      href={`/contract/${activeDeliveryId}`}
+                      target="_blank"
+                      className="w-full sm:w-auto px-4.5 py-2.5 bg-[#15803D] hover:bg-[#166534] text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-97 text-center flex items-center justify-center gap-1 cursor-pointer border border-transparent"
+                    >
+                      <span>Xem chi tiết</span>
+                      <ChevronRight size={14} />
+                    </Link>
+                  </div>
                 </div>
 
-                {deliveryStage === 0 && (
-                  <div className="text-center space-y-4">
-                    {isNongDan ? (
-                      <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 relative">
-                        <Truck size={32} className="mx-auto mb-3 text-slate-400" />
-                        <p className="text-slate-700 font-bold">Đang vận chuyển hàng hóa tới Thương lái</p>
-                        <p className="text-sm text-slate-500 mt-2">Vui lòng chờ Thương lái xác nhận khi hàng tới kho.</p>
-                        <button onClick={handleGoodsArrived} className="absolute top-2 right-2 text-[10px] text-slate-300 hover:text-slate-500 underline">Demo: TL xác nhận tới</button>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-slate-700 font-bold">Hàng đã được giao tới kho của bạn chưa?</p>
-                        <button onClick={handleGoodsArrived} className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md transition-all active:scale-95">
-                          Xác nhận Hàng đã tới
-                        </button>
-                      </>
-                    )}
+                <div className="space-y-6">
+                  <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl text-center">
+                    <h4 className="text-indigo-900 font-extrabold text-xs uppercase tracking-wider">Kiểm tra chất lượng hàng hóa</h4>
+                    <p className="text-[11px] text-indigo-700 mt-1">Hàng hóa có đúng cam kết trong Hợp đồng không?</p>
                   </div>
-                )}
 
-                {deliveryStage === 1 && (
-                  <div className="space-y-6 animate-fade-in-up">
-                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-center relative">
-                      <p className="text-indigo-900 font-bold">Kiểm tra chất lượng hàng hóa</p>
-                      <p className="text-xs text-indigo-700 mt-1">Hàng hóa có đúng cam kết trong Hợp đồng không?</p>
-                      {isNongDan && (
-                        <div className="absolute top-2 right-2 flex gap-2">
-                          <button onClick={handleFullDisbursement} className="text-[10px] text-indigo-300 hover:text-indigo-500 underline">Demo: TL báo Đạt</button>
-                          <button onClick={() => { setIsDisputeModalOpen(true); setDisputeStage(0); setDisputeInput(''); }} className="text-[10px] text-indigo-300 hover:text-indigo-500 underline">Demo: TL báo Lỗi</button>
-                        </div>
-                      )}
+                  {isNongDan ? (
+                    <div className="p-6 bg-white border border-slate-200 rounded-2xl text-center space-y-2">
+                      <PackageCheck size={32} className="mx-auto text-indigo-400 animate-pulse" />
+                      <p className="text-slate-700 font-bold text-sm">Hàng đã tới nơi. Đang chờ Thương lái nghiệm thu...</p>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                        Thương lái sẽ tiến hành kiểm nghiệm thực tế và chọn xác nhận giải ngân 100% hoặc báo cáo lỗi nếu có hao hụt/sai sót.
+                      </p>
                     </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Link 
+                        href={`/contract/${activeDeliveryId}?action=confirm`}
+                        className="p-6 bg-emerald-50/60 hover:bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group active:scale-98 shadow-sm hover:shadow-md cursor-pointer text-center"
+                      >
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm group-hover:scale-105 transition-transform border border-emerald-100">
+                          <CheckCircle2 size={24} />
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-emerald-900 text-sm uppercase tracking-wider">Đạt Chuẩn</h4>
+                          <p className="text-[11px] text-emerald-700 mt-1">Giải ngân 100% cho Nông dân</p>
+                        </div>
+                      </Link>
 
-                    {isNongDan ? (
-                      <div className="p-6 bg-white border border-slate-200 rounded-xl text-center">
-                        <PackageCheck size={32} className="mx-auto mb-3 text-indigo-400" />
-                        <p className="text-slate-700 font-bold">Hàng đã tới nơi. Thương lái đang kiểm tra chất lượng.</p>
-                        <p className="text-sm text-slate-500 mt-2">Hệ thống sẽ tự động giải ngân khi Thương lái xác nhận đạt chuẩn.</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <button 
-                          onClick={handleFullDisbursement}
-                          className="p-6 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex flex-col items-center justify-center gap-3 transition-colors group"
-                        >
-                          <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
-                            <CheckCircle2 size={32} />
-                          </div>
-                          <div className="text-center">
-                            <h4 className="font-bold text-emerald-900 text-lg">Đạt Chuẩn</h4>
-                            <p className="text-xs text-emerald-700 mt-1">Giải ngân 100% cho Nông dân</p>
-                          </div>
-                        </button>
-
-                        <button 
-                          onClick={() => { setIsDisputeModalOpen(true); setDisputeStage(0); setDisputeInput(''); }}
-                          className="p-6 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl flex flex-col items-center justify-center gap-3 transition-colors group"
-                        >
-                          <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-rose-600 shadow-sm group-hover:scale-110 transition-transform">
-                            <AlertTriangle size={32} />
-                          </div>
-                          <div className="text-center">
-                            <h4 className="font-bold text-rose-900 text-lg">Hàng Có Lỗi</h4>
-                            <p className="text-xs text-rose-700 mt-1">Báo cáo để AI phân xử phạt</p>
-                          </div>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      <Link 
+                        href={`/contract/${activeDeliveryId}?action=dispute`}
+                        className="p-6 bg-rose-50/60 hover:bg-rose-50 border border-rose-200 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group active:scale-98 shadow-sm hover:shadow-md cursor-pointer text-center"
+                      >
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-rose-600 shadow-sm group-hover:scale-105 transition-transform border border-rose-100">
+                          <AlertTriangle size={24} />
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-rose-900 text-sm uppercase tracking-wider">Hàng Có Lỗi</h4>
+                          <p className="text-[11px] text-rose-700 mt-1">Báo cáo để AI phân xử phạt</p>
+                        </div>
+                      </Link>
+                    </div>
+                  )}
+                </div>
 
               </div>
             </div>

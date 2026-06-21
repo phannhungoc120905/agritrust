@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { updateAgreement } from '../../lib/supabase/queries/disputes';
+import { updateSellerApproval } from '../../lib/supabase/queries/disputes';
 
 interface ApproveReportButtonsProps {
   disputeId: string;
@@ -15,11 +15,11 @@ export default function ApproveReportButtons({ disputeId, isApproved, onUpdate }
   const handleApprove = async () => {
     setLoading(true);
     try {
-      // Nông dân xác nhận đã xem và đồng ý tiếp nhận tranh chấp này
-      await updateAgreement(disputeId, 'nguoi_ban_dong_y', true);
+      // Nông dân xác nhận đã xem và duyệt tiếp nhận báo cáo
+      await updateSellerApproval(disputeId, true);
       onUpdate();
     } catch (err) {
-      console.error(err);
+      console.error('Lỗi khi nông dân duyệt báo cáo nghiệm thu:', err);
     } finally {
       setLoading(false);
     }
@@ -39,7 +39,7 @@ export default function ApproveReportButtons({ disputeId, isApproved, onUpdate }
       <button
         onClick={handleApprove}
         disabled={loading}
-        className="w-full py-2.5 btn-primary text-xs font-bold transition-all"
+        className="w-full py-2.5 btn-primary text-xs font-bold transition-all cursor-pointer"
       >
         {loading ? 'Đang xác nhận...' : 'Đồng ý với báo cáo nghiệm thu thực tế'}
       </button>
