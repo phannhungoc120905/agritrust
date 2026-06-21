@@ -17,9 +17,10 @@ interface DraftTerms {
 interface DraftContractTableProps {
   terms: DraftTerms;
   onChange: (updatedTerms: DraftTerms) => void;
+  isLocked?: boolean;
 }
 
-export default function DraftContractTable({ terms, onChange }: DraftContractTableProps) {
+export default function DraftContractTable({ terms, onChange, isLocked = false }: DraftContractTableProps) {
   const handleInputChange = (field: keyof DraftTerms, value: any) => {
     onChange({ ...terms, [field]: value });
   };
@@ -112,7 +113,8 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
                       type="text"
                       value={terms.san_pham}
                       onChange={(e) => handleInputChange('san_pham', e.target.value)}
-                      className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900"
+                      disabled={isLocked}
+                      className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                     />
                   </td>
                 </tr>
@@ -124,7 +126,8 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
                         type="number"
                         value={terms.so_luong}
                         onChange={(e) => handleInputChange('so_luong', parseFloat(e.target.value) || 0)}
-                        className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-right"
+                        disabled={isLocked}
+                        className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-right ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                       />
                     </div>
                     <div className="flex items-center gap-2 w-28">
@@ -132,7 +135,8 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
                         type="text"
                         value={terms.don_vi_tinh}
                         onChange={(e) => handleInputChange('don_vi_tinh', e.target.value)}
-                        className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-center"
+                        disabled={isLocked}
+                        className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-center ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                       />
                     </div>
                   </td>
@@ -144,7 +148,8 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
                       type="number"
                       value={terms.don_gia}
                       onChange={(e) => handleInputChange('don_gia', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900"
+                      disabled={isLocked}
+                      className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                     />
                   </td>
                 </tr>
@@ -167,7 +172,8 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
                       type="datetime-local"
                       value={terms.han_giao_hang.slice(0, 16)}
                       onChange={(e) => handleInputChange('han_giao_hang', new Date(e.target.value).toISOString())}
-                      className="w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900"
+                      disabled={isLocked}
+                      className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                     />
                   </td>
                 </tr>
@@ -199,7 +205,8 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
                         type="text"
                         value={rule.tieu_chi}
                         onChange={(e) => handleQualityRuleChange(idx, 'tieu_chi', e.target.value)}
-                        className="w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900"
+                        disabled={isLocked}
+                        className={`w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                       />
                     </td>
                     <td className="py-3 px-5 border-r border-slate-300 text-center">
@@ -208,7 +215,8 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
                           type="number"
                           value={rule.nguong_phan_tram}
                           onChange={(e) => handleQualityRuleChange(idx, 'nguong_phan_tram', parseFloat(e.target.value) || 0)}
-                          className="w-16 bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900 text-center"
+                          disabled={isLocked}
+                          className={`w-16 bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900 text-center ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                         />
                         <span className="font-medium">%</span>
                       </div>
@@ -218,7 +226,8 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
                         <textarea
                           value={rule.muc_phat || ''}
                           onChange={(e) => handleQualityRuleChange(idx, 'muc_phat', e.target.value)}
-                          className="w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-red-400 focus:border-red-600 outline-none text-center resize-none overflow-hidden py-1 leading-tight"
+                          disabled={isLocked}
+                          className={`w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-red-400 focus:border-red-600 outline-none text-center resize-none overflow-hidden py-1 leading-tight ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                           placeholder="Ví dụ: Từ chối nhận hàng"
                           rows={Math.max(1, Math.ceil((rule.muc_phat?.length || 0) / 22))}
                         />
@@ -254,11 +263,19 @@ export default function DraftContractTable({ terms, onChange }: DraftContractTab
             {/* CHỮ KÝ BÊN B */}
             <div className="space-y-4 flex flex-col items-center">
               <h5 className="font-bold text-base uppercase">Đại diện Bên B (Bên Mua)</h5>
-              <div className="w-40 h-40 border-4 border-dashed border-slate-400 rounded-full flex flex-col items-center justify-center text-slate-500 bg-slate-50 my-4">
-                <FileSignature size={36} className="mb-3 opacity-50" />
-                <span className="text-sm font-semibold uppercase">Chờ ký quỹ</span>
-                <span className="text-xs italic mt-2">(Xác thực giao dịch)</span>
-              </div>
+              {isLocked ? (
+                <div className="w-40 h-40 border-4 border-emerald-600 rounded-full flex flex-col items-center justify-center text-emerald-700 bg-emerald-50 opacity-90 rotate-[-12deg] shadow-sm my-4">
+                  <Stamp size={32} className="mb-2" />
+                  <span className="text-[10px] font-bold uppercase mt-1">Đã Khóa Smart Contract</span>
+                  <span className="text-[9px] font-mono mt-2 opacity-90">SOL_TX_89AB12CD</span>
+                </div>
+              ) : (
+                <div className="w-40 h-40 border-4 border-dashed border-slate-400 rounded-full flex flex-col items-center justify-center text-slate-500 bg-slate-50 my-4">
+                  <FileSignature size={36} className="mb-3 opacity-50" />
+                  <span className="text-sm font-semibold uppercase">Chờ ký quỹ</span>
+                  <span className="text-xs italic mt-2">(Xác thực giao dịch)</span>
+                </div>
+              )}
               <p className="font-bold mt-4 border-t border-slate-400 pt-3 w-3/4 mx-auto text-lg text-slate-400">Bà Trần Thị B</p>
             </div>
           </div>

@@ -121,7 +121,7 @@ export default function DashboardPage() {
         return l;
       });
       localStorage.setItem('agritrust_listings', JSON.stringify(updated));
-      
+
       // Cập nhật state nội bộ dashboard
       const myConnections = updated.filter(l => {
         if (l.trang_thai === 'chua_ket_noi') return false;
@@ -157,7 +157,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-grow flex flex-col min-h-screen bg-[#FBFBFA]">
-      
+
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b border-neutral-200">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
@@ -203,13 +203,13 @@ export default function DashboardPage() {
 
       {/* MAIN CONTENT */}
       <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-8 space-y-8">
-        
+
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">Dashboard Quản lý</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
+
           {/* CỘT 1: QUẢN LÝ KẾT NỐI (CUỘC HẸN ĐÀM PHÁN) */}
           <div className="space-y-6">
             <div className="card-fintech bg-white border-neutral-200 shadow-sm overflow-hidden">
@@ -219,7 +219,7 @@ export default function DashboardPage() {
                   <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">Phiên đàm phán</h3>
                 </div>
               </div>
-              
+
               <div className="divide-y divide-neutral-100">
                 {connections.length === 0 ? (
                   <div className="p-6 text-center text-xs text-neutral-400">Không có phiên đàm phán nào.</div>
@@ -230,13 +230,13 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-extrabold text-neutral-800 text-[13px] truncate">{c.san_pham}</h4>
                           {c.trang_thai === 'dang_cho_duyet' ? (
-                             <span className="text-[9px] bg-amber-50 text-amber-600 font-bold uppercase px-2 py-0.5 rounded-full border border-amber-100">
-                               Chờ duyệt
-                             </span>
+                            <span className="text-[9px] bg-amber-50 text-amber-600 font-bold uppercase px-2 py-0.5 rounded-full border border-amber-100">
+                              Chờ duyệt
+                            </span>
                           ) : (
-                             <span className="text-[9px] bg-emerald-50 text-emerald-600 font-bold uppercase px-2 py-0.5 rounded-full border border-emerald-100">
-                               Sẵn sàng
-                             </span>
+                            <span className="text-[9px] bg-emerald-50 text-emerald-600 font-bold uppercase px-2 py-0.5 rounded-full border border-emerald-100">
+                              Sẵn sàng
+                            </span>
                           )}
                         </div>
                         <p className="text-[11px] text-neutral-500">Đối tác: {isNongDan ? c.nguoi_mua_ten : c.nong_dan_ten}</p>
@@ -245,7 +245,7 @@ export default function DashboardPage() {
 
                       <div className="flex-shrink-0">
                         {isNongDan && c.trang_thai === 'dang_cho_duyet' && (
-                          <button 
+                          <button
                             onClick={() => handleAcceptConnection(c.id)}
                             className="btn-primary text-xs py-1.5 px-3 font-bold"
                           >
@@ -256,7 +256,7 @@ export default function DashboardPage() {
                           <span className="text-[11px] text-neutral-400 font-medium">Đang đợi nông dân...</span>
                         )}
                         {c.trang_thai === 'da_ket_noi' && (
-                          <Link 
+                          <Link
                             href={`/call?scenario=${localStorage.getItem('agritrust_demo_scenario') || 'A'}`}
                             className="btn-primary bg-indigo-600 hover:bg-indigo-750 text-xs py-1.5 px-3 font-bold gap-1.5"
                           >
@@ -287,7 +287,7 @@ export default function DashboardPage() {
                 ) : (
                   contracts.map((c) => {
                     const status = statusMap[c.trang_thai] || statusMap.du_thao;
-                    const detailUrl = c.dbId 
+                    const detailUrl = c.dbId
                       ? `/contract/${c.dbId}?scenario=${localStorage.getItem('agritrust_demo_scenario') || 'A'}`
                       : `/contract/dummy?scenario=${localStorage.getItem('agritrust_demo_scenario') || 'A'}`;
                     return (

@@ -92,10 +92,20 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
 
     } catch (err) {
       console.error('Lỗi kết nối Video Call:', err);
-      alert('Lỗi khởi tạo Camera/Micro. Đang quay lại luồng giả lập.');
+      // Thay vì throw lỗi đỏ làm Next.js crash, ta bypass qua luồng giả lập
+      setInCall(true);
+      setCameraOff(true);
+      setMuted(true);
     } finally {
       setIsJoining(false);
     }
+  };
+
+  // Vào phòng không cần Camera (Demo Mode an toàn)
+  const joinDemoMode = () => {
+    setInCall(true);
+    setCameraOff(true);
+    setMuted(true);
   };
 
   // Phát lại video sau khi render
@@ -166,17 +176,26 @@ export default function VideoCallFrame({ channelName, role }: VideoCallFrameProp
           <p className="text-neutral-400 text-sm max-w-sm mb-8 leading-relaxed">
             Cho phép trình duyệt truy cập Camera và Microphone để bắt đầu cuộc gọi với <span className="font-bold text-white">{partnerRole}</span>.
           </p>
-          <button
-            onClick={startCall}
-            disabled={isJoining}
-            className="flex items-center gap-3 px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 rounded-full font-bold text-[15px] shadow-lg shadow-indigo-600/30 transition-all active:scale-95 disabled:opacity-70"
-          >
-            {isJoining ? (
-              <><Loader2 size={20} className="animate-spin" /> Đang kết nối...</>
-            ) : (
-              <><PhoneCall size={20} /> Tham gia Video Call</>
-            )}
-          </button>
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onClick={startCall}
+              disabled={isJoining}
+              className="flex items-center gap-3 px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 rounded-full font-bold text-[15px] shadow-lg shadow-indigo-600/30 transition-all active:scale-95 disabled:opacity-70 w-full justify-center"
+            >
+              {isJoining ? (
+                <><Loader2 size={20} className="animate-spin" /> Đang kết nối...</>
+              ) : (
+                <><PhoneCall size={20} /> Tham gia Video Call</>
+              )}
+            </button>
+
+            <button
+              onClick={joinDemoMode}
+              className="flex items-center justify-center gap-2 px-8 py-3 w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-semibold transition-all"
+            >
+              Vào phòng nhanh (Demo an toàn)
+            </button>
+          </div>
         </div>
       ) : (
         // Màn hình trong cuộc gọi (In Call)
