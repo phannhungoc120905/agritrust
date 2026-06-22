@@ -37,15 +37,6 @@ import {
 import DisputeReportForm from '../components/dispute/DisputeReportForm';
 import SettlementProposal from '../components/dispute/SettlementProposal';
 import { DisputeReport } from '../types/disputeReport';
-
-// --- MOCK DATA CHO TAB 1 ---
-const MARKET_LISTINGS = [
-  { id: 'm1', name: '5 Tấn Lúa ST25', location: 'Long An', qty: '5 tấn', desc: 'Lúa đẹp, độ ẩm <14%, cam kết thu hoạch đúng ngày.', farmer: 'HTX Nông Nghiệp Vàm Cỏ' },
-  { id: 'm2', name: '2 Tấn Cà Phê Robusta', location: 'Đắk Lắk', qty: '2 tấn', desc: 'Cà phê nhân xô chế biến ướt, hạt sàn 18.', farmer: 'Nông dân Y Thắng' },
-  { id: 'm3', name: '1 Tấn Sầu Riêng Ri6', location: 'Tiền Giang', qty: '1 tấn', desc: 'Bao ăn, rụng cuống tự nhiên, cơm vàng hạt lép.', farmer: 'Nhà vườn Út Trọc' },
-  { id: 'm4', name: '3 Tấn Thanh Long Ruột Đỏ', location: 'Bình Thuận', qty: '3 tấn', desc: 'Thanh long xuất khẩu ruột đỏ, vỏ bóng tai xanh dẻo dai.', farmer: 'HTX Hàm Thuận Nam' },
-];
-
 function HomePageContent() {
   const searchParams = useSearchParams();
   const { user, loading, logout } = useAuth();
@@ -60,56 +51,7 @@ function HomePageContent() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<'market' | 'negotiation' | 'delivery'>('market');
 
-  const [negotiations, setNegotiations] = useState<any[]>([
-    {
-      id: 'a1b2c3d4-e5f6-7890-abcd-100000000003',
-      title: 'Thương vụ: 5 Tấn Lúa ST25',
-      partnerName: 'HTX Nông Nghiệp Vàm Cỏ',
-      status: 'dang_lien_he',
-      listingRef: MARKET_LISTINGS[0]
-    },
-    {
-      id: 'a1b2c3d4-e5f6-7890-abcd-100000000002',
-      title: 'Thương vụ: Sầu Riêng Ri6',
-      partnerName: 'Nhà vườn Út Trọc',
-      status: 'dang_dam_phan',
-      listingRef: MARKET_LISTINGS[2]
-    },
-    {
-      id: 'a1b2c3d4-e5f6-7890-abcd-100000000001',
-      title: 'Thương vụ: Cà phê Robusta',
-      partnerName: 'Nông dân Y Thắng',
-      status: 'da_chot',
-      deliveryStatus: 'dang_van_chuyen',
-      contract: {
-        id: 'a1b2c3d4-e5f6-7890-abcd-100000000001',
-        vi_nguoi_ban: 'nong_dan_wallet_address_demo',
-        vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
-        san_pham: '2 Tấn Cà Phê Robusta',
-        so_luong: 2,
-        don_vi_tinh: 'tấn',
-        don_gia: 75000000,
-        han_giao_hang: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        noi_dung_nhap_ai: {
-          san_pham: 'Cà phê Robusta',
-          so_luong: 2,
-          don_gia: 75000000,
-          nguon: 'Trích xuất từ đàm phán thoại AI'
-        },
-        dieu_khoan_chat_luong: [{ tieu_chi: 'Hạt đen vỡ', nguong_phan_tram: 5, muc_phat: 'Trừ 1% giá trị' }],
-        ty_gia_vnd_usdc: 25000,
-        tong_tien_usdc_khoa: 6000,
-        dia_chi_vi_escrow: 'Solana_Escrow_PDA_Demo',
-        trang_thai: 'da_khoa_tien',
-        ngay_tao: new Date().toISOString(),
-        ngay_xac_nhan: new Date().toISOString()
-      },
-      stt: [
-        { sender: 'thuong_lai', text: 'Giá 75 củ chốt nhé. Hạt đen vỡ dưới 5% thôi.' },
-        { sender: 'nong_dan', text: 'Nhất trí. Lập hợp đồng đi.' }
-      ]
-    }
-  ]);
+  const [negotiations, setNegotiations] = useState<any[]>([]);
   const [activeNegotiationId, setActiveNegotiationId] = useState<string | null>(null);
   const [sttMessages, setSttMessages] = useState<any[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -144,7 +86,7 @@ function HomePageContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // --- TAB 1 STATE (Farmer listings) ---
-  const [myListings, setMyListings] = useState<any[]>(MARKET_LISTINGS);
+  const [myListings, setMyListings] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newListing, setNewListing] = useState({ name: '', qty: '', location: '', desc: '' });
 
@@ -166,7 +108,7 @@ function HomePageContent() {
     async function loadListings() {
       try {
         const dbListings = await getMarketListings();
-        if (dbListings && dbListings.length > 0) {
+        if (dbListings) {
           const mapped = dbListings.map((l: any) => ({
             id: l.id,
             name: l.ten_san_pham,
@@ -277,7 +219,7 @@ function HomePageContent() {
   const isNongDan = user.vai_tro === 'nong_dan';
 
   // --- ACTIONS TAB 1 -> TAB 2 ---
-  const handleContactNegotiation = (listing: typeof MARKET_LISTINGS[0]) => {
+  const handleContactNegotiation = (listing: any) => {
     const newId = `n-${Date.now()}`;
     const newNego = {
       id: newId,
@@ -337,7 +279,7 @@ function HomePageContent() {
         const donViTinh = listingName.includes('Lúa') || listingName.includes('Cà') ? 'tấn' : 'kg';
         const donGia = 9000000; // Giá mặc định demo — sẽ do 2 bên thương lượng qua thoại
         const tongVnd = donGia * soLuong;
-        const tongUsdc = Math.round(tongVnd / 25000);
+        const tongUsdc = Math.round((tongVnd / 4000000) * 1000) / 1000;
         const newContractId = crypto.randomUUID ? crypto.randomUUID() : `demo-${Date.now()}`;
 
         setContractDraft({
@@ -360,7 +302,7 @@ function HomePageContent() {
             { tieu_chi: 'Độ ẩm > 14%', nguong_phan_tram: 14, muc_phat: 'Trừ 2% giá trị thanh toán' },
             { tieu_chi: 'Độ ẩm > 15%', nguong_phan_tram: 15, muc_phat: 'Trả hàng, hủy hợp đồng' }
           ],
-          ty_gia_vnd_usdc: 25000,
+          ty_gia_vnd_usdc: 4000000,
           tong_tien_usdc_khoa: tongUsdc,
           dia_chi_vi_escrow: null, // Sẽ được set khi initialize on-chain
           trang_thai: 'du_thao',
@@ -653,20 +595,57 @@ function HomePageContent() {
           {!activeNegotiationId ? (
             // DANH SÁCH THƯƠNG VỤ
             <div className="animate-fade-in-up">
-              <h1 className="text-2xl font-black text-slate-900 mb-6">Quản lý Đàm phán</h1>
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                <h1 className="text-2xl font-black text-slate-900">Quản lý Đàm phán & Hợp đồng</h1>
+                
+                {/* WIDGET TỔNG TIỀN ĐANG KHÓA */}
+                <div className="bg-gradient-to-r from-emerald-600 to-[#15803D] p-4 rounded-2xl text-white shadow-lg flex items-center gap-4 border border-emerald-500/30">
+                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Lock size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-emerald-100 uppercase tracking-wider mb-0.5">Tổng tiền quỹ đang khóa</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black">
+                        {negotiations
+                          .filter(n => n.status === 'da_chot' && n.contract?.tong_tien_usdc_khoa)
+                          .reduce((sum, n) => sum + (n.contract.tong_tien_usdc_khoa || 0), 0)
+                          .toLocaleString('en-US')} SOL
+                      </span>
+                      <span className="text-sm font-semibold text-emerald-200">
+                        (~{negotiations
+                            .filter(n => n.status === 'da_chot' && n.contract?.don_gia && n.contract?.so_luong)
+                            .reduce((sum, n) => sum + (n.contract.don_gia * n.contract.so_luong), 0)
+                            .toLocaleString('vi-VN')} VNĐ)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-4">
                 {negotiations.map(nego => (
-                  <div key={nego.id} onClick={() => openNegotiation(nego)} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 cursor-pointer transition-all flex items-center justify-between group">
+                  <div key={nego.id} onClick={() => openNegotiation(nego)} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 cursor-pointer transition-all flex flex-col md:flex-row md:items-center justify-between group gap-4">
                     <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${nego.status === 'da_chot' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                      <div className={`w-12 h-12 rounded-full flex flex-shrink-0 items-center justify-center ${nego.status === 'da_chot' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
                         {nego.status === 'da_chot' ? <Lock size={20} /> : <MessageSquare size={20} />}
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-900 text-lg">{nego.title}</h3>
-                        <p className="text-sm text-slate-500 mt-0.5">Đối tác: {nego.partnerName}</p>
+                        <h3 className="font-bold text-slate-900 text-lg truncate max-w-[250px] sm:max-w-md">{nego.title}</h3>
+                        <p className="text-sm text-slate-500 mt-0.5">Đối tác: <span className="font-semibold text-slate-700">{nego.partnerName}</span></p>
+                        {nego.status === 'da_chot' && nego.contract && (
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                              {(nego.contract.tong_tien_usdc_khoa || 0).toLocaleString()} SOL
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-400">
+                              / {(nego.contract.don_gia * nego.contract.so_luong).toLocaleString('vi-VN')} VNĐ
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-between md:justify-end gap-4 border-t md:border-0 border-slate-100 pt-3 md:pt-0 w-full md:w-auto">
                       {nego.status === 'da_chot'
                         ? <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-200">Đã Chốt & Khóa</span>
                         : nego.status === 'dang_lien_he'

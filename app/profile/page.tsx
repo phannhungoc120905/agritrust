@@ -8,12 +8,14 @@ import { useAuth } from '../../hooks/useAuth';
 import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
 import WalletBalance from '../../components/shared/WalletBalance';
 import { useWallet } from '../../hooks/useWallet';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { UserCircle, MapPin, Calendar, ShieldCheck, Mail, Wallet, ChevronLeft, ChevronRight, Loader2, Award, LogOut } from 'lucide-react';
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
   const { wallet, publicKey, connected: walletConnected, select, wallets } = useWallet();
+  const { setVisible } = useWalletModal();
   const [dbUser, setDbUser] = useState<any>(null);
   const [contractCount, setContractCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -244,12 +246,7 @@ export default function ProfilePage() {
                     {!walletConnected && (
                       <button 
                         onClick={() => {
-                          const phantomWallet = wallets.find((w) => w.adapter.name === 'Phantom') || wallets[0];
-                          if (phantomWallet) {
-                            select(phantomWallet.adapter.name);
-                          } else {
-                            alert('Vui lòng cài đặt ví Phantom để kết nối.');
-                          }
+                          setVisible(true);
                         }} 
                         className="flex items-center justify-center gap-2 w-full py-2.5 bg-white border-2 border-amber-300 text-amber-700 rounded-xl text-sm font-bold hover:bg-amber-50 hover:border-amber-400 transition-all shadow-sm group"
                       >

@@ -14,13 +14,44 @@ interface DraftTerms {
   dieu_khoan_chat_luong: QualityRule[];
 }
 
+export interface ContractSignature {
+  name: string;
+  wallet: string;
+  timestamp: string;
+  txHash: string;
+}
+
 interface DraftContractTableProps {
   terms: DraftTerms;
   onChange: (updatedTerms: DraftTerms) => void;
   isLocked?: boolean;
+  buyerName?: string;
+  sellerName?: string;
+  buyerSignature?: ContractSignature | null;
+  sellerSignature?: ContractSignature | null;
+  onSignBuyer?: (name: string) => Promise<void>;
+  onSignSeller?: (name: string) => Promise<void>;
+  isSigningBuyer?: boolean;
+  isSigningSeller?: boolean;
+  currentRole?: 'nong_dan' | 'thuong_lai';
 }
 
-export default function DraftContractTable({ terms, onChange, isLocked = false }: DraftContractTableProps) {
+export default function DraftContractTable({ 
+  terms, 
+  onChange, 
+  isLocked = false,
+  buyerName = 'Người mua',
+  sellerName = 'Người bán',
+  buyerSignature,
+  sellerSignature,
+  onSignBuyer,
+  onSignSeller,
+  isSigningBuyer,
+  isSigningSeller,
+  currentRole
+}: DraftContractTableProps) {
+  const [typedBuyerName, setTypedBuyerName] = React.useState('');
+  const [typedSellerName, setTypedSellerName] = React.useState('');
   const handleInputChange = (field: keyof DraftTerms, value: any) => {
     onChange({ ...terms, [field]: value });
   };
@@ -74,10 +105,12 @@ export default function DraftContractTable({ terms, onChange, isLocked = false }
               <div className="flex gap-2"><span className="font-semibold min-w-28">Tên đơn vị:</span> <span>Hợp tác xã Nông nghiệp Miền Tây</span></div>
               <div className="flex gap-2"><span className="font-semibold min-w-28">Địa chỉ:</span> <span>Huyện Trần Đề, Tỉnh Sóc Trăng</span></div>
               <div className="flex gap-2"><span className="font-semibold min-w-28">Mã số thuế:</span> <span>2200112233</span></div>
-              <div className="flex gap-2"><span className="font-semibold min-w-28">Đại diện:</span> <span>Ông Nguyễn Văn A - Giám đốc</span></div>
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Đại diện:</span> <span>Ông/Bà {sellerName}</span></div>
               <div className="flex gap-2 items-center mt-2">
                 <span className="font-semibold min-w-28">Ví điện tử:</span> 
-                <span className="font-mono text-xs bg-slate-100 p-1.5 rounded border border-slate-300 text-slate-600">nong_dan_wallet...demo</span>
+                <span className="font-mono text-xs bg-slate-100 p-1.5 rounded border border-slate-300 text-slate-600">
+                  {sellerSignature?.wallet.slice(0, 4) + '...' + sellerSignature?.wallet.slice(-4) || 'Chưa kết nối'}
+                </span>
               </div>
             </div>
           </div>
@@ -89,10 +122,12 @@ export default function DraftContractTable({ terms, onChange, isLocked = false }
               <div className="flex gap-2"><span className="font-semibold min-w-28">Tên đơn vị:</span> <span>Công ty XNK Nông sản Agri-Export</span></div>
               <div className="flex gap-2"><span className="font-semibold min-w-28">Địa chỉ:</span> <span>Quận 1, Thành phố Hồ Chí Minh</span></div>
               <div className="flex gap-2"><span className="font-semibold min-w-28">Mã số thuế:</span> <span>0311223344</span></div>
-              <div className="flex gap-2"><span className="font-semibold min-w-28">Đại diện:</span> <span>Bà Trần Thị B - GĐ Mua hàng</span></div>
+              <div className="flex gap-2"><span className="font-semibold min-w-28">Đại diện:</span> <span>Ông/Bà {buyerName}</span></div>
               <div className="flex gap-2 items-center mt-2">
                 <span className="font-semibold min-w-28">Ví điện tử:</span> 
-                <span className="font-mono text-xs bg-slate-100 p-1.5 rounded border border-slate-300 text-slate-600">thuong_lai_wallet...demo</span>
+                <span className="font-mono text-xs bg-slate-100 p-1.5 rounded border border-slate-300 text-slate-600">
+                  {buyerSignature?.wallet.slice(0, 4) + '...' + buyerSignature?.wallet.slice(-4) || 'Chưa kết nối'}
+                </span>
               </div>
             </div>
           </div>
@@ -248,35 +283,94 @@ export default function DraftContractTable({ terms, onChange, isLocked = false }
           </p>
 
           <div className="grid grid-cols-2 gap-8 text-center pt-6 pb-12">
-            {/* CHỮ KÝ BÊN A */}
+            {/* CHỮ KÝ BÊN A (BÊN BÁN) */}
             <div className="space-y-4 flex flex-col items-center">
               <h5 className="font-bold text-base uppercase">Đại diện Bên A (Bên Bán)</h5>
-              <div className="w-40 h-40 border-4 border-emerald-600 rounded-full flex flex-col items-center justify-center text-emerald-700 bg-emerald-50 opacity-90 rotate-[-8deg] shadow-sm my-4">
-                <Stamp size={32} className="mb-2" />
-                <span className="text-sm font-bold uppercase">Đã xác thực</span>
-                <span className="text-[10px] font-mono mt-2 opacity-90">SOL_HTX_MIENTAY</span>
-                <span className="text-[9px] font-mono opacity-70">{new Date().toISOString().split('T')[0]}</span>
-              </div>
-              <p className="font-bold mt-4 border-t border-slate-400 pt-3 w-3/4 mx-auto text-lg">Ông Nguyễn Văn A</p>
-            </div>
-
-            {/* CHỮ KÝ BÊN B */}
-            <div className="space-y-4 flex flex-col items-center">
-              <h5 className="font-bold text-base uppercase">Đại diện Bên B (Bên Mua)</h5>
-              {isLocked ? (
-                <div className="w-40 h-40 border-4 border-emerald-600 rounded-full flex flex-col items-center justify-center text-emerald-700 bg-emerald-50 opacity-90 rotate-[-12deg] shadow-sm my-4">
-                  <Stamp size={32} className="mb-2" />
-                  <span className="text-[10px] font-bold uppercase mt-1">Đã Khóa Smart Contract</span>
-                  <span className="text-[9px] font-mono mt-2 opacity-90">SOL_TX_89AB12CD</span>
+              {sellerSignature ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-40 h-40 border-4 border-emerald-600 rounded-full flex flex-col items-center justify-center text-emerald-700 bg-emerald-50 opacity-90 rotate-[-8deg] shadow-sm my-2">
+                    <Stamp size={32} className="mb-2" />
+                    <span className="text-sm font-bold uppercase">Đã xác thực</span>
+                    <span className="text-[9px] font-mono mt-2 truncate w-24 text-center">TX: {sellerSignature.txHash.slice(0, 8)}...</span>
+                    <span className="text-[9px] font-mono opacity-70">{new Date(sellerSignature.timestamp).toISOString().split('T')[0]}</span>
+                  </div>
+                  <p className="font-bold text-lg">{sellerSignature.name}</p>
                 </div>
               ) : (
-                <div className="w-40 h-40 border-4 border-dashed border-slate-400 rounded-full flex flex-col items-center justify-center text-slate-500 bg-slate-50 my-4">
-                  <FileSignature size={36} className="mb-3 opacity-50" />
-                  <span className="text-sm font-semibold uppercase">Chờ ký quỹ</span>
-                  <span className="text-xs italic mt-2">(Xác thực giao dịch)</span>
+                <div className="flex flex-col items-center w-full px-4 gap-3 my-4">
+                  <div className="w-24 h-24 border-4 border-dashed border-slate-300 rounded-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 mb-2">
+                    <FileSignature size={24} className="mb-1 opacity-50" />
+                    <span className="text-[10px] uppercase font-semibold">Chờ ký</span>
+                  </div>
+                  
+                  {currentRole === 'nong_dan' && onSignSeller && !isLocked && (
+                    <div className="w-full max-w-[220px] flex flex-col gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nhập họ tên của bạn..." 
+                        value={typedSellerName}
+                        onChange={(e) => setTypedSellerName(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:border-emerald-500 outline-none text-center bg-white shadow-inner"
+                      />
+                      <button 
+                        disabled={!typedSellerName.trim() || isSigningSeller}
+                        onClick={() => onSignSeller(typedSellerName)}
+                        className="w-full bg-[#ab9ff2] hover:bg-[#9789eb] text-white py-2 rounded-lg text-sm font-bold shadow disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isSigningSeller ? <span className="animate-pulse">Đang ký...</span> : 'Ký bằng Phantom'}
+                      </button>
+                    </div>
+                  )}
+                  {currentRole !== 'nong_dan' && (
+                    <p className="text-sm text-slate-500 italic mt-2">Chờ đối tác ký xác nhận</p>
+                  )}
                 </div>
               )}
-              <p className="font-bold mt-4 border-t border-slate-400 pt-3 w-3/4 mx-auto text-lg text-slate-400">Bà Trần Thị B</p>
+            </div>
+
+            {/* CHỮ KÝ BÊN B (BÊN MUA) */}
+            <div className="space-y-4 flex flex-col items-center">
+              <h5 className="font-bold text-base uppercase">Đại diện Bên B (Bên Mua)</h5>
+              {buyerSignature ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-40 h-40 border-4 border-emerald-600 rounded-full flex flex-col items-center justify-center text-emerald-700 bg-emerald-50 opacity-90 rotate-[-12deg] shadow-sm my-2">
+                    <Stamp size={32} className="mb-2" />
+                    <span className="text-sm font-bold uppercase">Đã xác thực</span>
+                    <span className="text-[9px] font-mono mt-2 truncate w-24 text-center">TX: {buyerSignature.txHash.slice(0, 8)}...</span>
+                    <span className="text-[9px] font-mono opacity-70">{new Date(buyerSignature.timestamp).toISOString().split('T')[0]}</span>
+                  </div>
+                  <p className="font-bold text-lg">{buyerSignature.name}</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center w-full px-4 gap-3 my-4">
+                  <div className="w-24 h-24 border-4 border-dashed border-slate-300 rounded-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 mb-2">
+                    <FileSignature size={24} className="mb-1 opacity-50" />
+                    <span className="text-[10px] uppercase font-semibold">Chờ ký</span>
+                  </div>
+                  
+                  {currentRole === 'thuong_lai' && onSignBuyer && !isLocked && (
+                    <div className="w-full max-w-[220px] flex flex-col gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nhập họ tên của bạn..." 
+                        value={typedBuyerName}
+                        onChange={(e) => setTypedBuyerName(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:border-indigo-500 outline-none text-center bg-white shadow-inner"
+                      />
+                      <button 
+                        disabled={!typedBuyerName.trim() || isSigningBuyer}
+                        onClick={() => onSignBuyer(typedBuyerName)}
+                        className="w-full bg-[#ab9ff2] hover:bg-[#9789eb] text-white py-2 rounded-lg text-sm font-bold shadow disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isSigningBuyer ? <span className="animate-pulse">Đang ký...</span> : 'Ký bằng Phantom'}
+                      </button>
+                    </div>
+                  )}
+                  {currentRole !== 'thuong_lai' && (
+                    <p className="text-sm text-slate-500 italic mt-2">Chờ đối tác ký xác nhận</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

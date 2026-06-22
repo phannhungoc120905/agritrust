@@ -14,6 +14,10 @@ import { decodeMeetingParams } from '../../lib/utils/url';
 import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
 import WalletBalance from '../../components/shared/WalletBalance';
 import { useAuth } from '../../hooks/useAuth';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { Transaction, PublicKey, TransactionInstruction } from '@solana/web3.js';
+import bs58 from 'bs58';
+import { ContractSignature } from '../../components/negotiation/DraftContractTable';
 import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft, MessageSquare } from 'lucide-react';
 
 interface TranscriptLine {
@@ -60,6 +64,14 @@ function CallPageContent() {
   const [isRealSTTActive, setIsRealSTTActive] = useState(false);
   const [isMockActive, setIsMockActive] = useState(false);
   const [inCall, setInCall] = useState(false);
+
+  // Chữ ký điện tử
+  const { publicKey, signMessage, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  const [buyerSignature, setBuyerSignature] = useState<ContractSignature | null>(null);
+  const [sellerSignature, setSellerSignature] = useState<ContractSignature | null>(null);
+  const [isSigningBuyer, setIsSigningBuyer] = useState(false);
+  const [isSigningSeller, setIsSigningSeller] = useState(false);
 
   const isRealSTTActiveRef = useRef(isRealSTTActive);
   const isMockActiveRef = useRef(isMockActive);
@@ -246,6 +258,92 @@ function CallPageContent() {
     if (cursor < text.length) parts.push(text.slice(cursor));
     return <>{parts}</>;
   }
+
+  // ==========================================
+  // XỬ LÝ KÝ SỐ ĐIỆN TỬ BẰNG PHANTOM
+  // ==========================================
+  const handleSignContract = async (signerRole: 'nong_dan' | 'thuong_lai', typedName: string) => {
+    if (!publicKey || !signMessage || !sendTransaction) {
+      alert('Vui lòng kết nối ví Phantom trước khi ký!');
+      return;
+    }
+
+    try {
+      if (signerRole === 'nong_dan') setIsSigningSeller(true);
+      else setIsSigningBuyer(true);
+
+      const messageContent = `Tôi, ${typedName}, đồng ý ký xác nhận Hợp đồng thông minh AgriTrust.\nVai trò: ${signerRole === 'nong_dan' ? 'Nông dân (Bên bán)' : 'Thương lái (Bên mua)'}\nThời gian: ${new Date().toISOString()}`;
+      const messageUint8 = new TextEncoder().encode(messageContent);
+      const signatureUint8 = await signMessage(messageUint8);
+      const signatureBase58 = bs58.encode(signatureUint8);
+
+      const verifyRes = await fetch('/api/verify-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publicKey: publicKey.toBase58(),
+          signature: signatureBase58,
+          message: messageContent,
+          contractData: contractDraft,
+          signerName: typedName
+        })
+      });
+
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) throw new Error(verifyData.error || 'Lỗi xác thực chữ ký');
+
+      // Tạo Giao dịch Memo chứa SHA256 Hash
+      const memoInstruction = new TransactionInstruction({
+        keys: [{ pubkey: publicKey, isSigner: true, isWritable: true }],
+        data: Buffer.from(`AGRITRUST_CONTRACT_HASH:${verifyData.hash}`, 'utf-8'),
+        programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
+      });
+
+      const transaction = new Transaction().add(memoInstruction);
+      
+      // Bắt buộc set blockhash và feePayer cho mạng Devnet
+      const { blockhash } = await connection.getLatestBlockhash('confirmed');
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = publicKey;
+
+      const txHash = await sendTransaction(transaction, connection);
+
+      const newSignature: ContractSignature = {
+        name: typedName,
+        wallet: publicKey.toBase58(),
+        timestamp: new Date().toISOString(),
+        txHash
+      };
+
+      if (signerRole === 'nong_dan') {
+        setSellerSignature(newSignature);
+      } else {
+        setBuyerSignature(newSignature);
+      }
+
+    } catch (error: any) {
+      console.error('Sign error:', error);
+      if (error.message?.includes('User rejected the request')) {
+        alert('Bạn đã từ chối ký giao dịch. (Lưu ý: Nếu ví báo lỗi đỏ "Simulation failed" hoặc không cho ký, hãy chắc chắn bạn đang dùng mạng Devnet và có đủ Devnet SOL trong ví Phantom. Bạn có thể lên faucet.solana.com để xin SOL ảo).');
+      } else {
+        alert('Lỗi ký số: ' + error.message);
+      }
+    } finally {
+      setIsSigningSeller(false);
+      setIsSigningBuyer(false);
+    }
+  };
+
+  const simulatePartnerSignature = () => {
+    const fakeSig: ContractSignature = {
+      name: user?.vai_tro === 'nong_dan' ? partnerName : 'Nông Dân Đối Tác',
+      wallet: 'SimulateWallet1234567890',
+      timestamp: new Date().toISOString(),
+      txHash: 'SimulateTxHash' + Math.random().toString(36).substring(7)
+    };
+    if (user?.vai_tro === 'nong_dan') setBuyerSignature(fakeSig);
+    else setSellerSignature(fakeSig);
+  };
 
   // Ref để lưu AgoraSTTClient và các câu thoại
   const sttClientRef = useRef<AgoraSTTClient | null>(null);
@@ -520,28 +618,10 @@ function CallPageContent() {
   // ==========================================
   // LƯU HỢP ĐỒNG VÀ CHUYỂN TRANG
   // ==========================================
-  const handleLockSuccess = async (txSig: string) => {
-    try {
-      const savedContract = await createDraftContract({
-        vi_nguoi_ban: 'nong_dan_wallet_address_demo',
-        vi_nguoi_mua: 'thuong_lai_wallet_address_demo',
-        san_pham: contractDraft.san_pham,
-        so_luong: contractDraft.so_luong,
-        don_vi_tinh: contractDraft.don_vi_tinh,
-        don_gia: contractDraft.don_gia,
-        han_giao_hang: contractDraft.han_giao_hang,
-        noi_dung_nhap_ai: contractDraft,
-        dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
-      });
-      const params = new URLSearchParams();
-      if (channelParam) params.set('channel', channelParam);
-      params.set('scenario', scenario);
-      params.set('tx', txSig);
-      router.push(`/?tab=negotiation&negoId=${savedContract.id}&${params.toString()}`);
-    } catch (err) {
-      console.error(err);
-      alert('Lưu hợp đồng thất bại, nhưng giao dịch on-chain đã gửi: ' + txSig);
-    }
+  const handleLockSuccess = (txSig: string) => {
+    alert('Khóa quỹ thành công trên Solana! TX: ' + txSig + '\n\nChuyển hướng về Dashboard để xem hợp đồng...');
+    setIsModalOpen(false);
+    router.push('/dashboard');
   };
 
   if (loading || !user) {
@@ -849,10 +929,26 @@ function CallPageContent() {
               <DraftContractTable
                 terms={contractDraft}
                 onChange={setContractDraft}
+                buyerName={user?.vai_tro === 'thuong_lai' ? user?.ten_hien_thi : partnerName}
+                sellerName={user?.vai_tro === 'nong_dan' ? user?.ten_hien_thi : partnerName}
+                buyerSignature={buyerSignature}
+                sellerSignature={sellerSignature}
+                onSignBuyer={(name) => handleSignContract('thuong_lai', name)}
+                onSignSeller={(name) => handleSignContract('nong_dan', name)}
+                isSigningBuyer={isSigningBuyer}
+                isSigningSeller={isSigningSeller}
+                currentRole={user?.vai_tro as 'nong_dan' | 'thuong_lai'}
               />
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-800 pt-4 flex-shrink-0">
+              <button
+                onClick={simulatePartnerSignature}
+                className="px-4 py-2.5 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/40 rounded-xl text-xs font-bold transition-colors mr-auto"
+                title="Sử dụng trong lúc Demo để không phải đổi ví"
+              >
+                Mô phỏng đối tác đã ký
+              </button>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors"
@@ -860,15 +956,22 @@ function CallPageContent() {
                 Đóng
               </button>
               <div className="flex-1 max-w-[280px]">
-                <ConfirmContractButton
-                  contractId="dummy_id"
-                  buyerAddress="thuong_lai_wallet_address_demo"
-                  sellerAddress="nong_dan_wallet_address_demo"
-                  unitPriceVnd={contractDraft.don_gia}
-                  expectedQty={contractDraft.so_luong}
-                  deadlineIso={contractDraft.han_giao_hang}
-                  onSuccess={handleLockSuccess}
-                />
+                {!buyerSignature || !sellerSignature ? (
+                  <button disabled className="w-full px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
+                    Chờ cả 2 bên Ký xác nhận
+                  </button>
+                ) : (
+                  <ConfirmContractButton
+                    contractId="dummy_id"
+                    buyerAddress={buyerSignature.wallet}
+                    sellerAddress={sellerSignature.wallet}
+                    unitPriceVnd={contractDraft.don_gia}
+                    expectedQty={contractDraft.so_luong}
+                    deadlineIso={contractDraft.han_giao_hang}
+                    onSuccess={handleLockSuccess}
+                    contractDraft={contractDraft}
+                  />
+                )}
               </div>
             </div>
           </div>

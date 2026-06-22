@@ -1,7 +1,7 @@
-export const EXCHANGE_RATE_VND_USDC = 25000; // 1 USDC = 25,000 VND
+export const EXCHANGE_RATE_VND_USDC = 4000000; // 1 SOL = ~4,000,000 VND
 
 /**
- * Quy đổi từ VNĐ sang USDC
+ * Quy đổi từ VNĐ sang SOL
  * @param vnd Số tiền bằng VNĐ
  * @returns Số tiền bằng USDC (lấy tối đa 6 chữ số thập phân, chuẩn USDC)
  */

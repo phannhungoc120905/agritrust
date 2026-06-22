@@ -34,11 +34,13 @@ export function useEscrow() {
 
     try {
       // B1: Ghi log giao dịch dạng dang_xu_ly vào DB
-      logRecord = await createTransactionLog({
-        id_hop_dong: contractId,
-        ten_ham: 'initialize',
-        nguoi_goi: buyerAddress,
-      });
+      if (contractId !== 'dummy_id') {
+        logRecord = await createTransactionLog({
+          id_hop_dong: contractId,
+          ten_ham: 'initialize',
+          nguoi_goi: buyerAddress,
+        });
+      }
 
       let txSignature = 'MOCK_TX_SIGNATURE_LOCK_' + Math.random().toString(36).substring(7);
       
@@ -85,11 +87,13 @@ export function useEscrow() {
 
       // B4: Đồng bộ trạng thái hợp đồng thành 'da_khoa_tien'
       const escrowPdaAddress = wallet ? getEscrowPda(new PublicKey(buyerAddress), new PublicKey(sellerAddress)).toBase58() : 'mock_escrow_address';
-      await updateContractStatus(contractId, 'da_khoa_tien', {
-        dia_chi_vi_escrow: escrowPdaAddress,
-        tong_tien_usdc_khoa: totalUsdc,
-        ngay_xac_nhan: new Date().toISOString(),
-      });
+      if (contractId !== 'dummy_id') {
+        await updateContractStatus(contractId, 'da_khoa_tien', {
+          dia_chi_vi_escrow: escrowPdaAddress,
+          tong_tien_usdc_khoa: totalUsdc,
+          ngay_xac_nhan: new Date().toISOString(),
+        });
+      }
 
       return { success: true, txSignature };
     } catch (err: any) {
@@ -111,11 +115,13 @@ export function useEscrow() {
     let logRecord: any = null;
 
     try {
-      logRecord = await createTransactionLog({
-        id_hop_dong: contractId,
-        ten_ham: 'confirm_receipt',
-        nguoi_goi: buyerAddress,
-      });
+      if (contractId !== 'dummy_id') {
+        logRecord = await createTransactionLog({
+          id_hop_dong: contractId,
+          ten_ham: 'confirm_receipt',
+          nguoi_goi: buyerAddress,
+        });
+      }
 
       let txSignature = 'MOCK_TX_SIGNATURE_CONFIRM_' + Math.random().toString(36).substring(7);
 
@@ -145,7 +151,9 @@ export function useEscrow() {
         });
       }
 
-      await updateContractStatus(contractId, 'da_xac_nhan');
+      if (contractId !== 'dummy_id') {
+        await updateContractStatus(contractId, 'da_xac_nhan');
+      }
       return { success: true, txSignature };
     } catch (err) {
       console.error('Lỗi trong hàm confirmReceipt:', err);
@@ -172,11 +180,13 @@ export function useEscrow() {
     let logRecord: any = null;
 
     try {
-      logRecord = await createTransactionLog({
-        id_hop_dong: contractId,
-        ten_ham: 'resolve_partial',
-        nguoi_goi: buyerAddress, // Thương lái/Hệ thống ký giải quyết
-      });
+      if (contractId !== 'dummy_id') {
+        logRecord = await createTransactionLog({
+          id_hop_dong: contractId,
+          ten_ham: 'resolve_partial',
+          nguoi_goi: buyerAddress, // Thương lái/Hệ thống ký giải quyết
+        });
+      }
 
       let txSignature = 'MOCK_TX_SIGNATURE_RESOLVE_' + Math.random().toString(36).substring(7);
 
@@ -206,7 +216,9 @@ export function useEscrow() {
         });
       }
 
-      await updateContractStatus(contractId, 'da_giai_quyet');
+      if (contractId !== 'dummy_id') {
+        await updateContractStatus(contractId, 'da_giai_quyet');
+      }
       return { success: true, txSignature };
     } catch (err) {
       console.error('Lỗi trong hàm resolvePartial:', err);
@@ -227,11 +239,13 @@ export function useEscrow() {
     let logRecord: any = null;
 
     try {
-      logRecord = await createTransactionLog({
-        id_hop_dong: contractId,
-        ten_ham: 'claim_timeout',
-        nguoi_goi: sellerAddress, // Nông dân ký rút tiền
-      });
+      if (contractId !== 'dummy_id') {
+        logRecord = await createTransactionLog({
+          id_hop_dong: contractId,
+          ten_ham: 'claim_timeout',
+          nguoi_goi: sellerAddress, // Nông dân ký rút tiền
+        });
+      }
 
       let txSignature = 'MOCK_TX_SIGNATURE_TIMEOUT_' + Math.random().toString(36).substring(7);
 
@@ -261,7 +275,9 @@ export function useEscrow() {
         });
       }
 
-      await updateContractStatus(contractId, 'qua_han');
+      if (contractId !== 'dummy_id') {
+        await updateContractStatus(contractId, 'qua_han');
+      }
       return { success: true, txSignature };
     } catch (err) {
       console.error('Lỗi trong hàm claimTimeout:', err);
