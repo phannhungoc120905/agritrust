@@ -210,6 +210,34 @@ function HomePageContent() {
     };
   }, [user]);
 
+  // Load Lịch sử Đàm Phán cho hợp đồng đang chọn (nếu là thật)
+  useEffect(() => {
+    if (activeNegotiationId) {
+      const nego = negotiations.find(n => n.id === activeNegotiationId);
+      if (nego) {
+        if (nego.id === '1' || nego.id === '2' || nego.id.includes('demo')) {
+          setSttMessages(nego.stt || []);
+        } else {
+          // Lấy thật từ database
+          import('../lib/supabase/queries/transcripts').then(m => {
+            m.getTranscriptsByContractId(nego.id).then(txs => {
+              if (txs && txs.length > 0) {
+                setSttMessages(txs.map(t => ({
+                  sender: t.vi_nguoi_noi === nego.contract?.vi_nguoi_ban ? 'nong_dan' : 'thuong_lai',
+                  text: t.noi_dung
+                })));
+              } else {
+                setSttMessages([]);
+              }
+            }).catch(e => console.warn('Lỗi lấy STT thật:', e));
+          });
+        }
+      }
+    } else {
+      setSttMessages([]);
+    }
+  }, [activeNegotiationId, negotiations]);
+
   if (loading || !user) {
     return (
       <div className="flex-grow flex items-center justify-center bg-white text-neutral-400 min-h-screen gap-2">
@@ -226,14 +254,14 @@ function HomePageContent() {
     try {
       const soLuongSo = parseFloat(listing.qty) || 0;
       const donVi = listing.qty.replace(/[0-9.]/g, '').trim() || 'kg';
-      
+
       // --- HACKATHON FIX: Đảm bảo cả 2 ví đều tồn tại trong DB để tránh lỗi Foreign Key ---
       // 1. Insert ví người mua (người đang đăng nhập) - Bỏ qua nếu đã tồn tại (mã 23505)
       const { error: upsertErr1 } = await supabase.from('nguoi_dung').insert({
         dia_chi_vi: user.dia_chi_vi,
         vai_tro: user.vai_tro,
         ten_dang_nhap: `user_${user.dia_chi_vi.slice(0, 6)}_${Date.now()}`,
-        mat_khau: '123456', 
+        mat_khau: '123456',
         ten_hien_thi: user.ten_hien_thi || 'Thương lái (Khách)'
       });
       if (upsertErr1 && upsertErr1.code !== '23505') {
@@ -637,7 +665,7 @@ function HomePageContent() {
             <div className="animate-fade-in-up">
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                 <h1 className="text-2xl font-black text-slate-900">Quản lý Đàm phán & Hợp đồng</h1>
-                
+
                 {/* WIDGET TỔNG TIỀN ĐANG KHÓA */}
                 <div className="bg-gradient-to-r from-emerald-600 to-[#15803D] p-4 rounded-2xl text-white shadow-lg flex items-center gap-4 border border-emerald-500/30">
                   <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm shadow-inner">
@@ -654,9 +682,9 @@ function HomePageContent() {
                       </span>
                       <span className="text-sm font-semibold text-emerald-200">
                         (~{negotiations
-                            .filter(n => n.status === 'da_chot' && n.contract?.don_gia && n.contract?.so_luong)
-                            .reduce((sum, n) => sum + (n.contract.don_gia * n.contract.so_luong), 0)
-                            .toLocaleString('vi-VN')} VNĐ)
+                          .filter(n => n.status === 'da_chot' && n.contract?.don_gia && n.contract?.so_luong)
+                          .reduce((sum, n) => sum + (n.contract.don_gia * n.contract.so_luong), 0)
+                          .toLocaleString('vi-VN')} VNĐ)
                       </span>
                     </div>
                   </div>
@@ -787,17 +815,17 @@ function HomePageContent() {
                     </div>
                     <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
                       {contractDraft ? (
-                        <DraftContractTable 
-                          terms={contractDraft} 
-                          onChange={setContractDraft} 
-                          isLocked={false} 
+                        <DraftContractTable
+                          terms={contractDraft}
+                          onChange={setContractDraft}
+                          isLocked={false}
                           buyerName={
-                            activeNego?.contract?.nguoi_mua?.ten_hien_thi || 
+                            activeNego?.contract?.nguoi_mua?.ten_hien_thi ||
                             contractDraft?.buyerSignature?.name ||
                             (activeNego?.contract?.vi_nguoi_mua === user?.dia_chi_vi ? user?.ten_hien_thi : 'Thương lái')
                           }
                           sellerName={
-                            activeNego?.contract?.nguoi_ban?.ten_hien_thi || 
+                            activeNego?.contract?.nguoi_ban?.ten_hien_thi ||
                             contractDraft?.sellerSignature?.name ||
                             (activeNego?.contract?.vi_nguoi_ban === user?.dia_chi_vi ? user?.ten_hien_thi : 'Nông dân')
                           }
@@ -816,7 +844,7 @@ function HomePageContent() {
             </div>
           ) : (
             // GIAO DIỆN CHIA ĐÔI CHO THƯƠNG VỤ ĐÃ CHỐT
-            <div className="flex flex-1 min-h-[75vh] md:min-h-[700px] overflow-hidden rounded-2xl border border-slate-200 shadow-sm animate-fade-in-up">
+            <div className="flex flex-1 h-[75vh] md:h-[700px] overflow-hidden rounded-2xl border border-slate-200 shadow-sm animate-fade-in-up">
 
               {/* KHUNG STT - BÊN TRÁI */}
               <div className="w-1/3 bg-white border-r border-slate-200 flex flex-col print:hidden">
@@ -869,17 +897,17 @@ function HomePageContent() {
                 <div className="flex-1 overflow-y-auto p-6 flex justify-center">
                   <div className="w-full max-w-3xl">
                     {contractDraft ? (
-                      <DraftContractTable 
-                        terms={contractDraft} 
-                        onChange={setContractDraft} 
-                        isLocked={isContractLocked} 
+                      <DraftContractTable
+                        terms={contractDraft}
+                        onChange={setContractDraft}
+                        isLocked={isContractLocked}
                         buyerName={
-                          activeNego?.contract?.nguoi_mua?.ten_hien_thi || 
+                          activeNego?.contract?.nguoi_mua?.ten_hien_thi ||
                           contractDraft?.buyerSignature?.name ||
                           (activeNego?.contract?.vi_nguoi_mua === user?.dia_chi_vi ? user?.ten_hien_thi : 'Thương lái')
                         }
                         sellerName={
-                          activeNego?.contract?.nguoi_ban?.ten_hien_thi || 
+                          activeNego?.contract?.nguoi_ban?.ten_hien_thi ||
                           contractDraft?.sellerSignature?.name ||
                           (activeNego?.contract?.vi_nguoi_ban === user?.dia_chi_vi ? user?.ten_hien_thi : 'Nông dân')
                         }
@@ -1188,7 +1216,7 @@ function HomePageContent() {
 
       {/* TOAST NOTIFICATION CHO NÔNG DÂN */}
       {toastMsg && (
-        <div 
+        <div
           onClick={() => {
             if (toastMsg.negoId) {
               const encoded = encodeMeetingParams({

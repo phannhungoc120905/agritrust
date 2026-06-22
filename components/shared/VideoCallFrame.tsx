@@ -10,10 +10,12 @@ interface VideoCallFrameProps {
   onJoinedStateChange?: (joined: boolean, isDemo: boolean) => void;
   onHangUp?: () => void;
   onToggleChat?: () => void;
+  onToggleMute?: (isMuted: boolean) => void;
   isChatOpen?: boolean;
+  extraToolbarButtons?: React.ReactNode;
 }
 
-export default function VideoCallFrame({ channelName, role, onJoinedStateChange, onHangUp, onToggleChat, isChatOpen }: VideoCallFrameProps) {
+export default function VideoCallFrame({ channelName, role, onJoinedStateChange, onHangUp, onToggleChat, onToggleMute, isChatOpen, extraToolbarButtons }: VideoCallFrameProps) {
   const router = useRouter();
   const [inCall, setInCall] = useState(false);
   const [isDemoCall, setIsDemoCall] = useState(false);
@@ -43,7 +45,7 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
     try {
       const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
       AgoraRTC.setLogLevel(4); // Tắt log của Agora (mức NONE) để tránh Next.js bung màn hình đỏ khi test máy thiếu mic/cam
-      
+
       // 1. Chạy song song xin quyền Camera/Micro và lấy Token từ API để tăng tốc độ join
       const tokenPromise = fetch(`/api/agora-token?channelName=${encodeURIComponent(channelName)}`)
         .then(res => res.ok ? res.json() : null)
@@ -77,17 +79,17 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         alert("Thông báo: Đối tác đã rời khỏi phòng đàm phán!");
       });
 
-       client.on('user-published', async (user: any, mediaType: 'video' | 'audio') => {
-         try {
-           await client.subscribe(user, mediaType);
-           setRemoteUsers((prev) => [...prev]);
-           if (mediaType === 'audio') {
-             user.audioTrack?.play();
-           }
-         } catch (subErr) {
-           console.error('Lỗi khi subscribe user:', subErr);
-         }
-       });
+      client.on('user-published', async (user: any, mediaType: 'video' | 'audio') => {
+        try {
+          await client.subscribe(user, mediaType);
+          setRemoteUsers((prev) => [...prev]);
+          if (mediaType === 'audio') {
+            user.audioTrack?.play();
+          }
+        } catch (subErr) {
+          console.error('Lỗi khi subscribe user:', subErr);
+        }
+      });
 
       client.on('user-unpublished', (user: any, mediaType: 'video' | 'audio') => {
         if (mediaType === 'audio') {
@@ -103,7 +105,7 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
       try {
         const uid = await client.join(appId, channelName, token, null);
         console.log(`Đã kết nối cuộc gọi thật thành công, UID: ${uid}`);
-        
+
         // Cho phép vào phòng ngay lập tức (hiển thị UI) ngay khi join channel
         setInCall(true);
 
@@ -144,7 +146,7 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         }
 
         try {
-          videoTrack = await AgoraRTC.createCameraVideoTrack();
+          videoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '720p_1' });
         } catch (videoErr) {
           console.warn('Không thể lấy quyền Camera (Agora):', videoErr);
           // Fallback: tự tạo video track từ getUserMedia native
@@ -193,11 +195,11 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
 
       } catch (joinErr: any) {
         console.error('Lỗi khi join channel Agora:', joinErr);
-        const isTokenError = 
-          joinErr.message?.includes('dynamic use static key') || 
+        const isTokenError =
+          joinErr.message?.includes('dynamic use static key') ||
           joinErr.code === 'CAN_NOT_GET_GATEWAY_SERVER' ||
           (joinErr.message && joinErr.message.indexOf('static key') !== -1);
-        
+
         if (isTokenError) {
           console.warn('CẢNH BÁO: Agora App ID yêu cầu Token (Secured Mode) nhưng token chưa hợp lệ.');
           alert(
@@ -211,7 +213,7 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         } else {
           console.warn('Không thể kết nối Agora RTC. Chạy ở chế độ cục bộ.');
         }
-        
+
         // Dọn dẹp client nếu đã tạo nhưng không thể join
         if (rtcClientRef.current) {
           try {
@@ -224,39 +226,39 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
       }
       setIsJoining(false);
 
-  } catch (err: any) {
-    console.error('Lỗi kết nối Video Call:', err);
-    // Thay vì throw lỗi đỏ làm Next.js crash, ta bypass qua luồng giả lập
-    setInCall(true);
-    setCameraOff(true);
-    setMuted(true);
-    
-    // Dọn dẹp client nếu đã tạo nhưng có lỗi xảy ra trước khi join
-    if (rtcClientRef.current) {
-      try {
-        await rtcClientRef.current.leave();
-      } catch (e) {
-        // Bỏ qua lỗi khi dọn dẹp
+    } catch (err: any) {
+      console.error('Lỗi kết nối Video Call:', err);
+      // Thay vì throw lỗi đỏ làm Next.js crash, ta bypass qua luồng giả lập
+      setInCall(true);
+      setCameraOff(true);
+      setMuted(true);
+
+      // Dọn dẹp client nếu đã tạo nhưng có lỗi xảy ra trước khi join
+      if (rtcClientRef.current) {
+        try {
+          await rtcClientRef.current.leave();
+        } catch (e) {
+          // Bỏ qua lỗi khi dọn dẹp
+        }
+        rtcClientRef.current = null;
       }
-      rtcClientRef.current = null;
-    }
-    
-    // Cung cấp hướng dẫn cụ thể hơn dựa trên lỗi
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    let message = 'Không thể kết nối Video Call. Vui lòng kiểm tra kết nối mạng và thử lại.';
-    if (err.message?.includes('Failed to execute')) {
-      message = 'Lỗi trình duyệt: Vui lòng kiểm tra xem bạn có đang sử dụng chế độ Riêng tư (Private Browsing) không và đảm bảo đã cho phép truy cập Microphone và Camera.';
-      if (isSafari) {
-        message += ' Trên Safari, vào Safari → Preferences → Privacy & Security và đảm bảo "Prevent cross-site tracking" không được bật.';
+
+      // Cung cấp hướng dẫn cụ thể hơn dựa trên lỗi
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      let message = 'Không thể kết nối Video Call. Vui lòng kiểm tra kết nối mạng và thử lại.';
+      if (err.message?.includes('Failed to execute')) {
+        message = 'Lỗi trình duyệt: Vui lòng kiểm tra xem bạn có đang sử dụng chế độ Riêng tư (Private Browsing) không và đảm bảo đã cho phép truy cập Microphone và Camera.';
+        if (isSafari) {
+          message += ' Trên Safari, vào Safari → Preferences → Privacy & Security và đảm bảo "Prevent cross-site tracking" không được bật.';
+        }
+      } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
+        message = 'Không tìm thấy thiết bị Microphone hoặc Camera. Vui lòng kiểm tra kết nối thiết bị.';
       }
-    } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
-      message = 'Không tìm thấy thiết bị Microphone hoặc Camera. Vui lòng kiểm tra kết nối thiết bị.';
+      alert(message);
+    } finally {
+      setIsJoining(false);
     }
-    alert(message);
-  } finally {
-    setIsJoining(false);
-  }
-};
+  };
 
   // Vào phòng không cần Camera (Demo Mode an toàn)
   const joinDemoMode = async () => {
@@ -313,6 +315,7 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         const nextState = !muted;
         await localTracksRef.current.audioTrack.setMuted(nextState);
         setMuted(nextState);
+        if (onToggleMute) onToggleMute(nextState);
       } else {
         // Xin lại quyền tạo Audio Track nếu trước đó chưa có
         const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
@@ -339,7 +342,7 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         } catch (agoraErr) {
           console.warn('[Mic] Agora createMicrophoneAudioTrack thất bại, thử getUserMedia native:', agoraErr);
           lastError = agoraErr;
-          
+
           // Bước 3: Fallback sang getUserMedia native + createCustomAudioTrack
           try {
             const nativeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -404,51 +407,51 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         const nextState = !cameraOff;
         await localTracksRef.current.videoTrack.setMuted(nextState);
         setCameraOff(nextState);
-        } else {
-          // Xin lại quyền tạo Video Track nếu trước đó chưa có
-          const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
-          const newVideoTrack = await AgoraRTC.createCameraVideoTrack();
-          
-          if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
-          localTracksRef.current.videoTrack = newVideoTrack;
-          
-          if (rtcClientRef.current && rtcClientRef.current.connectionState === 'CONNECTED') {
-            try {
-              await rtcClientRef.current.publish([newVideoTrack]);
-            } catch (pubErr) {
-              console.warn('[Video] Lỗi khi publish video track mới:', pubErr);
-            }
-          }
-          setCameraOff(false);
-          
-          // Play video
-          setTimeout(() => {
-            if (localVideoRef.current && localTracksRef.current?.videoTrack) {
-              localTracksRef.current.videoTrack.play(localVideoRef.current);
-            }
-          }, 100);
-        }
-      } catch (err: any) {
-        console.warn('Không thể bật camera:', err);
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      } else {
+        // Xin lại quyền tạo Video Track nếu trước đó chưa có
+        const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
+        const newVideoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '720p_1' });
 
-        if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
-          let message = 'Lỗi cấp quyền: Bạn đã từ chối quyền truy cập Camera. Hãy vào cài đặt trang web (icon Ổ khoá trên thanh URL) và cho phép truy cập Camera.';
-          if (isSafari) {
-            message += ' Trên Safari, bạn có thể cần truy cập vào Safari → Preferences → Websites → Camera để cho phép.';
+        if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
+        localTracksRef.current.videoTrack = newVideoTrack;
+
+        if (rtcClientRef.current && rtcClientRef.current.connectionState === 'CONNECTED') {
+          try {
+            await rtcClientRef.current.publish([newVideoTrack]);
+          } catch (pubErr) {
+            console.warn('[Video] Lỗi khi publish video track mới:', pubErr);
           }
-          alert(message);
-        } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
-          alert('Không tìm thấy thiết bị Camera. Bạn vẫn có thể tiếp tục cuộc gọi không có video. Nếu muốn dùng camera, hãy cắm thiết bị và thử lại.');
-          setCameraOff(true);
-        } else {
-          let message = 'Không thể bật Camera. Hãy kiểm tra: (1) Đã cắm camera, (2) Trình duyệt đã cấp quyền, (3) Không dùng chế độ ẩn danh.';
-          if (isSafari) {
-            message += ' Trên Safari, vào Preferences → Websites → Camera để cho phép.';
-          }
-          alert(message);
         }
+        setCameraOff(false);
+
+        // Play video
+        setTimeout(() => {
+          if (localVideoRef.current && localTracksRef.current?.videoTrack) {
+            localTracksRef.current.videoTrack.play(localVideoRef.current);
+          }
+        }, 100);
       }
+    } catch (err: any) {
+      console.warn('Không thể bật camera:', err);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+      if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
+        let message = 'Lỗi cấp quyền: Bạn đã từ chối quyền truy cập Camera. Hãy vào cài đặt trang web (icon Ổ khoá trên thanh URL) và cho phép truy cập Camera.';
+        if (isSafari) {
+          message += ' Trên Safari, bạn có thể cần truy cập vào Safari → Preferences → Websites → Camera để cho phép.';
+        }
+        alert(message);
+      } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
+        alert('Không tìm thấy thiết bị Camera. Bạn vẫn có thể tiếp tục cuộc gọi không có video. Nếu muốn dùng camera, hãy cắm thiết bị và thử lại.');
+        setCameraOff(true);
+      } else {
+        let message = 'Không thể bật Camera. Hãy kiểm tra: (1) Đã cắm camera, (2) Trình duyệt đã cấp quyền, (3) Không dùng chế độ ẩn danh.';
+        if (isSafari) {
+          message += ' Trên Safari, vào Preferences → Websites → Camera để cho phép.';
+        }
+        alert(message);
+      }
+    }
   };
 
   // Dọn dẹp tài nguyên khi Unmount
@@ -504,7 +507,7 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
       ) : (
         // Màn hình trong cuộc gọi (In Call)
         <div className="flex-1 relative bg-black">
-          
+
           {/* Main View: Đối tác (nếu có) hoặc Tôi (nếu một mình) */}
           {remoteUsers.length > 0 ? (
             // Hiển thị người đầu tiên trong mảng remoteUsers làm màn hình chính
@@ -514,10 +517,10 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
           ) : (
             // Nếu chưa có ai vào, hiển thị màn hình chờ màu đen
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-900">
-               <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center mb-4">
-                 <span className="text-3xl text-neutral-600 font-bold">{partnerRole.charAt(0)}</span>
-               </div>
-               <p className="text-neutral-400 text-sm animate-pulse">Đang chờ đối tác tham gia...</p>
+              <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center mb-4">
+                <span className="text-3xl text-neutral-600 font-bold">{partnerRole.charAt(0)}</span>
+              </div>
+              <p className="text-neutral-400 text-sm animate-pulse">Đang chờ đối tác tham gia...</p>
             </div>
           )}
 
@@ -542,9 +545,8 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
             {/* Nút Micro */}
             <button
               onClick={handleToggleMute}
-              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 ${
-                muted ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
-              }`}
+              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 ${muted ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
+                }`}
               title={muted ? 'Bật Mic' : 'Tắt Mic'}
             >
               {muted ? <MicOff size={20} /> : <Mic size={20} />}
@@ -553,9 +555,8 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
             {/* Nút Camera */}
             <button
               onClick={handleToggleCamera}
-              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 ${
-                cameraOff ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
-              }`}
+              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 ${cameraOff ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
+                }`}
               title={cameraOff ? 'Bật Camera' : 'Tắt Camera'}
             >
               {cameraOff ? <VideoOff size={20} /> : <Video size={20} />}
@@ -564,13 +565,19 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
             {/* Nút Lịch Sử Trò Chuyện */}
             <button
               onClick={onToggleChat}
-              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 ${
-                isChatOpen ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
-              }`}
+              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 ${isChatOpen ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
+                }`}
               title={isChatOpen ? 'Ẩn lịch sử đàm thoại' : 'Xem lịch sử đàm thoại'}
             >
               <MessageSquare size={20} />
             </button>
+
+            {extraToolbarButtons && (
+              <>
+                <div className="w-[1px] h-8 bg-white/20 mx-1"></div>
+                {extraToolbarButtons}
+              </>
+            )}
 
             {/* Nút Tắt Cuộc Gọi */}
             <button
@@ -600,7 +607,7 @@ function RemoteVideoPlayer({ user }: { user: any }) {
   return (
     <div className="w-full h-full relative">
       <div ref={containerRef} className="w-full h-full object-cover" />
-      
+
       {!user.videoTrack && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-900">
           <div className="w-24 h-24 rounded-full bg-neutral-800 flex items-center justify-center mb-4">

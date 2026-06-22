@@ -34,6 +34,7 @@ interface DraftContractTableProps {
   isSigningBuyer?: boolean;
   isSigningSeller?: boolean;
   currentRole?: 'nong_dan' | 'thuong_lai';
+  partnerTyping?: boolean;
 }
 
 export default function DraftContractTable({ 
@@ -48,7 +49,8 @@ export default function DraftContractTable({
   onSignSeller,
   isSigningBuyer,
   isSigningSeller,
-  currentRole
+  currentRole,
+  partnerTyping
 }: DraftContractTableProps) {
   const [typedBuyerName, setTypedBuyerName] = React.useState('');
   const [typedSellerName, setTypedSellerName] = React.useState('');
@@ -62,7 +64,9 @@ export default function DraftContractTable({
     onChange({ ...terms, dieu_khoan_chat_luong: newRules });
   };
 
-  const totalVnd = terms.don_gia * terms.so_luong;
+  const soLuong = Number(terms.so_luong) || 0;
+  const donGia = Number(terms.don_gia) || 0;
+  const totalVnd = soLuong * donGia;
   const totalSol = convertVndToUsdc(totalVnd);
 
   return (
@@ -72,6 +76,14 @@ export default function DraftContractTable({
       <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none overflow-hidden">
         <Stamp size={500} className="text-slate-900 rotate-[-15deg]" />
       </div>
+
+      {/* TYPING INDICATOR */}
+      {partnerTyping && (
+        <div className="absolute top-4 right-4 flex items-center gap-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-bold animate-pulse shadow-sm border border-indigo-200">
+          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+          Đối tác đang chỉnh sửa...
+        </div>
+      )}
 
       <div className="relative z-10">
         {/* HEADER */}

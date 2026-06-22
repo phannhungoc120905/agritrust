@@ -18,7 +18,7 @@ export async function createTransactionLog(logData: {
     .single();
 
   if (error) {
-    console.error('Lỗi khi khởi tạo nhật ký giao dịch:', error);
+    console.error('Lỗi khi khởi tạo nhật ký giao dịch:', JSON.stringify(error), error.message);
     throw error;
   }
   return data;
@@ -41,7 +41,7 @@ export async function updateTransactionLog(
     .single();
 
   if (error) {
-    console.error('Lỗi khi cập nhật nhật ký giao dịch:', error);
+    console.error('Lỗi khi cập nhật nhật ký giao dịch:', JSON.stringify(error), error.message);
     throw error;
   }
   return data;

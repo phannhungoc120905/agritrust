@@ -34,12 +34,16 @@ export function useEscrow() {
 
     try {
       // B1: Ghi log giao dịch dạng dang_xu_ly vào DB
-      if (contractId !== 'dummy_id') {
-        logRecord = await createTransactionLog({
-          id_hop_dong: contractId,
-          ten_ham: 'initialize',
-          nguoi_goi: buyerAddress,
-        });
+      if (contractId !== 'dummy_id' && contractId !== 'dam-phan-lua-st25') {
+        try {
+          logRecord = await createTransactionLog({
+            id_hop_dong: contractId,
+            ten_ham: 'initialize',
+            nguoi_goi: buyerAddress,
+          });
+        } catch (e) {
+          console.warn('Không thể ghi log giao dịch (có thể do lỗi khoá ngoại), bỏ qua để tiếp tục gửi transaction blockchain:', e);
+        }
       }
 
       let txSignature = 'MOCK_TX_SIGNATURE_LOCK_' + Math.random().toString(36).substring(7);
@@ -65,8 +69,8 @@ export function useEscrow() {
               seller: sellerKey,
               // escrowAccount và các program khác sẽ được anchor tự động giải quyết nếu IDL đúng,
               // hoặc truyền thủ công nếu cần:
-              // escrowAccount: escrowPda,
-              // systemProgram: anchor.web3.SystemProgram.programId,
+              escrowAccount: escrowPda,
+              systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
         } catch (chainErr) {

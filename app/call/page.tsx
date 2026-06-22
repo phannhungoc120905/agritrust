@@ -59,9 +59,11 @@ function CallPageContent() {
     return 8500000; // Mặc định lúa ST25: 8.5 triệu / tấn
   });
   const [loadingExtract, setLoadingExtract] = useState(false);
-  const [contractDraft, setContractDraft] = useState<any>(null);
-  const [activeStep, setActiveStep] = useState(1); // 1: Đàm thoại, 2: Trích xuất, 3: Ký quỹ
+  const [contractDraft, setContractDraft] = useState<any>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isWaitingPartnerAI, setIsWaitingPartnerAI] = useState(false);
+  const [partnerTyping, setPartnerTyping] = useState(false);
+  const [activeStep, setActiveStep] = useState(1); // 1: Đàm thoại, 2: Trích xuất, 3: Ký quỹ
   const [isRealSTTActive, setIsRealSTTActive] = useState(false);
   const [isMockActive, setIsMockActive] = useState(false);
   const [inCall, setInCall] = useState(false);
@@ -317,10 +319,28 @@ function CallPageContent() {
         txHash
       };
 
+      let newNoiDungNhapAi = { ...(contractDraft?.noi_dung_nhap_ai || {}) };
       if (signerRole === 'nong_dan') {
         setSellerSignature(newSignature);
+        newNoiDungNhapAi.sellerSignature = newSignature;
       } else {
         setBuyerSignature(newSignature);
+        newNoiDungNhapAi.buyerSignature = newSignature;
+      }
+
+      // 💾 Lưu chữ ký vào Database ngay lập tức để không mất state khi F5
+      if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
+        import('../../lib/supabase/queries/contracts').then(m => {
+          m.updateContractDraftData(channelName, {
+            san_pham: contractDraft.san_pham,
+            so_luong: contractDraft.so_luong,
+            don_vi_tinh: contractDraft.don_vi_tinh,
+            don_gia: contractDraft.don_gia,
+            han_giao_hang: contractDraft.han_giao_hang,
+            dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
+            noi_dung_nhap_ai: newNoiDungNhapAi
+          }).catch(e => console.warn('Lỗi lưu chữ ký DB:', e));
+        });
       }
 
       // Phát Broadcast Chữ ký cho đối tác
@@ -348,12 +368,33 @@ function CallPageContent() {
   const simulatePartnerSignature = () => {
     const fakeSig: ContractSignature = {
       name: user?.vai_tro === 'nong_dan' ? partnerName : 'Nông Dân Đối Tác',
-      wallet: 'SimulateWallet1234567890',
+      wallet: 'F54X3RjJk1n6rK8n2JjG3bJjG3bJjG3bJjG3bJjG3bJj', // Valid Base58 Mock Address
       timestamp: new Date().toISOString(),
       txHash: 'SimulateTxHash' + Math.random().toString(36).substring(7)
     };
-    if (user?.vai_tro === 'nong_dan') setBuyerSignature(fakeSig);
-    else setSellerSignature(fakeSig);
+
+    let newNoiDungNhapAi = { ...(contractDraft?.noi_dung_nhap_ai || {}) };
+    if (user?.vai_tro === 'nong_dan') {
+      setBuyerSignature(fakeSig);
+      newNoiDungNhapAi.buyerSignature = fakeSig;
+    } else {
+      setSellerSignature(fakeSig);
+      newNoiDungNhapAi.sellerSignature = fakeSig;
+    }
+
+    if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
+      import('../../lib/supabase/queries/contracts').then(m => {
+        m.updateContractDraftData(channelName, {
+          san_pham: contractDraft.san_pham,
+          so_luong: contractDraft.so_luong,
+          don_vi_tinh: contractDraft.don_vi_tinh,
+          don_gia: contractDraft.don_gia,
+          han_giao_hang: contractDraft.han_giao_hang,
+          dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
+          noi_dung_nhap_ai: newNoiDungNhapAi
+        }).catch(e => console.warn('Lỗi lưu chữ ký ảo DB:', e));
+      });
+    }
   };
 
   // Ref để lưu AgoraSTTClient và các câu thoại
@@ -428,6 +469,46 @@ function CallPageContent() {
     channel.on('broadcast', { event: 'contract_update' }, ({ payload }) => {
       console.log('🔄 Đã nhận dữ liệu hợp đồng cập nhật từ đối tác:', payload);
       setContractDraft(payload.contract);
+      setIsWaitingPartnerAI(false); // Xong AI, tắt trạng thái chờ
+      setIsModalOpen(true); // Bật popup
+    });
+
+    // 📡 Nhận tín hiệu đối tác đang gõ
+    channel.on('broadcast', { event: 'contract_typing' }, () => {
+      setPartnerTyping(true);
+      // Tự tắt sau 2 giây nếu không nhận được thêm
+      if ((window as any).typingTimeout) clearTimeout((window as any).typingTimeout);
+      (window as any).typingTimeout = setTimeout(() => {
+        setPartnerTyping(false);
+      }, 2000);
+    });
+
+    // 📡 Nhận lệnh ĐỒNG BỘ CHỐT HỢP ĐỒNG (Chỉ đứng chờ, không gọi AI)
+    channel.on('broadcast', { event: 'wait_extract' }, ({ payload }) => {
+      if (payload?.sender === user?.dia_chi_vi) return; // Bỏ qua nếu chính mình là người gửi lệnh
+
+      console.log('🔄 Đối tác đang dùng AI để tạo hợp đồng, vui lòng chờ...');
+      setDisplayedSubtitle({ text: "🎙️ Đối tác yêu cầu chốt hợp đồng. Đang kích hoạt AI...", role: 'system' });
+      setIsWaitingPartnerAI(true);
+      if (sttClientRef.current) {
+        sttClientRef.current.stopSTT();
+      }
+      setIsRealSTTActive(false);
+    });
+
+    // 📡 Nhận tín hiệu Đối tác gọi AI thất bại
+    channel.on('broadcast', { event: 'extract_failed' }, ({ payload }) => {
+      console.log('🔄 Đối tác gọi AI thất bại:', payload);
+      setIsWaitingPartnerAI(false);
+      setExtractError(payload?.error || 'Đối tác gọi AI thất bại, vui lòng thử lại.');
+    });
+
+    // 📡 Nhận sự kiện Hợp đồng đã khoá quỹ thành công
+    channel.on('broadcast', { event: 'contract_locked' }, ({ payload }) => {
+      console.log('🔄 Hợp đồng đã được khóa quỹ thành công bởi đối tác!', payload);
+      alert('Đối tác đã khóa quỹ thành công trên Solana!\n\nChuyển hướng về Dashboard...');
+      setIsModalOpen(false);
+      router.push('/dashboard');
     });
 
     channel.subscribe();
@@ -496,6 +577,13 @@ function CallPageContent() {
             evidence: con.noi_dung_nhap_ai?.evidence || [],
           });
           
+          if (con.noi_dung_nhap_ai?.buyerSignature) {
+            setBuyerSignature(con.noi_dung_nhap_ai.buyerSignature);
+          }
+          if (con.noi_dung_nhap_ai?.sellerSignature) {
+            setSellerSignature(con.noi_dung_nhap_ai.sellerSignature);
+          }
+          
           if (con.san_pham) {
             setProductName(con.san_pham);
           }
@@ -539,6 +627,30 @@ function CallPageContent() {
   }, [user, loading, router]);
 
   // ==========================================
+  // TỰ ĐỘNG LƯU HỢP ĐỒNG KHI CÓ THAY ĐỔI
+  // ==========================================
+  useEffect(() => {
+    if (!contractDraft || !channelName || channelName === 'dam-phan-lua-st25' || channelName === 'dummy_id') return;
+
+    // Debounce việc lưu để tránh spam DB mỗi khi gõ phím
+    const timeoutId = setTimeout(() => {
+      import('../../lib/supabase/queries/contracts').then(m => {
+        m.updateContractDraftData(channelName, {
+          san_pham: contractDraft.san_pham,
+          so_luong: contractDraft.so_luong,
+          don_vi_tinh: contractDraft.don_vi_tinh,
+          don_gia: contractDraft.don_gia,
+          han_giao_hang: contractDraft.han_giao_hang,
+          dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
+          noi_dung_nhap_ai: contractDraft.noi_dung_nhap_ai
+        }).catch(e => console.warn('Lỗi auto-save hợp đồng:', e));
+      });
+    }, 1500);
+
+    return () => clearTimeout(timeoutId);
+  }, [contractDraft, channelName]);
+
+  // ==========================================
   // GỌI AI TRÍCH XUẤT (dùng ref để lấy transcript mới nhất)
   // ==========================================
   const triggerAIExtract = useCallback(async (lines: TranscriptLine[]) => {
@@ -575,12 +687,26 @@ function CallPageContent() {
         console.log('[AI] ✅ Trích xuất thành công:', data.terms);
         setContractDraft(data.terms);
         setIsModalOpen(true);
+        if (sttChannelRef.current) {
+          sttChannelRef.current.send({
+            type: 'broadcast',
+            event: 'contract_update',
+            payload: { contract: data.terms }
+          });
+        }
       } else if (response.status === 422 && data.terms) {
         // Low-confidence case: API returns partial `terms` and a warning message.
         console.warn('[AI] Cảnh báo độ tin cậy thấp nhưng trả về bản nháp:', data.error);
         setContractDraft(data.terms);
         setIsModalOpen(true);
         setExtractError(data.error || 'Kết quả có độ tin cậy thấp — kiểm tra thủ công.');
+        if (sttChannelRef.current) {
+          sttChannelRef.current.send({
+            type: 'broadcast',
+            event: 'contract_update',
+            payload: { contract: data.terms }
+          });
+        }
       } else {
         if (response.status === 422) {
           console.warn('[AI] Cảnh báo dữ liệu:', data.error);
@@ -590,11 +716,25 @@ function CallPageContent() {
           setExtractError(data.error || 'Lỗi trích xuất AI — thử lại sau.');
         }
         setContractDraft(null);
+        if (sttChannelRef.current) {
+          sttChannelRef.current.send({
+            type: 'broadcast',
+            event: 'extract_failed',
+            payload: { error: data.error }
+          });
+        }
       }
     } catch (error: any) {
       console.warn('[AI] Lỗi gọi API:', error);
       setExtractError('Không thể kết nối AI — thử lại sau.');
       setContractDraft(null);
+      if (sttChannelRef.current) {
+        sttChannelRef.current.send({
+          type: 'broadcast',
+          event: 'extract_failed',
+          payload: { error: 'Không thể kết nối AI' }
+        });
+      }
     } finally {
       setLoadingExtract(false);
       setActiveStep(3);
@@ -806,6 +946,23 @@ function CallPageContent() {
     }
   };
 
+  const forceExtract = useCallback(() => {
+    if (transcriptLinesRef.current.length === 0) {
+      alert("Chưa có đoạn hội thoại nào để chốt hợp đồng! Bạn cần nói gì đó trước.");
+      return;
+    }
+    console.log("🎙️ Kích hoạt AI chốt hợp đồng thủ công.");
+    setDisplayedSubtitle({ text: "🎙️ Đang tự động chốt hợp đồng...", role: 'system' });
+    if (sttChannelRef.current && user) {
+      sttChannelRef.current.send({
+        type: 'broadcast',
+        event: 'wait_extract',
+        payload: { sender: user.dia_chi_vi }
+      });
+    }
+    stopRealSTT();
+  }, [stopRealSTT]);
+
   // ==========================================
   // VOICE COMMAND DETECTION (Bắt lệnh giọng nói)
   // ==========================================
@@ -832,6 +989,15 @@ function CallPageContent() {
       // Hiển thị thông báo phụ đề đặc biệt
       setDisplayedSubtitle({ text: "🎙️ (Nhận lệnh) Đang tự động chốt hợp đồng...", role: lastLine.vi_nguoi_noi });
       
+      // GỬI LỆNH ĐỒNG BỘ CHO ĐỐI TÁC ĐỨNG CHỜ
+      if (sttChannelRef.current && user) {
+        sttChannelRef.current.send({
+          type: 'broadcast',
+          event: 'wait_extract',
+          payload: { sender: user.dia_chi_vi }
+        });
+      }
+
       // Delay 1.5s để ng dùng đọc chữ, sau đó tắt STT và gọi AI
       setTimeout(() => {
          stopRealSTT();
@@ -851,6 +1017,11 @@ function CallPageContent() {
         type: 'broadcast',
         event: 'contract_update',
         payload: { contract: updatedTerms }
+      });
+      // Phát luôn sự kiện typing
+      sttChannelRef.current.send({
+        type: 'broadcast',
+        event: 'contract_typing'
       });
     }
 
@@ -873,6 +1044,16 @@ function CallPageContent() {
       });
     }
   }, [channelName]);
+
+  const handleToggleMute = useCallback((isMuted: boolean) => {
+    if (isMockActiveRef.current) return; // Không ảnh hưởng tới Demo Mock
+    if (isMuted) {
+      if (sttClientRef.current) sttClientRef.current.stopSTT();
+      setIsRealSTTActive(false);
+    } else {
+      startRealSTT();
+    }
+  }, [startRealSTT]);
 
   const handleJoinedStateChange = useCallback((joined: boolean, isDemo: boolean) => {
     setInCall(joined);
@@ -900,22 +1081,18 @@ function CallPageContent() {
     setIsMockActive(false);
     setDisplayedSubtitle(null);
 
+    // Dọn dẹp hợp đồng rác nếu chưa có trao đổi gì
     const allLines = transcriptLinesRef.current;
-    if (allLines.length > 0) {
-      triggerAIExtract(allLines);
-    } else {
-      // Dọn dẹp hợp đồng rác nếu chưa có trao đổi gì
-      if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
-        try {
-          const { deleteContract } = await import('../../lib/supabase/queries/contracts');
-          await deleteContract(channelName);
-        } catch (e) {
-          console.error("Lỗi khi xóa hợp đồng rác:", e);
-        }
+    if (allLines.length === 0 && channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
+      try {
+        const { deleteContract } = await import('../../lib/supabase/queries/contracts');
+        await deleteContract(channelName);
+      } catch (e) {
+        console.warn("Lỗi khi xóa hợp đồng rác (có thể bỏ qua):", e);
       }
-      router.push('/');
     }
-  }, [router, triggerAIExtract, channelName]);
+    router.push('/dashboard');
+  }, [router, channelName]);
 
   // ==========================================
   // LƯU HỢP ĐỒNG VÀ CHUYỂN TRANG
@@ -941,6 +1118,14 @@ function CallPageContent() {
       } catch (err) {
         console.error('Lỗi khi lưu lịch sử đàm thoại:', err);
       }
+    }
+
+    if (sttChannelRef.current) {
+      sttChannelRef.current.send({
+        type: 'broadcast',
+        event: 'contract_locked',
+        payload: { txSig }
+      });
     }
 
     alert('Khóa quỹ thành công trên Solana! TX: ' + txSig + '\n\nChuyển hướng về Dashboard để xem hợp đồng...');
@@ -1020,7 +1205,29 @@ function CallPageContent() {
             onJoinedStateChange={handleJoinedStateChange}
             onHangUp={handleHangUp}
             onToggleChat={() => setIsChatOpen(!isChatOpen)}
+            onToggleMute={handleToggleMute}
             isChatOpen={isChatOpen}
+            extraToolbarButtons={
+              inCall && activeStep === 1 ? (
+                contractDraft?.san_pham ? (
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="w-12 h-12 flex items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                    title="Xem lại Hợp Đồng"
+                  >
+                    <FileSignature size={20} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={forceExtract}
+                    className="w-12 h-12 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95 animate-pulse"
+                    title="Chốt hợp đồng bằng AI"
+                  >
+                    <FileSignature size={20} />
+                  </button>
+                )
+              ) : null
+            }
           />
 
           {/* FLOATING CHAT HISTORY PANEL */}
@@ -1172,9 +1379,14 @@ function CallPageContent() {
 
           {/* AI EXTRACTION STATUS */}
           {activeStep === 2 && (
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 backdrop-blur-md border border-indigo-500/30 px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl">
-              <Loader2 size={15} className="animate-spin text-indigo-400" />
-              <span className="text-xs font-bold text-slate-100">AgriTrust AI (MiniMax-M3) đang trích xuất điều khoản...</span>
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 backdrop-blur-md border border-indigo-500/30 px-6 py-3 rounded-2xl flex flex-col items-center gap-1.5 shadow-2xl text-center min-w-[300px]">
+              <div className="flex items-center gap-3">
+                <Loader2 size={15} className="animate-spin text-indigo-400" />
+                <span className="text-xs font-bold text-slate-100">AgriTrust AI (MiniMax-M3) đang trích xuất...</span>
+              </div>
+              <span className="text-[10px] text-indigo-200/70 font-medium">
+                Vui lòng chờ khoảng 5-10 giây để AI đọc hiểu toàn bộ ngữ cảnh
+              </span>
             </div>
           )}
 
@@ -1294,6 +1506,7 @@ function CallPageContent() {
                 isSigningBuyer={isSigningBuyer}
                 isSigningSeller={isSigningSeller}
                 currentRole={user?.vai_tro as 'nong_dan' | 'thuong_lai'}
+                partnerTyping={partnerTyping}
               />
             </div>
 
@@ -1321,9 +1534,9 @@ function CallPageContent() {
                     contractId={channelName}
                     buyerAddress={buyerSignature.wallet}
                     sellerAddress={sellerSignature.wallet}
-                    unitPriceVnd={contractDraft.don_gia}
-                    expectedQty={contractDraft.so_luong}
-                    deadlineIso={contractDraft.han_giao_hang}
+                    unitPriceVnd={contractDraft?.don_gia}
+                    expectedQty={contractDraft?.so_luong}
+                    deadlineIso={contractDraft?.han_giao_hang}
                     onSuccess={handleLockSuccess}
                     contractDraft={contractDraft}
                     buyerSignature={buyerSignature}
@@ -1332,6 +1545,19 @@ function CallPageContent() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Màn hình chờ AI trích xuất (Dành cho Slave) */}
+      {isWaitingPartnerAI && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-neutral-900 border border-white/10 p-8 rounded-2xl flex flex-col items-center max-w-md text-center shadow-2xl">
+            <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
+            <h3 className="text-lg font-bold text-white mb-2">Đang chờ đối tác...</h3>
+            <p className="text-sm text-neutral-400">
+              Đối tác đang sử dụng AI để tạo hợp đồng từ nội dung cuộc gọi. Vui lòng đợi trong giây lát, bảng hợp đồng sẽ tự động hiện ra ngay sau khi hoàn tất.
+            </p>
           </div>
         </div>
       )}

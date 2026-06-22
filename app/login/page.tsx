@@ -17,7 +17,7 @@ import {
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -35,7 +35,7 @@ export default function LoginPage() {
 
     try {
       const user = await loginUser(username, password);
-      
+
       if (user) {
         login({
           dia_chi_vi: user.dia_chi_vi,
@@ -57,7 +57,7 @@ export default function LoginPage() {
   return (
     <div className="flex flex-col justify-center items-center min-h-screen bg-[#FAFAF9] text-neutral-900 antialiased font-sans px-4 py-12">
       <div className="w-full max-w-[480px] space-y-8 animate-fade-in">
-        
+
         {/* Logo + Heading */}
         <div className="flex flex-col items-center space-y-4">
           <div className="w-14 h-14 rounded-2xl bg-[#15803D] flex items-center justify-center text-white font-black text-2xl shadow-lg hover:rotate-6 transition-transform">
@@ -76,7 +76,7 @@ export default function LoginPage() {
         {/* Card Form */}
         <div className="bg-white border border-slate-200 rounded-3xl p-8 md:p-10 shadow-md space-y-6">
           <form onSubmit={handleSubmit} className="space-y-5">
-            
+
             {errorMsg && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-[12px] text-red-600 flex items-center gap-2">
                 <AlertCircle size={16} className="flex-shrink-0" />

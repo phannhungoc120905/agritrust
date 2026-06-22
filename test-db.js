@@ -1,15 +1,10 @@
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
-
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env' });
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-
-async function main() {
-  const { data, error } = await supabase.from('hop_dong').select('*').limit(1);
-  if (error) {
-    console.error("Error fetching hop_dong:", error);
-  } else {
-    console.log("hop_dong columns:", data.length > 0 ? Object.keys(data[0]) : "No data, but request succeeded.");
-  }
+async function test() {
+  const { data, error } = await supabase.from('ban_ghi_dam_phan').select('*').limit(5);
+  console.log("Error:", error);
+  console.log("Data:", data);
 }
-
-main();
+test();

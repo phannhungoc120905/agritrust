@@ -44,6 +44,7 @@ function ContractPageContent() {
   const [loading, setLoading] = useState(true);
   const [txSignature, setTxSignature] = useState(initialTx);
   const [successMsg, setSuccessMsg] = useState('');
+  const [transcripts, setTranscripts] = useState<any[]>([]);
   
   // Trạng thái hiển thị form khiếu nại (Nghiệm thu đạt chuẩn hay Phát hiện sự cố)
   const [inspectionDecision, setInspectionDecision] = useState<'undecided' | 'ok' | 'issue'>('undecided');
@@ -114,6 +115,14 @@ function ContractPageContent() {
 
       const disp = await getDisputeByContractId(contractId);
       setDispute(disp);
+
+      try {
+        const { getTranscriptsByContractId } = await import('../../../lib/supabase/queries/transcripts');
+        const txs = await getTranscriptsByContractId(contractId);
+        setTranscripts(txs || []);
+      } catch (err) {
+        console.warn('Lỗi tải lịch sử đàm phán:', err);
+      }
     } catch (err) {
       console.error('Lỗi khi tải dữ liệu hợp đồng:', err);
       setContract(null);
@@ -352,6 +361,38 @@ function ContractPageContent() {
               />
             </div>
           )}
+          {/* LỊCH SỬ ĐÀM PHÁN (STT) */}
+          {transcripts.length > 0 && (
+            <div className="bg-white border border-neutral-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
+              <div className="p-4 border-b border-neutral-200 bg-slate-50 flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">Lịch sử Đàm Phán</h3>
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">AI XÁC THỰC</span>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50 max-h-[400px]">
+                {transcripts.map((msg, idx) => {
+                  const isMe = msg.vi_nguoi_noi === user?.dia_chi_vi;
+                  const senderRole = msg.vi_nguoi_noi === contract.vi_nguoi_ban ? 'Nông dân' : 'Thương lái';
+                  return (
+                    <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <span className="text-[10px] font-bold text-neutral-400 mb-1 px-1 uppercase tracking-wider">
+                        {senderRole}
+                      </span>
+                      <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-[13px] leading-relaxed shadow-sm ${
+                        isMe 
+                          ? 'bg-indigo-600 text-white rounded-br-none' 
+                          : 'bg-white text-neutral-800 rounded-bl-none border border-neutral-200'
+                      }`}>
+                        {msg.noi_dung}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* CỘT PHẢI: QUY TRÌNH NGHIỆM THU, GIAO NHẬN VÀ KHIẾU NẠI */}
