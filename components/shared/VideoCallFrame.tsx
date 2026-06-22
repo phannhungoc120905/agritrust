@@ -42,29 +42,15 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
     setIsJoining(true);
     try {
       const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
+      AgoraRTC.setLogLevel(4); // Tắt log của Agora (mức NONE) để tránh Next.js bung màn hình đỏ khi test máy thiếu mic/cam
       
-      // 1. Tạo Track Micro và Camera nội bộ (Bật cam/mic ngay cả khi chưa có App ID)
-      let audioTrack: any = null;
-      let videoTrack: any = null;
-      try {
-        [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-        localTracksRef.current = { audioTrack, videoTrack };
-      } catch (mediaErr) {
-        console.warn('Không thể lấy quyền Camera/Micro:', mediaErr);
-        // Vẫn tiếp tục vào phòng nhưng ở trạng thái tắt cam/mic
-        setCameraOff(true);
-        setMuted(true);
-      }
-
-      // Cho phép vào phòng
-      setInCall(true);
-      
-      // Delay play until UI is rendered
-      setTimeout(() => {
-        if (localVideoRef.current && videoTrack) {
-          videoTrack.play(localVideoRef.current);
-        }
-      }, 300);
+      // 1. Chạy song song xin quyền Camera/Micro và lấy Token từ API để tăng tốc độ join
+      const tokenPromise = fetch(`/api/agora-token?channelName=${encodeURIComponent(channelName)}`)
+        .then(res => res.ok ? res.json() : null)
+        .catch(err => {
+          console.warn('Lỗi lấy token:', err);
+          return null;
+        });
 
       const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || '';
       if (!appId || appId === 'YOUR_AGORA_APP_ID') {
@@ -78,58 +64,90 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
       rtcClientRef.current = client;
 
       // Lắng nghe sự kiện người khác tham gia & stream video/audio
-      client.on('user-published', async (user: any, mediaType: 'video' | 'audio') => {
-        try {
-          await client.subscribe(user, mediaType);
-          if (mediaType === 'video') {
-            setRemoteUsers((prev) => {
-              if (prev.find((u) => u.uid === user.uid)) return prev;
-              return [...prev, user];
-            });
-          }
-          if (mediaType === 'audio') {
-            user.audioTrack?.play();
-          }
-        } catch (subErr) {
-          console.error('Lỗi khi subscribe user:', subErr);
-        }
+      client.on('user-joined', (user: any) => {
+        setRemoteUsers((prev) => {
+          if (prev.find((u) => u.uid === user.uid)) return prev;
+          return [...prev, user];
+        });
       });
 
-      client.on('user-unpublished', (user: any) => {
+      client.on('user-left', (user: any) => {
         setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
       });
 
-      // 3. Lấy token từ API route nếu dự án dùng Secured Mode
-      let token: string | null = null;
-      try {
-        const tokenRes = await fetch(`/api/agora-token?channelName=${encodeURIComponent(channelName)}`);
-        if (tokenRes.ok) {
-          const tokenData = await tokenRes.json();
-          token = tokenData.token;
-        }
-      } catch (tokenFetchErr) {
-        console.warn('Không thể lấy Agora Token từ API route, thử dùng null token:', tokenFetchErr);
-      }
+       client.on('user-published', async (user: any, mediaType: 'video' | 'audio') => {
+         try {
+           await client.subscribe(user, mediaType);
+           setRemoteUsers((prev) => [...prev]);
+           if (mediaType === 'audio') {
+             user.audioTrack?.play();
+           }
+         } catch (subErr) {
+           console.error('Lỗi khi subscribe user:', subErr);
+         }
+       });
 
-      // 4. Join Kênh và Publish
+      client.on('user-unpublished', (user: any, mediaType: 'video' | 'audio') => {
+        if (mediaType === 'audio') {
+          user.audioTrack?.stop();
+        }
+        setRemoteUsers((prev) => [...prev]);
+      });
+
+      // 3. Đợi Token API resolve xong và Join Kênh NGAY LẬP TỨC
+      const tokenData = await tokenPromise;
+      const token = tokenData?.token || null;
+
       try {
         const uid = await client.join(appId, channelName, token, null);
+        console.log(`Đã kết nối cuộc gọi thật thành công, UID: ${uid}`);
         
+        // Cho phép vào phòng ngay lập tức (hiển thị UI) ngay khi join channel
+        setInCall(true);
+
+        // 4. Bắt đầu xin quyền Camera/Micro SAU KHI đã join (user sẽ thấy mình đã ở trong phòng)
+        let audioTrack: any = null;
+        let videoTrack: any = null;
+
+        try {
+          audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        } catch (audioErr) {
+          console.warn('Không thể lấy quyền Micro:', audioErr);
+          setMuted(true);
+        }
+
+        try {
+          videoTrack = await AgoraRTC.createCameraVideoTrack();
+        } catch (videoErr) {
+          console.warn('Không thể lấy quyền Camera:', videoErr);
+          setCameraOff(true);
+        }
+
+        localTracksRef.current = { audioTrack, videoTrack };
+
         const tracksToPublish = [];
         if (audioTrack) tracksToPublish.push(audioTrack);
         if (videoTrack) tracksToPublish.push(videoTrack);
 
+        // Phát sóng các track lên phòng
         if (tracksToPublish.length > 0) {
           await client.publish(tracksToPublish);
         }
-        console.log(`Đã kết nối cuộc gọi thật thành công, UID: ${uid}`);
+
+        // Hiện video lên màn hình của mình
+        setTimeout(() => {
+          if (localVideoRef.current && videoTrack) {
+            videoTrack.play(localVideoRef.current);
+          }
+        }, 50);
+
       } catch (joinErr: any) {
         console.error('Lỗi khi join channel Agora:', joinErr);
         const isTokenError = 
           joinErr.message?.includes('dynamic use static key') || 
           joinErr.code === 'CAN_NOT_GET_GATEWAY_SERVER' ||
           (joinErr.message && joinErr.message.indexOf('static key') !== -1);
-          
+        
         if (isTokenError) {
           console.warn('CẢNH BÁO: Agora App ID yêu cầu Token (Secured Mode) nhưng token chưa hợp lệ.');
           alert(
@@ -143,22 +161,56 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         } else {
           console.warn('Không thể kết nối Agora RTC. Chạy ở chế độ cục bộ.');
         }
+        
+        // Dọn dẹp client nếu đã tạo nhưng không thể join
+        if (rtcClientRef.current) {
+          try {
+            await rtcClientRef.current.leave();
+          } catch (e) {
+            // Bỏ qua lỗi khi dọn dẹp
+          }
+          rtcClientRef.current = null;
+        }
       }
       setIsJoining(false);
 
-    } catch (err) {
-      console.error('Lỗi kết nối Video Call:', err);
-      // Thay vì throw lỗi đỏ làm Next.js crash, ta bypass qua luồng giả lập
-      setInCall(true);
-      setCameraOff(true);
-      setMuted(true);
-    } finally {
-      setIsJoining(false);
+  } catch (err: any) {
+    console.error('Lỗi kết nối Video Call:', err);
+    // Thay vì throw lỗi đỏ làm Next.js crash, ta bypass qua luồng giả lập
+    setInCall(true);
+    setCameraOff(true);
+    setMuted(true);
+    
+    // Dọn dẹp client nếu đã tạo nhưng có lỗi xảy ra trước khi join
+    if (rtcClientRef.current) {
+      try {
+        await rtcClientRef.current.leave();
+      } catch (e) {
+        // Bỏ qua lỗi khi dọn dẹp
+      }
+      rtcClientRef.current = null;
     }
-  };
+    
+    // Cung cấp hướng dẫn cụ thể hơn dựa trên lỗi
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    let message = 'Không thể kết nối Video Call. Vui lòng kiểm tra kết nối mạng và thử lại.';
+    if (err.message?.includes('Failed to execute')) {
+      message = 'Lỗi trình duyệt: Vui lòng kiểm tra xem bạn có đang sử dụng chế độ Riêng tư (Private Browsing) không và đảm bảo đã cho phép truy cập Microphone và Camera.';
+      if (isSafari) {
+        message += ' Trên Safari, vào Safari → Preferences → Privacy & Security và đảm bảo "Prevent cross-site tracking" không được bật.';
+      }
+    } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
+      message = 'Không tìm thấy thiết bị Microphone hoặc Camera. Vui lòng kiểm tra kết nối thiết bị.';
+    }
+    alert(message);
+  } finally {
+    setIsJoining(false);
+  }
+};
 
   // Vào phòng không cần Camera (Demo Mode an toàn)
-  const joinDemoMode = () => {
+  const joinDemoMode = async () => {
+    await endCall(); // Dọn dẹp trạng thái hiện tại
     setIsDemoCall(true);
     setInCall(true);
     setCameraOff(true);
@@ -206,20 +258,103 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
 
   // Mute / Unmute âm thanh
   const handleToggleMute = async () => {
-    if (localTracksRef.current?.audioTrack) {
-      const nextState = !muted;
-      await localTracksRef.current.audioTrack.setEnabled(!nextState);
-      setMuted(nextState);
-    }
+    try {
+      if (localTracksRef.current?.audioTrack) {
+        const nextState = !muted;
+        await localTracksRef.current.audioTrack.setMuted(nextState);
+        setMuted(nextState);
+      } else {
+        // Xin lại quyền tạo Audio Track nếu trước đó chưa có
+        const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
+        
+        // Kiểm tra xem máy tính có cắm Mic thật không
+        const mics = await AgoraRTC.getMicrophones();
+        if (mics.length === 0) {
+          alert("Hệ thống báo cáo: Không tìm thấy bất kỳ Microphone vật lý nào được cắm vào máy tính của bạn. Vui lòng cắm tai nghe có mic hoặc bật mic hệ thống!");
+          return;
+        }
+
+        const newAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        
+        if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
+        localTracksRef.current.audioTrack = newAudioTrack;
+        
+        if (rtcClientRef.current) {
+          await rtcClientRef.current.publish([newAudioTrack]);
+        }
+        setMuted(false);
+      }
+      } catch (err: any) {
+        console.warn("Không thể bật micro:", err);
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        
+        // Kiểm tra xem có phải lỗi do từ chối quyền không
+        if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
+          let message = "Lỗi cấp quyền: Bạn đã từ chối quyền truy cập Microphone. Hãy vào cài đặt trang web (icon Ổ khoá trên thanh URL) và cho phép truy cập Microphone.";
+          if (isSafari) {
+            message += " Trên Safari, bạn có thể cần truy cập vào Safari → Preferences → Websites → Microphone để cho phép.";
+          }
+          alert(message);
+        } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
+          alert("Không tìm thấy thiết bị Microphone. Vui lòng kiểm tra xem Microphone đã được cắm và bật đúng cách chưa.");
+        } else {
+          let message = "Lỗi cấp quyền: Trình duyệt của bạn đang chặn quyền Mic, hoặc tab ẩn danh không cho phép truy cập. Hãy bấm vào icon Ổ khoá trên thanh URL để cho phép!";
+          if (isSafari) {
+            message += " Trên Safari, hãy kiểm tra xem bạn có đang sử dụng chế độ Riêng tư (Private Browsing) không, vì 이 chế độ иногда limita l 접근 để microphone.";
+          }
+          alert(message);
+        }
+      }
   };
 
   // Bật / Tắt Video Camera
   const handleToggleCamera = async () => {
-    if (localTracksRef.current?.videoTrack) {
-      const nextState = !cameraOff;
-      await localTracksRef.current.videoTrack.setEnabled(!nextState);
-      setCameraOff(nextState);
-    }
+    try {
+      if (localTracksRef.current?.videoTrack) {
+        const nextState = !cameraOff;
+        await localTracksRef.current.videoTrack.setMuted(nextState);
+        setCameraOff(nextState);
+        } else {
+          // Xin lại quyền tạo Video Track nếu trước đó chưa có
+          const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
+          const newVideoTrack = await AgoraRTC.createCameraVideoTrack();
+          
+          if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
+          localTracksRef.current.videoTrack = newVideoTrack;
+          
+          if (rtcClientRef.current) {
+            await rtcClientRef.current.publish([newVideoTrack]);
+          }
+          setCameraOff(false);
+          
+          // Play video
+          setTimeout(() => {
+            if (localVideoRef.current && localTracksRef.current?.videoTrack) {
+              localTracksRef.current.videoTrack.play(localVideoRef.current);
+            }
+          }, 100);
+        }
+      } catch (err: any) {
+        console.warn("Không thể bật camera:", err);
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        
+        // Kiểm tra xem có phải lỗi do từ chối quyền không
+        if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
+          let message = "Lỗi cấp quyền: Bạn đã từ chối quyền truy cập Camera. Hãy vào cài đặt trang web (icon Ổ khoá trên thanh URL) và cho phép truy cập Camera.";
+          if (isSafari) {
+            message += " Trên Safari, bạn có thể cần truy cập vào Safari → Preferences → Websites → Camera để cho phép.";
+          }
+          alert(message);
+        } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
+          alert("Không tìm thấy thiết bị Camera. Vui lòng kiểm tra xem Camera đã được cắm và bật đúng cách chưa.");
+        } else {
+          let message = "Không tìm thấy Camera hoặc chưa cấp quyền!";
+          if (isSafari) {
+            message += " Trên Safari, hãy kiểm tra xem bạn có đang sử dụng chế độ Riêng tư (Private Browsing) không, vì 이 chế độ иногда limita l 접근 đến camera.";
+          }
+          alert(message);
+        }
+      }
   };
 
   // Dọn dẹp tài nguyên khi Unmount
@@ -366,11 +501,21 @@ function RemoteVideoPlayer({ user }: { user: any }) {
     if (containerRef.current && user.videoTrack) {
       user.videoTrack.play(containerRef.current);
     }
-  }, [user.videoTrack]);
+  }, [user, user.videoTrack]); // Theo dõi cả object user để update khi bật/tắt cam
 
   return (
     <div className="w-full h-full relative">
       <div ref={containerRef} className="w-full h-full object-cover" />
+      
+      {!user.videoTrack && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-900">
+          <div className="w-24 h-24 rounded-full bg-neutral-800 flex items-center justify-center mb-4">
+            <VideoOff size={32} className="text-neutral-500" />
+          </div>
+          <p className="text-neutral-400 text-sm">Đối tác đã tắt Camera</p>
+        </div>
+      )}
+
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none z-10"></div>
     </div>
   );

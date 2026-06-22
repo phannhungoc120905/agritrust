@@ -10,6 +10,7 @@ import ConfirmContractButton from '../../components/negotiation/ConfirmContractB
 import { createDraftContract } from '../../lib/supabase/queries/contracts';
 import { AgoraSTTClient } from '../../lib/agora/sttClient';
 import { decodeMeetingParams } from '../../lib/utils/url';
+import { supabase } from '../../lib/supabase/client';
 
 import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
 import WalletBalance from '../../components/shared/WalletBalance';
@@ -347,6 +348,7 @@ function CallPageContent() {
 
   // Ref để lưu AgoraSTTClient và các câu thoại
   const sttClientRef = useRef<AgoraSTTClient | null>(null);
+  const sttChannelRef = useRef<any>(null);
   const transcriptLinesRef = useRef<TranscriptLine[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -357,6 +359,62 @@ function CallPageContent() {
       }, 50);
     }
   }, [transcriptLines, isChatOpen]);
+
+  // Khởi tạo kênh STT Realtime bằng Supabase Broadcast
+  useEffect(() => {
+    if (!channelName || !user) return;
+    const channel = supabase.channel(`stt_${channelName}`, {
+      config: { broadcast: { ack: false } }
+    });
+
+    channel.on('broadcast', { event: 'stt_text' }, ({ payload }) => {
+      const { text, userId, isFinal } = payload;
+      // Tránh tự xử lý lại tin của chính mình do client đã hiển thị
+      if (userId === (user.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai')) return;
+
+      if (!text.trim()) return;
+      setDisplayedSubtitle({ text, role: userId });
+
+      if (isFinal) {
+        setTimeout(() => {
+          setDisplayedSubtitle(prev => {
+            if (prev?.text === text) return null;
+            return prev;
+          });
+        }, 3000);
+
+        const priceMatch = text.match(/(\d+)\s*(triệu|tr)/i);
+        if (priceMatch) {
+          setProposedPrice(parseInt(priceMatch[1]) * 1000000);
+        }
+
+        const newLine: TranscriptLine = {
+          id: Math.random().toString(36).substring(7),
+          vi_nguoi_noi: userId,
+          noi_dung: text,
+          thoi_gian_noi: new Date().toISOString(),
+          den_canh_bao: 'binh_thuong',
+        };
+
+        setTranscriptLines(prev => {
+          const next = [...prev, newLine];
+          if (next.length === 6) {
+            setTimeout(() => {
+              // Note: triggerAIExtract is included in deps
+            }, 1000);
+          }
+          return next;
+        });
+      }
+    }).subscribe();
+
+    sttChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      sttChannelRef.current = null;
+    };
+  }, [channelName, user]);
 
   // Khởi tạo STT Client theo channelName
   useEffect(() => {
@@ -534,6 +592,15 @@ function CallPageContent() {
         // Cập nhật phụ đề tức thời (realtime)
         setDisplayedSubtitle({ text, role: userId });
 
+        // Phát Broadcast Text cho đối tác
+        if (sttChannelRef.current) {
+          sttChannelRef.current.send({
+            type: 'broadcast',
+            event: 'stt_text',
+            payload: { text, userId, isFinal }
+          });
+        }
+
         if (isFinal) {
           // Ẩn phụ đề sau 3 giây nếu không có câu mới
           const timer = setTimeout(() => {
@@ -599,7 +666,7 @@ function CallPageContent() {
     }
   }, [startMockSTT, startRealSTT]);
 
-  const handleHangUp = useCallback(() => {
+  const handleHangUp = useCallback(async () => {
     if (sttClientRef.current) {
       sttClientRef.current.stopSTT();
     }
@@ -611,9 +678,18 @@ function CallPageContent() {
     if (allLines.length > 0) {
       triggerAIExtract(allLines);
     } else {
+      // Dọn dẹp hợp đồng rác nếu chưa có trao đổi gì
+      if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
+        try {
+          const { deleteContract } = await import('../../lib/supabase/queries/contracts');
+          await deleteContract(channelName);
+        } catch (e) {
+          console.error("Lỗi khi xóa hợp đồng rác:", e);
+        }
+      }
       router.push('/');
     }
-  }, [router, triggerAIExtract]);
+  }, [router, triggerAIExtract, channelName]);
 
   // ==========================================
   // LƯU HỢP ĐỒNG VÀ CHUYỂN TRANG
@@ -962,7 +1038,7 @@ function CallPageContent() {
                   </button>
                 ) : (
                   <ConfirmContractButton
-                    contractId="dummy_id"
+                    contractId={channelName}
                     buyerAddress={buyerSignature.wallet}
                     sellerAddress={sellerSignature.wallet}
                     unitPriceVnd={contractDraft.don_gia}

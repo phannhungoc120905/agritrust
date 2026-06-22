@@ -31,7 +31,8 @@ import {
   MapPin,
   MessageSquare,
   PackageCheck,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
 
 import DisputeReportForm from '../components/dispute/DisputeReportForm';
@@ -50,6 +51,7 @@ function HomePageContent() {
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<'market' | 'negotiation' | 'delivery'>('market');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const [negotiations, setNegotiations] = useState<any[]>([]);
   const [activeNegotiationId, setActiveNegotiationId] = useState<string | null>(null);
@@ -196,7 +198,14 @@ function HomePageContent() {
           schema: 'public',
           table: 'hop_dong',
         },
-        () => {
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newDoc = payload.new as any;
+            if (newDoc.vi_nguoi_ban === user.dia_chi_vi && newDoc.trang_thai === 'du_thao') {
+              setToastMsg(`Có Thương lái vừa yêu cầu đàm phán hợp đồng mua ${newDoc.san_pham}!`);
+              setTimeout(() => setToastMsg(null), 8000); // Ẩn sau 8s
+            }
+          }
           loadDbContracts();
         }
       )
@@ -219,24 +228,34 @@ function HomePageContent() {
   const isNongDan = user.vai_tro === 'nong_dan';
 
   // --- ACTIONS TAB 1 -> TAB 2 ---
-  const handleContactNegotiation = (listing: any) => {
-    const newId = `n-${Date.now()}`;
-    const newNego = {
-      id: newId,
-      title: `Thương vụ: ${listing.name}`,
-      partnerName: listing.farmer,
-      status: 'dang_dam_phan',
-      listingRef: listing
-    };
+  const handleContactNegotiation = async (listing: any) => {
+    try {
+      const soLuongSo = parseFloat(listing.qty) || 0;
+      const donVi = listing.qty.replace(/[0-9.]/g, '').trim() || 'kg';
+      
+      const dbContract = await createDraftContract({
+        vi_nguoi_ban: listing.vi_nguoi_ban,
+        vi_nguoi_mua: user.dia_chi_vi,
+        san_pham: listing.name,
+        so_luong: soLuongSo,
+        don_vi_tinh: donVi,
+        don_gia: 0,
+        han_giao_hang: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        noi_dung_nhap_ai: null,
+        dieu_khoan_chat_luong: [],
+      });
 
-    setNegotiations(prev => [newNego, ...prev]);
-    const encoded = encodeMeetingParams({
-      channel: newId,
-      scenario: 'A',
-      product: listing.name,
-      partner: listing.farmer
-    });
-    router.push(`/call?p=${encoded}`);
+      const encoded = encodeMeetingParams({
+        channel: dbContract.id,
+        scenario: 'A',
+        product: listing.name,
+        partner: listing.farmer
+      });
+      router.push(`/call?p=${encoded}`);
+    } catch (err) {
+      console.error("Lỗi khởi tạo phòng đàm phán:", err);
+      alert("Không thể khởi tạo phòng đàm phán. Vui lòng thử lại!");
+    }
   };
 
   const openNegotiation = (nego: any) => {
@@ -1111,6 +1130,22 @@ function HomePageContent() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TOAST NOTIFICATION CHO NÔNG DÂN */}
+      {toastMsg && (
+        <div className="fixed bottom-10 right-6 z-[9999] bg-emerald-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 animate-fade-in-up">
+          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+            <MessageSquare size={20} className="text-white" />
+          </div>
+          <div>
+            <h4 className="font-bold text-sm">Yêu cầu Đàm phán mới!</h4>
+            <p className="text-xs text-emerald-100 mt-0.5">{toastMsg}</p>
+          </div>
+          <button onClick={() => setToastMsg(null)} className="ml-4 text-emerald-200 hover:text-white">
+            <X size={16} />
+          </button>
         </div>
       )}
 

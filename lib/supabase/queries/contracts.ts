@@ -58,3 +58,40 @@ export async function getContractById(contractId: string) {
   }
   return data;
 }
+
+// Cập nhật nội dung hợp đồng nháp (sau khi đàm phán)
+export async function updateContractDraftData(contractId: string, contractData: {
+  san_pham: string;
+  so_luong: number;
+  don_vi_tinh: string;
+  don_gia: number;
+  han_giao_hang: string;
+  dieu_khoan_chat_luong: any;
+}) {
+  const { data, error } = await supabase
+    .from('hop_dong')
+    .update(contractData)
+    .eq('id', contractId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Lỗi khi cập nhật hợp đồng nháp:', error);
+    throw error;
+  }
+  return data;
+}
+
+// Xóa hợp đồng nháp (dọn dẹp nếu 2 bên rời phòng không chốt)
+export async function deleteContract(contractId: string) {
+  const { error } = await supabase
+    .from('hop_dong')
+    .delete()
+    .eq('id', contractId);
+
+  if (error) {
+    console.error('Lỗi khi xóa hợp đồng:', error);
+    throw error;
+  }
+  return true;
+}

@@ -41,21 +41,27 @@ export class AgoraSTTClient {
       return;
     }
 
-    // Thử dùng Web Speech API (SpeechRecognition) cho STT thật
-    const SpeechRecognition =
-      typeof window !== 'undefined'
-        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-        : null;
+  // Thử dùng Web Speech API (SpeechRecognition) cho STT thật
+  const SpeechRecognition =
+    typeof window !== 'undefined'
+      ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      : null;
 
-    if (SpeechRecognition) {
-      console.log(`[STT] Khởi tạo Web Speech API (vi-VN) trong channel: ${this.channelName}`);
-      this.usingMock = false;
+  if (SpeechRecognition) {
+    console.log(`[STT] Khởi tạo Web Speech API (vi-VN) trong channel: ${this.channelName}`);
+    this.usingMock = false;
+    try {
       this.startRealSTT(SpeechRecognition);
-    } else {
-      console.warn('[STT] Trình duyệt không hỗ trợ Web Speech API. Chuyển sang mock.');
+    } catch (e) {
+      console.warn('[STT] Không thể khởi tạo Web Speech API, chuyển sang mock:', e);
       this.usingMock = true;
       this.mockSTT();
     }
+  } else {
+    console.warn('[STT] Trình duyệt không hỗ trợ Web Speech API. Chuyển sang mock.');
+    this.usingMock = true;
+    this.mockSTT();
+  }
   }
 
   private startRealSTT(SpeechRecognition: any) {
@@ -119,15 +125,15 @@ export class AgoraSTTClient {
     // Xử lý lỗi
     recognition.onerror = (event: any) => {
       if (event.error === 'no-speech' || event.error === 'aborted') {
-        console.warn('[STT] Trạng thái:', event.error);
+        // Chỉ là warning nhẹ, không làm phiền user
         return;
       }
-      console.error('[STT] Lỗi nhận diện:', event.error);
-      // Nếu lỗi "not-allowed" (user từ chối mic), chuyển sang mock
+      console.warn('[STT] Cảnh báo nhận diện:', event.error); // Dùng warn thay vì error để tránh popup Next.js
+      
+      // Nếu lỗi "not-allowed" (user từ chối mic) hoặc không có dịch vụ, tắt STT chứ không tự động dùng chữ giả nữa
       if (event.error === 'not-allowed' || event.error === 'service-not-available') {
-        console.warn('[STT] Chuyển sang chế độ mock do lỗi quyền truy cập mic.');
-        this.usingMock = true;
-        this.mockSTT();
+        console.warn('[STT] Tắt STT do lỗi quyền truy cập mic hoặc dịch vụ không khả dụng.');
+        this.stopSTT();
       }
     };
 
@@ -136,9 +142,8 @@ export class AgoraSTTClient {
       recognition.start();
       console.log('[STT] Đã bắt đầu nhận diện giọng nói tiếng Việt.');
     } catch (e) {
-      console.error('[STT] Không thể bắt đầu recognition:', e);
-      this.usingMock = true;
-      this.mockSTT();
+      console.warn('[STT] Không thể bắt đầu recognition:', e);
+      this.stopSTT();
     }
   }
 

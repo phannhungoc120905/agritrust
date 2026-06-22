@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useEscrow } from '../../hooks/useEscrow';
 import LockFundsButton from '../shared/buttons/LockFundsButton';
 import { convertVndToUsdc } from '../../lib/solana/convertVndUsdc';
-import { createDraftContract } from '../../lib/supabase/queries/contracts';
+import { createDraftContract, updateContractDraftData } from '../../lib/supabase/queries/contracts';
 
 interface ConfirmContractButtonProps {
   contractId: string;
@@ -36,21 +36,33 @@ export default function ConfirmContractButton({
     try {
       let activeContractId = contractId;
 
-      // Nếu đang dùng dummy_id (từ trang Call Demo), ta tiến hành lưu vào DB để có UUID thật
-      if (activeContractId === 'dummy_id' && contractDraft) {
+      if (contractDraft) {
         setDbLoading(true);
-        const dbRes = await createDraftContract({
-          vi_nguoi_ban: sellerAddress,
-          vi_nguoi_mua: buyerAddress,
-          san_pham: contractDraft.san_pham,
-          so_luong: contractDraft.so_luong,
-          don_vi_tinh: contractDraft.don_vi_tinh,
-          don_gia: contractDraft.don_gia,
-          han_giao_hang: contractDraft.han_giao_hang,
-          noi_dung_nhap_ai: null,
-          dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
-        });
-        activeContractId = dbRes.id;
+        if (activeContractId === 'dummy_id') {
+          // Dự phòng nếu vẫn còn ai gọi bằng dummy_id
+          const dbRes = await createDraftContract({
+            vi_nguoi_ban: sellerAddress,
+            vi_nguoi_mua: buyerAddress,
+            san_pham: contractDraft.san_pham,
+            so_luong: contractDraft.so_luong,
+            don_vi_tinh: contractDraft.don_vi_tinh,
+            don_gia: contractDraft.don_gia,
+            han_giao_hang: contractDraft.han_giao_hang,
+            noi_dung_nhap_ai: null,
+            dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
+          });
+          activeContractId = dbRes.id;
+        } else {
+          // Cập nhật hợp đồng nháp đã được tạo trước đó
+          await updateContractDraftData(activeContractId, {
+            san_pham: contractDraft.san_pham,
+            so_luong: contractDraft.so_luong,
+            don_vi_tinh: contractDraft.don_vi_tinh,
+            don_gia: contractDraft.don_gia,
+            han_giao_hang: contractDraft.han_giao_hang,
+            dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
+          });
+        }
         setDbLoading(false);
       }
 
