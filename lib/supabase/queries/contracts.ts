@@ -67,6 +67,7 @@ export async function updateContractDraftData(contractId: string, contractData: 
   don_gia: number;
   han_giao_hang: string;
   dieu_khoan_chat_luong: any;
+  noi_dung_nhap_ai?: any;
 }) {
   const { data, error } = await supabase
     .from('hop_dong')

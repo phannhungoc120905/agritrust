@@ -111,18 +111,58 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         let audioTrack: any = null;
         let videoTrack: any = null;
 
+        // Pre-warm: Gọi getUserMedia trước để trình duyệt populate device list
+        // Nếu không làm bước này, Agora SDK có thể báo "device not found"
+        try {
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const warmStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => null);
+            // Dừng stream ngay vì Agora sẽ tự tạo track riêng
+            warmStream?.getTracks().forEach(t => t.stop());
+          }
+        } catch (_) {
+          // Bỏ qua — Agora sẽ tự retry
+        }
+
         try {
           audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        } catch (audioErr) {
-          console.warn('Không thể lấy quyền Micro:', audioErr);
-          setMuted(true);
+        } catch (audioErr: any) {
+          console.warn('Không thể lấy quyền Micro (Agora):', audioErr);
+          // Fallback: tự tạo audio track từ getUserMedia native
+          try {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+              const nativeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              const nativeAudioTrack = nativeStream.getAudioTracks()[0];
+              if (nativeAudioTrack) {
+                audioTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: nativeAudioTrack });
+                console.log('[Audio] Đã tạo audio track từ getUserMedia native (fallback).');
+              }
+            }
+          } catch (nativeErr) {
+            console.warn('Không thể lấy micro từ getUserMedia native:', nativeErr);
+          }
+          if (!audioTrack) setMuted(true);
         }
 
         try {
           videoTrack = await AgoraRTC.createCameraVideoTrack();
         } catch (videoErr) {
-          console.warn('Không thể lấy quyền Camera:', videoErr);
-          setCameraOff(true);
+          console.warn('Không thể lấy quyền Camera (Agora):', videoErr);
+          // Fallback: tự tạo video track từ getUserMedia native
+          try {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+              const nativeStream = await navigator.mediaDevices.getUserMedia({ video: true });
+              const nativeVideoTrack = nativeStream.getVideoTracks()[0];
+              if (nativeVideoTrack) {
+                videoTrack = AgoraRTC.createCustomVideoTrack({ mediaStreamTrack: nativeVideoTrack });
+                console.log('[Video] Đã tạo video track từ getUserMedia native (fallback).');
+              }
+            } else {
+              setCameraOff(true);
+            }
+          } catch (nativeErr) {
+            console.warn('Không thể lấy camera từ getUserMedia native:', nativeErr);
+            setCameraOff(true);
+          }
         }
 
         localTracksRef.current = { audioTrack, videoTrack };
@@ -133,7 +173,15 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
 
         // Phát sóng các track lên phòng
         if (tracksToPublish.length > 0) {
-          await client.publish(tracksToPublish);
+          try {
+            if (client.connectionState === 'CONNECTED') {
+              await client.publish(tracksToPublish);
+            } else {
+              console.warn('[Agora] Không thể publish vì trạng thái kết nối là:', client.connectionState);
+            }
+          } catch (pubErr) {
+            console.warn('[Agora] Lỗi khi publish track:', pubErr);
+          }
         }
 
         // Hiện video lên màn hình của mình
@@ -268,41 +316,85 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
       } else {
         // Xin lại quyền tạo Audio Track nếu trước đó chưa có
         const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
-        
-        // Thay vì check getMicrophones() (vốn có thể rỗng nếu chưa cấp quyền), 
-        // ta gọi luôn createMicrophoneAudioTrack() để trình duyệt hiện thông báo xin quyền.
-        const newAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
 
-        
-        if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
-        localTracksRef.current.audioTrack = newAudioTrack;
-        
-        if (rtcClientRef.current) {
-          await rtcClientRef.current.publish([newAudioTrack]);
+        let newAudioTrack: any = null;
+        let lastError: any = null;
+
+        // Kiểm tra xem trình duyệt có hỗ trợ mediaDevices không (thường bị chặn nếu không dùng HTTPS / localhost)
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('SECURE_CONTEXT_REQUIRED');
         }
-        setMuted(false);
-      }
-      } catch (err: any) {
-        console.warn("Không thể bật micro:", err);
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-        
-        // Kiểm tra xem có phải lỗi do từ chối quyền không
-        if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
-          let message = "Lỗi cấp quyền: Bạn đã từ chối quyền truy cập Microphone. Hãy vào cài đặt trang web (icon Ổ khoá trên thanh URL) và cho phép truy cập Microphone.";
-          if (isSafari) {
-            message += " Trên Safari, bạn có thể cần truy cập vào Safari → Preferences → Websites → Microphone để cho phép.";
+
+        // Bước 1: Pre-warm device list bằng getUserMedia native
+        try {
+          const warmStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          warmStream.getTracks().forEach(t => t.stop());
+        } catch (_) {
+          // Bỏ qua, Agora sẽ tự retry
+        }
+
+        // Bước 2: Thử Agora API
+        try {
+          newAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        } catch (agoraErr) {
+          console.warn('[Mic] Agora createMicrophoneAudioTrack thất bại, thử getUserMedia native:', agoraErr);
+          lastError = agoraErr;
+          
+          // Bước 3: Fallback sang getUserMedia native + createCustomAudioTrack
+          try {
+            const nativeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const nativeTrack = nativeStream.getAudioTracks()[0];
+            if (nativeTrack) {
+              newAudioTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: nativeTrack });
+              console.log('[Mic] Đã tạo audio track từ getUserMedia native (fallback).');
+            }
+          } catch (nativeErr) {
+            console.warn('[Mic] getUserMedia native cũng thất bại:', nativeErr);
+            lastError = nativeErr;
           }
-          alert(message);
-        } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
-          alert("Không tìm thấy thiết bị Microphone. Vui lòng kiểm tra xem Microphone đã được cắm và bật đúng cách chưa.");
+        }
+
+        if (newAudioTrack) {
+          if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
+          localTracksRef.current.audioTrack = newAudioTrack;
+
+          if (rtcClientRef.current && rtcClientRef.current.connectionState === 'CONNECTED') {
+            try {
+              await rtcClientRef.current.publish([newAudioTrack]);
+            } catch (pubErr) {
+              console.warn('[Mic] Lỗi khi publish audio track mới:', pubErr);
+            }
+          }
+          setMuted(false);
         } else {
-          let message = "Lỗi cấp quyền: Trình duyệt của bạn đang chặn quyền Mic, hoặc tab ẩn danh không cho phép truy cập. Hãy bấm vào icon Ổ khoá trên thanh URL để cho phép!";
-          if (isSafari) {
-            message += " Trên Safari, hãy kiểm tra xem bạn có đang sử dụng chế độ Riêng tư (Private Browsing) không, vì 이 chế độ иногда limita l 접근 để microphone.";
-          }
-          alert(message);
+          throw lastError || new Error('Không thể tạo audio track từ bất kỳ phương thức nào.');
         }
       }
+    } catch (err: any) {
+      console.warn('Không thể bật micro:', err);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const errorMessage = (err.message || '').toLowerCase();
+
+      if (err.message === 'SECURE_CONTEXT_REQUIRED') {
+        alert('Lỗi: Trình duyệt chặn truy cập Mic/Camera vì bạn đang không dùng HTTPS hoặc localhost. Nếu test qua mạng LAN (IP), hãy đảm bảo dùng https:// hoặc cấu hình port forward.');
+      } else if (err.name === 'NotAllowedError' || errorMessage.includes('permission denied') || errorMessage.includes('not allowed')) {
+        let message = 'Lỗi cấp quyền: Bạn đã từ chối quyền truy cập Microphone. Hãy vào cài đặt trang web (icon Ổ khoá trên thanh URL) và cho phép truy cập Microphone.';
+        if (isSafari) {
+          message += ' Trên Safari, bạn có thể cần truy cập vào Safari → Preferences → Websites → Microphone để cho phép.';
+        }
+        alert(message);
+      } else if (err.name === 'NotFoundError' || errorMessage.includes('not found') || errorMessage.includes('no device') || errorMessage.includes('device_not_found')) {
+        // Thay vì chặn user, cho phép tiếp tục ở chế độ muted
+        alert('Không tìm thấy thiết bị Microphone phần cứng nào trên máy của bạn. Bạn vẫn có thể tiếp tục cuộc gọi ở chế độ tắt mic. Vui lòng kiểm tra lại thiết bị kết nối hoặc cài đặt hệ điều hành.');
+        setMuted(true);
+      } else {
+        let message = `Không thể bật Microphone. Lý do: ${err.message || 'Không xác định'}\nHãy kiểm tra: (1) Đã cắm mic, (2) Trình duyệt đã cấp quyền (icon Ổ khoá), (3) Không dùng chế độ ẩn danh.`;
+        if (isSafari) {
+          message += '\nTrên Safari, vào Preferences → Websites → Microphone để cho phép.';
+        }
+        alert(message);
+      }
+    }
   };
 
   // Bật / Tắt Video Camera
@@ -320,8 +412,12 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
           if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
           localTracksRef.current.videoTrack = newVideoTrack;
           
-          if (rtcClientRef.current) {
-            await rtcClientRef.current.publish([newVideoTrack]);
+          if (rtcClientRef.current && rtcClientRef.current.connectionState === 'CONNECTED') {
+            try {
+              await rtcClientRef.current.publish([newVideoTrack]);
+            } catch (pubErr) {
+              console.warn('[Video] Lỗi khi publish video track mới:', pubErr);
+            }
           }
           setCameraOff(false);
           
@@ -333,22 +429,22 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
           }, 100);
         }
       } catch (err: any) {
-        console.warn("Không thể bật camera:", err);
+        console.warn('Không thể bật camera:', err);
         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-        
-        // Kiểm tra xem có phải lỗi do từ chối quyền không
+
         if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
-          let message = "Lỗi cấp quyền: Bạn đã từ chối quyền truy cập Camera. Hãy vào cài đặt trang web (icon Ổ khoá trên thanh URL) và cho phép truy cập Camera.";
+          let message = 'Lỗi cấp quyền: Bạn đã từ chối quyền truy cập Camera. Hãy vào cài đặt trang web (icon Ổ khoá trên thanh URL) và cho phép truy cập Camera.';
           if (isSafari) {
-            message += " Trên Safari, bạn có thể cần truy cập vào Safari → Preferences → Websites → Camera để cho phép.";
+            message += ' Trên Safari, bạn có thể cần truy cập vào Safari → Preferences → Websites → Camera để cho phép.';
           }
           alert(message);
         } else if (err.message?.includes('not found') || err.message?.includes('no device')) {
-          alert("Không tìm thấy thiết bị Camera. Vui lòng kiểm tra xem Camera đã được cắm và bật đúng cách chưa.");
+          alert('Không tìm thấy thiết bị Camera. Bạn vẫn có thể tiếp tục cuộc gọi không có video. Nếu muốn dùng camera, hãy cắm thiết bị và thử lại.');
+          setCameraOff(true);
         } else {
-          let message = "Không tìm thấy Camera hoặc chưa cấp quyền!";
+          let message = 'Không thể bật Camera. Hãy kiểm tra: (1) Đã cắm camera, (2) Trình duyệt đã cấp quyền, (3) Không dùng chế độ ẩn danh.';
           if (isSafari) {
-            message += " Trên Safari, hãy kiểm tra xem bạn có đang sử dụng chế độ Riêng tư (Private Browsing) không, vì 이 chế độ иногда limita l 접근 đến camera.";
+            message += ' Trên Safari, vào Preferences → Websites → Camera để cho phép.';
           }
           alert(message);
         }

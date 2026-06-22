@@ -424,6 +424,12 @@ function CallPageContent() {
       else setBuyerSignature(signature);
     });
 
+    // 📡 Nhận tín hiệu Hợp đồng cập nhật từ người kia
+    channel.on('broadcast', { event: 'contract_update' }, ({ payload }) => {
+      console.log('🔄 Đã nhận dữ liệu hợp đồng cập nhật từ đối tác:', payload);
+      setContractDraft(payload.contract);
+    });
+
     channel.subscribe();
     sttChannelRef.current = channel;
 
@@ -442,6 +448,84 @@ function CallPageContent() {
       }
     };
   }, [channelName]);
+
+  // Tải thông tin hợp đồng nháp và đối tác từ database
+  useEffect(() => {
+    if (!channelName || channelName === 'dam-phan-lua-st25' || channelName === 'dummy_id') {
+      ensureContractDraftExists();
+      return;
+    }
+
+    const loadContract = async () => {
+      try {
+        const { getContractById } = await import('../../lib/supabase/queries/contracts');
+        const { getTranscriptsByContractId } = await import('../../lib/supabase/queries/transcripts');
+        
+        // 1. TẢI LỊCH SỬ THOẠI (STT) TỪ DATABASE
+        try {
+          const oldLines = await getTranscriptsByContractId(channelName);
+          if (oldLines && oldLines.length > 0 && user) {
+            const myWallet = user.dia_chi_vi;
+            const myRole = user.vai_tro;
+            const partnerRole = myRole === 'nong_dan' ? 'thuong_lai' : 'nong_dan';
+            
+            setTranscriptLines(oldLines.map((l: any) => ({
+              id: l.id,
+              vi_nguoi_noi: l.vi_nguoi_noi === myWallet ? myRole : partnerRole,
+              noi_dung: l.noi_dung,
+              thoi_gian_noi: l.thoi_gian_noi,
+              den_canh_bao: l.den_canh_bao
+            })));
+          }
+        } catch (err) {
+          console.warn("Lỗi load STT lịch sử:", err);
+        }
+
+        // 2. TẢI HỢP ĐỒNG NHÁP
+        const con = await getContractById(channelName);
+        if (con) {
+          setContractDraft({
+            ...con,
+            san_pham: con.san_pham,
+            so_luong: con.so_luong,
+            don_vi_tinh: con.don_vi_tinh || 'tấn',
+            don_gia: con.don_gia,
+            han_giao_hang: con.han_giao_hang || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            dieu_khoan_chat_luong: con.dieu_khoan_chat_luong || [],
+            confidence: con.noi_dung_nhap_ai?.confidence || null,
+            evidence: con.noi_dung_nhap_ai?.evidence || [],
+          });
+          
+          if (con.san_pham) {
+            setProductName(con.san_pham);
+          }
+
+          if (user) {
+            const partnerAddress = user.vai_tro === 'nong_dan' ? con.vi_nguoi_mua : con.vi_nguoi_ban;
+            if (partnerAddress) {
+              const { data: userData } = await supabase
+                .from('nguoi_dung')
+                .select('ten_hien_thi')
+                .eq('dia_chi_vi', partnerAddress)
+                .maybeSingle();
+              if (userData?.ten_hien_thi) {
+                setPartnerName(userData.ten_hien_thi);
+              }
+            }
+          }
+        } else {
+          ensureContractDraftExists();
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải thông tin hợp đồng nháp từ database:', err);
+        ensureContractDraftExists();
+      }
+    };
+
+    if (user) {
+      loadContract();
+    }
+  }, [channelName, user]);
 
   // Sync ref với state
   useEffect(() => {
@@ -641,6 +725,18 @@ function CallPageContent() {
           };
 
           setTranscriptLines(prev => [...prev, newLine]);
+          
+          // 💾 GHI LƯU STT LÊN DATABASE (chỉ lưu tiếng nói của bản thân)
+          if (userId === userRole && channelName && channelName !== 'dam-phan-lua-st25' && user) {
+            import('../../lib/supabase/queries/transcripts').then(m => {
+              m.addTranscriptLine({
+                id_hop_dong: channelName,
+                vi_nguoi_noi: user.dia_chi_vi,
+                noi_dung: text,
+                den_canh_bao: 'binh_thuong'
+              }).catch(e => console.warn('Lỗi lưu STT:', e));
+            });
+          }
         }
       },
       userRole,
@@ -696,6 +792,18 @@ function CallPageContent() {
 
     setTranscriptLines(prev => [...prev, newLine]);
     setChatInput('');
+
+    // 💾 GHI LƯU CHAT TAY LÊN DATABASE
+    if (channelName && channelName !== 'dam-phan-lua-st25' && user) {
+      import('../../lib/supabase/queries/transcripts').then(m => {
+        m.addTranscriptLine({
+          id_hop_dong: channelName,
+          vi_nguoi_noi: user.dia_chi_vi,
+          noi_dung: text,
+          den_canh_bao: 'binh_thuong'
+        }).catch(e => console.warn('Lỗi lưu Chat tay:', e));
+      });
+    }
   };
 
   // ==========================================
@@ -730,6 +838,41 @@ function CallPageContent() {
       }, 1500);
     }
   }, [transcriptLines, isRealSTTActive, activeStep, stopRealSTT]);
+
+  // ==========================================
+  // XỬ LÝ CHỈNH SỬA HỢP ĐỒNG (Sync Realtime + Database)
+  // ==========================================
+  const handleContractDraftChange = useCallback((updatedTerms: any) => {
+    setContractDraft(updatedTerms);
+
+    // 📡 Phát sự kiện Realtime qua kênh Supabase cho đối tác
+    if (sttChannelRef.current) {
+      sttChannelRef.current.send({
+        type: 'broadcast',
+        event: 'contract_update',
+        payload: { contract: updatedTerms }
+      });
+    }
+
+    // 💾 Lưu dự thảo lên Database (thường nên dùng debounce, nhưng ở đây có thể lưu trực tiếp)
+    if (channelName && channelName !== 'dam-phan-lua-st25') {
+      import('../../lib/supabase/queries/contracts').then(m => {
+        m.updateContractDraftData(channelName, {
+          san_pham: updatedTerms.san_pham,
+          so_luong: updatedTerms.so_luong,
+          don_vi_tinh: updatedTerms.don_vi_tinh,
+          don_gia: updatedTerms.don_gia,
+          han_giao_hang: updatedTerms.han_giao_hang,
+          dieu_khoan_chat_luong: updatedTerms.dieu_khoan_chat_luong,
+          noi_dung_nhap_ai: {
+             ...updatedTerms.noi_dung_nhap_ai,
+             confidence: updatedTerms.confidence,
+             evidence: updatedTerms.evidence,
+          }
+        }).catch(e => console.warn('Lỗi lưu hợp đồng lên DB:', e));
+      });
+    }
+  }, [channelName]);
 
   const handleJoinedStateChange = useCallback((joined: boolean, isDemo: boolean) => {
     setInCall(joined);
@@ -777,7 +920,29 @@ function CallPageContent() {
   // ==========================================
   // LƯU HỢP ĐỒNG VÀ CHUYỂN TRANG
   // ==========================================
-  const handleLockSuccess = (txSig: string) => {
+  const handleLockSuccess = async (txSig: string) => {
+    if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
+      try {
+        const { addTranscriptLine } = await import('../../lib/supabase/queries/transcripts');
+        const farmerWallet = user?.vai_tro === 'nong_dan' ? user?.dia_chi_vi : (contractDraft?.vi_nguoi_ban || 'nong_dan_wallet_address_demo');
+        const merchantWallet = user?.vai_tro === 'thuong_lai' ? user?.dia_chi_vi : (contractDraft?.vi_nguoi_mua || 'thuong_lai_wallet_address_demo');
+
+        for (const line of transcriptLines) {
+          const senderWallet = line.vi_nguoi_noi === 'nong_dan' ? farmerWallet :
+                               line.vi_nguoi_noi === 'thuong_lai' ? merchantWallet :
+                               line.vi_nguoi_noi;
+          await addTranscriptLine({
+            id_hop_dong: channelName,
+            vi_nguoi_noi: senderWallet,
+            noi_dung: line.noi_dung,
+            den_canh_bao: line.den_canh_bao || 'binh_thuong'
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi khi lưu lịch sử đàm thoại:', err);
+      }
+    }
+
     alert('Khóa quỹ thành công trên Solana! TX: ' + txSig + '\n\nChuyển hướng về Dashboard để xem hợp đồng...');
     setIsModalOpen(false);
     router.push('/dashboard');
@@ -1119,7 +1284,7 @@ function CallPageContent() {
             <div className="flex-1 overflow-y-auto pr-2 mt-4 min-h-0">
               <DraftContractTable
                 terms={contractDraft}
-                onChange={setContractDraft}
+                onChange={handleContractDraftChange}
                 buyerName={user?.vai_tro === 'thuong_lai' ? user?.ten_hien_thi : partnerName}
                 sellerName={user?.vai_tro === 'nong_dan' ? user?.ten_hien_thi : partnerName}
                 buyerSignature={buyerSignature}
@@ -1161,6 +1326,8 @@ function CallPageContent() {
                     deadlineIso={contractDraft.han_giao_hang}
                     onSuccess={handleLockSuccess}
                     contractDraft={contractDraft}
+                    buyerSignature={buyerSignature}
+                    sellerSignature={sellerSignature}
                   />
                 )}
               </div>

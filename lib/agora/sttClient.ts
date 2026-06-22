@@ -41,27 +41,39 @@ export class AgoraSTTClient {
       return;
     }
 
-  // Thử dùng Web Speech API (SpeechRecognition) cho STT thật
-  const SpeechRecognition =
-    typeof window !== 'undefined'
-      ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-      : null;
-
-  if (SpeechRecognition) {
-    console.log(`[STT] Khởi tạo Web Speech API (vi-VN) trong channel: ${this.channelName}`);
-    this.usingMock = false;
+    // Pre-warm: Gọi getUserMedia để trình duyệt populate device list mic
+    // Không làm bước này có thể khiến SpeechRecognition báo "audio-capture" error
     try {
-      this.startRealSTT(SpeechRecognition);
-    } catch (e) {
-      console.warn('[STT] Không thể khởi tạo Web Speech API, chuyển sang mock:', e);
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const warmStream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+        warmStream?.getTracks().forEach(t => t.stop());
+        console.log('[STT] Pre-warm mic thành công.');
+      }
+    } catch (_) {
+      console.warn('[STT] Pre-warm mic thất bại, sẽ thử tiếp...');
+    }
+
+    // Thử dùng Web Speech API (SpeechRecognition) cho STT thật
+    const SpeechRecognition =
+      typeof window !== 'undefined'
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null;
+
+    if (SpeechRecognition) {
+      console.log(`[STT] Khởi tạo Web Speech API (vi-VN) trong channel: ${this.channelName}`);
+      this.usingMock = false;
+      try {
+        this.startRealSTT(SpeechRecognition);
+      } catch (e) {
+        console.warn('[STT] Không thể khởi tạo Web Speech API, chuyển sang mock:', e);
+        this.usingMock = true;
+        this.mockSTT();
+      }
+    } else {
+      console.warn('[STT] Trình duyệt không hỗ trợ Web Speech API. Chuyển sang mock.');
       this.usingMock = true;
       this.mockSTT();
     }
-  } else {
-    console.warn('[STT] Trình duyệt không hỗ trợ Web Speech API. Chuyển sang mock.');
-    this.usingMock = true;
-    this.mockSTT();
-  }
   }
 
   private startRealSTT(SpeechRecognition: any) {

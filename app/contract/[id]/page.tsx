@@ -93,6 +93,23 @@ function ContractPageContent() {
       }
 
       const con = await getContractById(contractId);
+      if (con) {
+        // Tải thêm thông tin tên hiển thị từ ví người bán và người mua
+        const { data: sellerData } = await supabase
+          .from('nguoi_dung')
+          .select('ten_hien_thi')
+          .eq('dia_chi_vi', con.vi_nguoi_ban)
+          .maybeSingle();
+
+        const { data: buyerData } = await supabase
+          .from('nguoi_dung')
+          .select('ten_hien_thi')
+          .eq('dia_chi_vi', con.vi_nguoi_mua)
+          .maybeSingle();
+
+        con.seller_name = sellerData?.ten_hien_thi || 'Nông dân';
+        con.buyer_name = buyerData?.ten_hien_thi || 'Thương lái';
+      }
       setContract(con);
 
       const disp = await getDisputeByContractId(contractId);
@@ -266,6 +283,34 @@ function ContractPageContent() {
               <div className="flex justify-between">
                 <span className="text-neutral-450">Hạn giao nhận cam kết:</span>
                 <span className="font-bold text-neutral-800">{new Date(contract.han_giao_hang).toLocaleString('vi-VN')}</span>
+              </div>
+              
+              <div className="border-t border-neutral-100 pt-3.5 mt-3.5 space-y-2.5">
+                <p className="font-bold text-neutral-800 text-[11px] uppercase tracking-wider">Chữ ký số các bên</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-150 text-[11px] space-y-1">
+                    <span className="text-neutral-400 font-semibold block">Đại diện Bên A (Bên bán):</span>
+                    <span className="font-bold text-neutral-800 block text-xs">
+                      {contract.noi_dung_nhap_ai?.sellerSignature?.name || contract.seller_name || 'Chưa cập nhật tên'}
+                    </span>
+                    <span className="font-mono text-[9px] text-neutral-500 break-all block">
+                      {contract.noi_dung_nhap_ai?.sellerSignature?.wallet 
+                        ? `${contract.noi_dung_nhap_ai.sellerSignature.wallet.slice(0, 6)}...${contract.noi_dung_nhap_ai.sellerSignature.wallet.slice(-4)}` 
+                        : (contract.vi_nguoi_ban ? `${contract.vi_nguoi_ban.slice(0, 6)}...${contract.vi_nguoi_ban.slice(-4)}` : 'Chưa có ví')}
+                    </span>
+                  </div>
+                  <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-150 text-[11px] space-y-1">
+                    <span className="text-neutral-400 font-semibold block">Đại diện Bên B (Bên mua):</span>
+                    <span className="font-bold text-neutral-800 block text-xs">
+                      {contract.noi_dung_nhap_ai?.buyerSignature?.name || contract.buyer_name || 'Chưa cập nhật tên'}
+                    </span>
+                    <span className="font-mono text-[9px] text-neutral-500 break-all block">
+                      {contract.noi_dung_nhap_ai?.buyerSignature?.wallet 
+                        ? `${contract.noi_dung_nhap_ai.buyerSignature.wallet.slice(0, 6)}...${contract.noi_dung_nhap_ai.buyerSignature.wallet.slice(-4)}` 
+                        : (contract.vi_nguoi_mua ? `${contract.vi_nguoi_mua.slice(0, 6)}...${contract.vi_nguoi_mua.slice(-4)}` : 'Chưa có ví')}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -5,6 +5,7 @@ import { useEscrow } from '../../hooks/useEscrow';
 import LockFundsButton from '../shared/buttons/LockFundsButton';
 import { convertVndToUsdc } from '../../lib/solana/convertVndUsdc';
 import { createDraftContract, updateContractDraftData } from '../../lib/supabase/queries/contracts';
+import { ContractSignature } from './DraftContractTable';
 
 interface ConfirmContractButtonProps {
   contractId: string;
@@ -15,6 +16,8 @@ interface ConfirmContractButtonProps {
   deadlineIso: string;
   onSuccess: (txSig: string) => void;
   contractDraft?: any; // To save to DB if dummy
+  buyerSignature?: ContractSignature | null;
+  sellerSignature?: ContractSignature | null;
 }
 
 export default function ConfirmContractButton({
@@ -26,6 +29,8 @@ export default function ConfirmContractButton({
   deadlineIso,
   onSuccess,
   contractDraft,
+  buyerSignature,
+  sellerSignature,
 }: ConfirmContractButtonProps) {
   const { lockUsdc, loading: escrowLoading } = useEscrow();
   const [dbLoading, setDbLoading] = useState(false);
@@ -35,6 +40,13 @@ export default function ConfirmContractButton({
     setErrorMsg('');
     try {
       let activeContractId = contractId;
+
+      // Add signatures to contractDraft's noi_dung_nhap_ai
+      const updatedNoiDungNhapAi = {
+        ...(contractDraft?.noi_dung_nhap_ai || {}),
+        buyerSignature: buyerSignature || null,
+        sellerSignature: sellerSignature || null,
+      };
 
       if (contractDraft) {
         setDbLoading(true);
@@ -48,7 +60,7 @@ export default function ConfirmContractButton({
             don_vi_tinh: contractDraft.don_vi_tinh,
             don_gia: contractDraft.don_gia,
             han_giao_hang: contractDraft.han_giao_hang,
-            noi_dung_nhap_ai: null,
+            noi_dung_nhap_ai: updatedNoiDungNhapAi,
             dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
           });
           activeContractId = dbRes.id;
@@ -61,6 +73,7 @@ export default function ConfirmContractButton({
             don_gia: contractDraft.don_gia,
             han_giao_hang: contractDraft.han_giao_hang,
             dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
+            noi_dung_nhap_ai: updatedNoiDungNhapAi,
           });
         }
         setDbLoading(false);

@@ -109,7 +109,9 @@ export default function DraftContractTable({
               <div className="flex gap-2 items-center mt-2">
                 <span className="font-semibold min-w-28">Ví điện tử:</span> 
                 <span className="font-mono text-xs bg-slate-100 p-1.5 rounded border border-slate-300 text-slate-600">
-                  {sellerSignature?.wallet.slice(0, 4) + '...' + sellerSignature?.wallet.slice(-4) || 'Chưa kết nối'}
+                  {sellerSignature?.wallet 
+                    ? `${sellerSignature.wallet.slice(0, 4)}...${sellerSignature.wallet.slice(-4)}` 
+                    : 'Chưa kết nối'}
                 </span>
               </div>
             </div>
@@ -126,7 +128,9 @@ export default function DraftContractTable({
               <div className="flex gap-2 items-center mt-2">
                 <span className="font-semibold min-w-28">Ví điện tử:</span> 
                 <span className="font-mono text-xs bg-slate-100 p-1.5 rounded border border-slate-300 text-slate-600">
-                  {buyerSignature?.wallet.slice(0, 4) + '...' + buyerSignature?.wallet.slice(-4) || 'Chưa kết nối'}
+                  {buyerSignature?.wallet 
+                    ? `${buyerSignature.wallet.slice(0, 4)}...${buyerSignature.wallet.slice(-4)}` 
+                    : 'Chưa kết nối'}
                 </span>
               </div>
             </div>

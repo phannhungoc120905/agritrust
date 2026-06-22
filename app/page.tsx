@@ -61,6 +61,8 @@ function HomePageContent() {
   const [contractDraft, setContractDraft] = useState<any>(null);
   const [isContractLocked, setIsContractLocked] = useState(false);
 
+  const activeNego = negotiations.find(n => n.id === activeNegotiationId);
+
 
 
   // Read URL params
@@ -785,7 +787,23 @@ function HomePageContent() {
                     </div>
                     <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
                       {contractDraft ? (
-                        <DraftContractTable terms={contractDraft} onChange={setContractDraft} isLocked={false} />
+                        <DraftContractTable 
+                          terms={contractDraft} 
+                          onChange={setContractDraft} 
+                          isLocked={false} 
+                          buyerName={
+                            activeNego?.contract?.nguoi_mua?.ten_hien_thi || 
+                            contractDraft?.buyerSignature?.name ||
+                            (activeNego?.contract?.vi_nguoi_mua === user?.dia_chi_vi ? user?.ten_hien_thi : 'Thương lái')
+                          }
+                          sellerName={
+                            activeNego?.contract?.nguoi_ban?.ten_hien_thi || 
+                            contractDraft?.sellerSignature?.name ||
+                            (activeNego?.contract?.vi_nguoi_ban === user?.dia_chi_vi ? user?.ten_hien_thi : 'Nông dân')
+                          }
+                          buyerSignature={contractDraft?.buyerSignature || activeNego?.contract?.noi_dung_nhap_ai?.buyerSignature || null}
+                          sellerSignature={contractDraft?.sellerSignature || activeNego?.contract?.noi_dung_nhap_ai?.sellerSignature || null}
+                        />
                       ) : (
                         <div className="flex justify-center items-center h-full text-slate-400">
                           <Loader2 className="w-6 h-6 animate-spin" />
@@ -851,7 +869,23 @@ function HomePageContent() {
                 <div className="flex-1 overflow-y-auto p-6 flex justify-center">
                   <div className="w-full max-w-3xl">
                     {contractDraft ? (
-                      <DraftContractTable terms={contractDraft} onChange={setContractDraft} isLocked={isContractLocked} />
+                      <DraftContractTable 
+                        terms={contractDraft} 
+                        onChange={setContractDraft} 
+                        isLocked={isContractLocked} 
+                        buyerName={
+                          activeNego?.contract?.nguoi_mua?.ten_hien_thi || 
+                          contractDraft?.buyerSignature?.name ||
+                          (activeNego?.contract?.vi_nguoi_mua === user?.dia_chi_vi ? user?.ten_hien_thi : 'Thương lái')
+                        }
+                        sellerName={
+                          activeNego?.contract?.nguoi_ban?.ten_hien_thi || 
+                          contractDraft?.sellerSignature?.name ||
+                          (activeNego?.contract?.vi_nguoi_ban === user?.dia_chi_vi ? user?.ten_hien_thi : 'Nông dân')
+                        }
+                        buyerSignature={contractDraft?.buyerSignature || activeNego?.contract?.noi_dung_nhap_ai?.buyerSignature || null}
+                        sellerSignature={contractDraft?.sellerSignature || activeNego?.contract?.noi_dung_nhap_ai?.sellerSignature || null}
+                      />
                     ) : (
                       <div className="flex justify-center items-center h-full text-slate-400">
                         <Loader2 className="w-6 h-6 animate-spin" />
