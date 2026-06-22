@@ -51,7 +51,7 @@ function HomePageContent() {
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<'market' | 'negotiation' | 'delivery'>('market');
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ text: string; negoId?: string } | null>(null);
 
   const [negotiations, setNegotiations] = useState<any[]>([]);
   const [activeNegotiationId, setActiveNegotiationId] = useState<string | null>(null);
@@ -118,7 +118,7 @@ function HomePageContent() {
             location: l.khu_vuc,
             desc: l.mo_ta || 'Nông sản chất lượng từ nông dân đã xác thực.',
             farmer: l.nguoi_dung?.ten_hien_thi || 'Nông dân AgriTrust',
-            vi_nguoi_ban: l.vi_nguoi_ban
+            vi_nguoi_ban: l.vi_nguoi_ban || l.nong_dan_id
           }));
           setMyListings(mapped);
         }
@@ -129,17 +129,8 @@ function HomePageContent() {
     loadListings();
   }, []);
 
-  // Helper map to translate static wallet addresses to readable names
-  const getPartnerName = (walletAddress: string) => {
-    const mapping: Record<string, string> = {
-      'nong_dan_wallet_address_demo': 'Nông dân Nguyễn Văn Ruộng',
-      'thuong_lai_wallet_address_demo': 'Thương lái Trần Thị Thương',
-      'nong_dan_wallet_address_vamco': 'HTX Nông Nghiệp Vàm Cỏ',
-      'nong_dan_wallet_address_ythang': 'Nông dân Y Thắng',
-      'nong_dan_wallet_address_uttroc': 'Nhà vườn Út Trọc'
-    };
-    return mapping[walletAddress] || `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
-  };
+  // Helper bị loại bỏ vì đã lấy trực tiếp từ DB
+  // const getPartnerName = (walletAddress: string) => { ... }
 
   useEffect(() => {
     if (!user) return;
@@ -149,7 +140,7 @@ function HomePageContent() {
       try {
         const { data: dbContracts, error } = await supabase
           .from('hop_dong')
-          .select('*')
+          .select('*, nguoi_ban:nguoi_dung!hop_dong_vi_nguoi_ban_fkey(ten_hien_thi), nguoi_mua:nguoi_dung!hop_dong_vi_nguoi_mua_fkey(ten_hien_thi)')
           .or(`vi_nguoi_ban.eq.${userWallet},vi_nguoi_mua.eq.${userWallet}`);
 
         if (error) throw error;
@@ -158,7 +149,8 @@ function HomePageContent() {
           const mappedContracts = dbContracts.map((c: any) => {
             const isSeller = c.vi_nguoi_ban === userWallet;
             const partnerAddress = isSeller ? c.vi_nguoi_mua : c.vi_nguoi_ban;
-            const partnerName = getPartnerName(partnerAddress);
+            const partnerInfo = isSeller ? c.nguoi_mua : c.nguoi_ban;
+            const partnerName = partnerInfo?.ten_hien_thi || `${partnerAddress.slice(0, 6)}...${partnerAddress.slice(-4)}`;
 
             return {
               id: c.id,
@@ -202,7 +194,7 @@ function HomePageContent() {
           if (payload.eventType === 'INSERT') {
             const newDoc = payload.new as any;
             if (newDoc.vi_nguoi_ban === user.dia_chi_vi && newDoc.trang_thai === 'du_thao') {
-              setToastMsg(`Có Thương lái vừa yêu cầu đàm phán hợp đồng mua ${newDoc.san_pham}!`);
+              setToastMsg({ text: `Có Thương lái vừa yêu cầu đàm phán hợp đồng mua ${newDoc.san_pham}! Bấm để tham gia ngay.`, negoId: newDoc.id });
               setTimeout(() => setToastMsg(null), 8000); // Ẩn sau 8s
             }
           }
@@ -233,8 +225,35 @@ function HomePageContent() {
       const soLuongSo = parseFloat(listing.qty) || 0;
       const donVi = listing.qty.replace(/[0-9.]/g, '').trim() || 'kg';
       
+      // --- HACKATHON FIX: Đảm bảo cả 2 ví đều tồn tại trong DB để tránh lỗi Foreign Key ---
+      // 1. Insert ví người mua (người đang đăng nhập) - Bỏ qua nếu đã tồn tại (mã 23505)
+      const { error: upsertErr1 } = await supabase.from('nguoi_dung').insert({
+        dia_chi_vi: user.dia_chi_vi,
+        vai_tro: user.vai_tro,
+        ten_dang_nhap: `user_${user.dia_chi_vi.slice(0, 6)}_${Date.now()}`,
+        mat_khau: '123456', 
+        ten_hien_thi: user.ten_hien_thi || 'Thương lái (Khách)'
+      });
+      if (upsertErr1 && upsertErr1.code !== '23505') {
+        console.error("Insert buyer failed:", upsertErr1);
+      }
+
+      // 2. Insert ví người bán (chủ tin đăng) - Bỏ qua nếu đã tồn tại
+      const sellerWallet = listing.vi_nguoi_ban || listing.nong_dan_id || 'nong_dan_wallet_address_demo';
+      const { error: upsertErr2 } = await supabase.from('nguoi_dung').insert({
+        dia_chi_vi: sellerWallet,
+        vai_tro: 'nong_dan',
+        ten_dang_nhap: `seller_${sellerWallet.slice(0, 6)}_${Date.now()}`,
+        mat_khau: '123456',
+        ten_hien_thi: listing.farmer || 'Nhà vườn (Khách)'
+      });
+      if (upsertErr2 && upsertErr2.code !== '23505') {
+        console.error("Insert seller failed:", upsertErr2);
+      }
+      // -----------------------------------------------------------------------------------
+
       const dbContract = await createDraftContract({
-        vi_nguoi_ban: listing.vi_nguoi_ban,
+        vi_nguoi_ban: sellerWallet,
         vi_nguoi_mua: user.dia_chi_vi,
         san_pham: listing.name,
         so_luong: soLuongSo,
@@ -1135,15 +1154,29 @@ function HomePageContent() {
 
       {/* TOAST NOTIFICATION CHO NÔNG DÂN */}
       {toastMsg && (
-        <div className="fixed bottom-10 right-6 z-[9999] bg-emerald-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 animate-fade-in-up">
+        <div 
+          onClick={() => {
+            if (toastMsg.negoId) {
+              const encoded = encodeMeetingParams({
+                channel: toastMsg.negoId,
+                scenario: 'A',
+                product: 'Nông sản',
+                partner: 'Thương lái'
+              });
+              router.push(`/call?p=${encoded}`);
+            }
+            setToastMsg(null);
+          }}
+          className={`fixed bottom-10 right-6 z-[9999] bg-emerald-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 animate-fade-in-up ${toastMsg.negoId ? 'cursor-pointer hover:bg-emerald-700 transition-all' : ''}`}
+        >
           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
             <MessageSquare size={20} className="text-white" />
           </div>
           <div>
             <h4 className="font-bold text-sm">Yêu cầu Đàm phán mới!</h4>
-            <p className="text-xs text-emerald-100 mt-0.5">{toastMsg}</p>
+            <p className="text-xs text-emerald-100 mt-0.5">{toastMsg.text}</p>
           </div>
-          <button onClick={() => setToastMsg(null)} className="ml-4 text-emerald-200 hover:text-white">
+          <button onClick={(e) => { e.stopPropagation(); setToastMsg(null); }} className="ml-4 text-emerald-200 hover:text-white">
             <X size={16} />
           </button>
         </div>

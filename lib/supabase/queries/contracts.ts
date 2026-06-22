@@ -19,7 +19,7 @@ export async function createDraftContract(contractData: {
     .single();
 
   if (error) {
-    console.error('Lỗi khi tạo hợp đồng nháp:', error);
+    console.error('Lỗi khi tạo hợp đồng nháp:', JSON.stringify(error, null, 2), error);
     throw error;
   }
   return data;

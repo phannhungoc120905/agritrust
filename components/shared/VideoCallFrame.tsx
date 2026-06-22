@@ -73,6 +73,8 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
 
       client.on('user-left', (user: any) => {
         setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+        // Thêm cảnh báo khi đối tác rời đi
+        alert("Thông báo: Đối tác đã rời khỏi phòng đàm phán!");
       });
 
        client.on('user-published', async (user: any, mediaType: 'video' | 'audio') => {
@@ -267,14 +269,10 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
         // Xin lại quyền tạo Audio Track nếu trước đó chưa có
         const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
         
-        // Kiểm tra xem máy tính có cắm Mic thật không
-        const mics = await AgoraRTC.getMicrophones();
-        if (mics.length === 0) {
-          alert("Hệ thống báo cáo: Không tìm thấy bất kỳ Microphone vật lý nào được cắm vào máy tính của bạn. Vui lòng cắm tai nghe có mic hoặc bật mic hệ thống!");
-          return;
-        }
-
+        // Thay vì check getMicrophones() (vốn có thể rỗng nếu chưa cấp quyền), 
+        // ta gọi luôn createMicrophoneAudioTrack() để trình duyệt hiện thông báo xin quyền.
         const newAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+
         
         if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
         localTracksRef.current.audioTrack = newAudioTrack;

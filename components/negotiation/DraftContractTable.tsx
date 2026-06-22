@@ -3,7 +3,7 @@
 import React from 'react';
 import { QualityRule } from '../../types/contract';
 import { convertVndToUsdc } from '../../lib/solana/convertVndUsdc';
-import { FileSignature, Stamp } from 'lucide-react';
+import { FileSignature, Stamp, CheckCircle2, Link2 } from 'lucide-react';
 
 interface DraftTerms {
   san_pham: string;
@@ -63,7 +63,7 @@ export default function DraftContractTable({
   };
 
   const totalVnd = terms.don_gia * terms.so_luong;
-  const totalUsdc = convertVndToUsdc(totalVnd);
+  const totalSol = convertVndToUsdc(totalVnd);
 
   return (
     <div className="font-serif bg-[#fdfdfc] text-slate-900 p-8 md:p-12 rounded shadow-lg border border-slate-300 relative mx-auto max-w-4xl">
@@ -146,7 +146,7 @@ export default function DraftContractTable({
                   <td className="py-4 px-5">
                     <input
                       type="text"
-                      value={terms.san_pham}
+                      value={terms.san_pham ?? ''}
                       onChange={(e) => handleInputChange('san_pham', e.target.value)}
                       disabled={isLocked}
                       className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
@@ -159,7 +159,7 @@ export default function DraftContractTable({
                     <div className="flex items-center gap-2 flex-1">
                       <input
                         type="number"
-                        value={terms.so_luong}
+                        value={terms.so_luong ?? ''}
                         onChange={(e) => handleInputChange('so_luong', parseFloat(e.target.value) || 0)}
                         disabled={isLocked}
                         className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-right ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
@@ -168,7 +168,7 @@ export default function DraftContractTable({
                     <div className="flex items-center gap-2 w-28">
                       <input
                         type="text"
-                        value={terms.don_vi_tinh}
+                        value={terms.don_vi_tinh ?? ''}
                         onChange={(e) => handleInputChange('don_vi_tinh', e.target.value)}
                         disabled={isLocked}
                         className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-center ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
@@ -181,7 +181,7 @@ export default function DraftContractTable({
                   <td className="py-4 px-5">
                     <input
                       type="number"
-                      value={terms.don_gia}
+                      value={terms.don_gia ?? ''}
                       onChange={(e) => handleInputChange('don_gia', parseFloat(e.target.value) || 0)}
                       disabled={isLocked}
                       className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
@@ -195,9 +195,9 @@ export default function DraftContractTable({
                   </td>
                 </tr>
                 <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <th className="py-4 px-5 font-semibold border-r border-slate-300">Quy đổi ký quỹ Escrow (USDC)</th>
+                  <th className="py-4 px-5 font-semibold border-r border-slate-300">Quy đổi ký quỹ Escrow (SOL)</th>
                   <td className="py-4 px-5 font-bold text-emerald-700">
-                    {totalUsdc.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="font-normal ml-1">USDC</span>
+                    {totalSol.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })} <span className="font-normal ml-1">SOL</span>
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-50 transition-colors">
@@ -238,7 +238,7 @@ export default function DraftContractTable({
                     <td className="py-3 px-5 border-r border-slate-300">
                       <input
                         type="text"
-                        value={rule.tieu_chi}
+                        value={rule.tieu_chi ?? ''}
                         onChange={(e) => handleQualityRuleChange(idx, 'tieu_chi', e.target.value)}
                         disabled={isLocked}
                         className={`w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
@@ -248,7 +248,7 @@ export default function DraftContractTable({
                       <div className="flex justify-center items-center gap-1">
                         <input
                           type="number"
-                          value={rule.nguong_phan_tram}
+                          value={rule.nguong_phan_tram ?? ''}
                           onChange={(e) => handleQualityRuleChange(idx, 'nguong_phan_tram', parseFloat(e.target.value) || 0)}
                           disabled={isLocked}
                           className={`w-16 bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900 text-center ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
@@ -285,16 +285,21 @@ export default function DraftContractTable({
           <div className="grid grid-cols-2 gap-8 text-center pt-6 pb-12">
             {/* CHỮ KÝ BÊN A (BÊN BÁN) */}
             <div className="space-y-4 flex flex-col items-center">
-              <h5 className="font-bold text-base uppercase">Đại diện Bên A (Bên Bán)</h5>
+              <h5 className="font-bold text-base uppercase mb-2">Đại diện Bên A (Bên Bán)</h5>
               {sellerSignature ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-40 h-40 border-4 border-emerald-600 rounded-full flex flex-col items-center justify-center text-emerald-700 bg-emerald-50 opacity-90 rotate-[-8deg] shadow-sm my-2">
-                    <Stamp size={32} className="mb-2" />
-                    <span className="text-sm font-bold uppercase">Đã xác thực</span>
-                    <span className="text-[9px] font-mono mt-2 truncate w-24 text-center">TX: {sellerSignature.txHash.slice(0, 8)}...</span>
-                    <span className="text-[9px] font-mono opacity-70">{new Date(sellerSignature.timestamp).toISOString().split('T')[0]}</span>
+                <div className="flex flex-col w-full border border-emerald-500 bg-emerald-50 rounded-lg p-4 shadow-sm relative overflow-hidden text-left">
+                  <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 flex items-center gap-1 rounded-bl-lg">
+                    <CheckCircle2 size={12} /> ON-CHAIN VERIFIED
                   </div>
-                  <p className="font-bold text-lg">{sellerSignature.name}</p>
+                  <p className="font-bold text-emerald-900 text-lg mb-3 pt-1">{sellerSignature.name}</p>
+                  <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-2 text-xs">
+                    <span className="text-emerald-700/70 font-semibold flex items-center gap-1"><Link2 size={12}/> Wallet:</span>
+                    <span className="font-mono text-emerald-800 break-all">{sellerSignature.wallet}</span>
+                    <span className="text-emerald-700/70 font-semibold flex items-center gap-1"><Link2 size={12}/> Tx Hash:</span>
+                    <span className="font-mono text-emerald-800 break-all">{sellerSignature.txHash}</span>
+                    <span className="text-emerald-700/70 font-semibold flex items-center gap-1"><Link2 size={12}/> Time:</span>
+                    <span className="text-emerald-800">{new Date(sellerSignature.timestamp).toLocaleString('vi-VN')}</span>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center w-full px-4 gap-3 my-4">
@@ -330,16 +335,21 @@ export default function DraftContractTable({
 
             {/* CHỮ KÝ BÊN B (BÊN MUA) */}
             <div className="space-y-4 flex flex-col items-center">
-              <h5 className="font-bold text-base uppercase">Đại diện Bên B (Bên Mua)</h5>
+              <h5 className="font-bold text-base uppercase mb-2">Đại diện Bên B (Bên Mua)</h5>
               {buyerSignature ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-40 h-40 border-4 border-emerald-600 rounded-full flex flex-col items-center justify-center text-emerald-700 bg-emerald-50 opacity-90 rotate-[-12deg] shadow-sm my-2">
-                    <Stamp size={32} className="mb-2" />
-                    <span className="text-sm font-bold uppercase">Đã xác thực</span>
-                    <span className="text-[9px] font-mono mt-2 truncate w-24 text-center">TX: {buyerSignature.txHash.slice(0, 8)}...</span>
-                    <span className="text-[9px] font-mono opacity-70">{new Date(buyerSignature.timestamp).toISOString().split('T')[0]}</span>
+                <div className="flex flex-col w-full border border-indigo-500 bg-indigo-50 rounded-lg p-4 shadow-sm relative overflow-hidden text-left">
+                  <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-bold px-2 py-1 flex items-center gap-1 rounded-bl-lg">
+                    <CheckCircle2 size={12} /> ON-CHAIN VERIFIED
                   </div>
-                  <p className="font-bold text-lg">{buyerSignature.name}</p>
+                  <p className="font-bold text-indigo-900 text-lg mb-3 pt-1">{buyerSignature.name}</p>
+                  <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-2 text-xs">
+                    <span className="text-indigo-700/70 font-semibold flex items-center gap-1"><Link2 size={12}/> Wallet:</span>
+                    <span className="font-mono text-indigo-800 break-all">{buyerSignature.wallet}</span>
+                    <span className="text-indigo-700/70 font-semibold flex items-center gap-1"><Link2 size={12}/> Tx Hash:</span>
+                    <span className="font-mono text-indigo-800 break-all">{buyerSignature.txHash}</span>
+                    <span className="text-indigo-700/70 font-semibold flex items-center gap-1"><Link2 size={12}/> Time:</span>
+                    <span className="text-indigo-800">{new Date(buyerSignature.timestamp).toLocaleString('vi-VN')}</span>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center w-full px-4 gap-3 my-4">

@@ -19,7 +19,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, PublicKey, TransactionInstruction } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { ContractSignature } from '../../components/negotiation/DraftContractTable';
-import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft, MessageSquare } from 'lucide-react';
+import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft, MessageSquare, Send } from 'lucide-react';
 
 interface TranscriptLine {
   id: string;
@@ -87,6 +87,7 @@ function CallPageContent() {
   const [extractError, setExtractError] = useState('');
   const [displayedSubtitle, setDisplayedSubtitle] = useState<{ text: string; role: string } | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualText, setManualText] = useState<string>(() =>
     JSON.stringify(
@@ -322,6 +323,15 @@ function CallPageContent() {
         setBuyerSignature(newSignature);
       }
 
+      // Phát Broadcast Chữ ký cho đối tác
+      if (sttChannelRef.current) {
+        sttChannelRef.current.send({
+          type: 'broadcast',
+          event: 'contract_signed',
+          payload: { role: signerRole, signature: newSignature }
+        });
+      }
+
     } catch (error: any) {
       console.error('Sign error:', error);
       if (error.message?.includes('User rejected the request')) {
@@ -406,8 +416,15 @@ function CallPageContent() {
           return next;
         });
       }
-    }).subscribe();
+    });
 
+    channel.on('broadcast', { event: 'contract_signed' }, ({ payload }) => {
+      const { role, signature } = payload;
+      if (role === 'nong_dan') setSellerSignature(signature);
+      else setBuyerSignature(signature);
+    });
+
+    channel.subscribe();
     sttChannelRef.current = channel;
 
     return () => {
@@ -648,6 +665,72 @@ function CallPageContent() {
     }
   }, [activeStep, triggerAIExtract]);
 
+  const handleSendChat = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const userRole = user?.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai';
+    const text = chatInput.trim();
+    
+    // Broadcast text to partner
+    if (sttChannelRef.current) {
+      sttChannelRef.current.send({
+        type: 'broadcast',
+        event: 'stt_text',
+        payload: { text, userId: userRole, isFinal: true }
+      });
+    }
+
+    const priceMatch = text.match(/(\d+)\s*(triệu|tr)/i);
+    if (priceMatch) {
+      setProposedPrice(parseInt(priceMatch[1]) * 1000000);
+    }
+
+    const newLine: TranscriptLine = {
+      id: Math.random().toString(36).substring(7),
+      vi_nguoi_noi: userRole,
+      noi_dung: text,
+      thoi_gian_noi: new Date().toISOString(),
+      den_canh_bao: 'binh_thuong',
+    };
+
+    setTranscriptLines(prev => [...prev, newLine]);
+    setChatInput('');
+  };
+
+  // ==========================================
+  // VOICE COMMAND DETECTION (Bắt lệnh giọng nói)
+  // ==========================================
+  useEffect(() => {
+    if (!isRealSTTActive || activeStep !== 1) return;
+    const allLines = transcriptLines;
+    if (allLines.length === 0) return;
+
+    const lastLine = allLines[allLines.length - 1];
+    const textLower = lastLine.noi_dung.toLowerCase();
+    
+    // Các từ khóa ra lệnh cho AI
+    const triggerWords = [
+      "chốt hợp đồng", 
+      "tạo hợp đồng", 
+      "sinh hợp đồng", 
+      "lên hợp đồng",
+      "ai ơi chốt",
+      "chốt luôn"
+    ];
+
+    if (triggerWords.some(word => textLower.includes(word))) {
+      console.log("🎙️ Phát hiện lệnh giọng nói (Voice Command). Tự động kích hoạt AI!");
+      // Hiển thị thông báo phụ đề đặc biệt
+      setDisplayedSubtitle({ text: "🎙️ (Nhận lệnh) Đang tự động chốt hợp đồng...", role: lastLine.vi_nguoi_noi });
+      
+      // Delay 1.5s để ng dùng đọc chữ, sau đó tắt STT và gọi AI
+      setTimeout(() => {
+         stopRealSTT();
+      }, 1500);
+    }
+  }, [transcriptLines, isRealSTTActive, activeStep, stopRealSTT]);
+
   const handleJoinedStateChange = useCallback((joined: boolean, isDemo: boolean) => {
     setInCall(joined);
     if (joined) {
@@ -832,6 +915,26 @@ function CallPageContent() {
                 )}
                 <div ref={chatEndRef} />
               </div>
+              
+              {/* Chat Input */}
+              <div className="p-3 border-t border-white/10 bg-neutral-900/50">
+                <form onSubmit={handleSendChat} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Gõ nội dung đàm phán nếu không dùng mic..."
+                    className="flex-1 bg-neutral-800/80 border border-white/10 text-white text-xs rounded-full px-4 py-2.5 focus:outline-none focus:border-indigo-500/50 placeholder:text-neutral-500"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={!chatInput.trim()}
+                    className="p-2.5 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition-colors"
+                  >
+                    <Send size={14} />
+                  </button>
+                </form>
+              </div>
             </div>
           )}
 
@@ -875,17 +978,29 @@ function CallPageContent() {
           )}
 
           {/* FLOATING CLOSED CAPTIONS (phụ đề) */}
-          {displayedSubtitle && (isRealSTTActive || isMockActive) && (
+          {(isRealSTTActive || isMockActive) && (
             <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 z-45 text-center pointer-events-none animate-fadeIn">
-              <div className="bg-black/75 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 shadow-2xl text-white inline-block max-w-full">
-                <span className={`text-[9px] uppercase tracking-wider font-extrabold block mb-1 ${
-                  displayedSubtitle.role === 'nong_dan' ? 'text-emerald-400' : 'text-indigo-400'
-                }`}>
-                  {displayedSubtitle.role === 'nong_dan' ? nongDanName : thuongLaiName}
-                </span>
-                <p className="text-sm font-semibold leading-relaxed">
-                  &ldquo;{displayedSubtitle.text}&rdquo;
-                </p>
+              <div className={`bg-black/75 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 shadow-2xl text-white inline-block max-w-full transition-all ${!displayedSubtitle ? 'opacity-60 scale-95' : 'scale-100'}`}>
+                {displayedSubtitle ? (
+                  <>
+                    <span className={`text-[9px] uppercase tracking-wider font-extrabold block mb-1 ${
+                      displayedSubtitle.role === 'nong_dan' ? 'text-emerald-400' : 'text-indigo-400'
+                    }`}>
+                      {displayedSubtitle.role === 'nong_dan' ? nongDanName : thuongLaiName}
+                    </span>
+                    <p className="text-sm font-semibold leading-relaxed">
+                      &ldquo;{displayedSubtitle.text}&rdquo;
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2 text-neutral-400 justify-center">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <p className="text-xs font-semibold">STT đang nghe... Bạn hãy thử nói gì đó!</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -130,10 +130,11 @@ export class AgoraSTTClient {
       }
       console.warn('[STT] Cảnh báo nhận diện:', event.error); // Dùng warn thay vì error để tránh popup Next.js
       
-      // Nếu lỗi "not-allowed" (user từ chối mic) hoặc không có dịch vụ, tắt STT chứ không tự động dùng chữ giả nữa
-      if (event.error === 'not-allowed' || event.error === 'service-not-available') {
-        console.warn('[STT] Tắt STT do lỗi quyền truy cập mic hoặc dịch vụ không khả dụng.');
+      if (event.error === 'not-allowed' || event.error === 'service-not-available' || event.error === 'audio-capture') {
+        console.warn('[STT] Tắt STT do lỗi quyền truy cập mic hoặc dịch vụ không khả dụng. Chuyển sang MOCK.');
         this.stopSTT();
+        this.usingMock = true;
+        this.mockSTT();
       }
     };
 
@@ -142,8 +143,10 @@ export class AgoraSTTClient {
       recognition.start();
       console.log('[STT] Đã bắt đầu nhận diện giọng nói tiếng Việt.');
     } catch (e) {
-      console.warn('[STT] Không thể bắt đầu recognition:', e);
+      console.warn('[STT] Không thể bắt đầu recognition, chuyển sang mock:', e);
       this.stopSTT();
+      this.usingMock = true;
+      this.mockSTT();
     }
   }
 
