@@ -1305,8 +1305,7 @@ function CallPageContent() {
           </button>
            <div className="hidden md:flex items-center gap-1.5 pl-4 border-l border-white/10">
              <span className="text-xs text-neutral-400 font-medium">
-               Kênh: <strong className="text-white">{channelName}</strong>
-               {partnerName !== 'Đối tác' && <> | Đối tác: <strong className="text-white">{partnerName}</strong></>}
+               Đối tác: <strong className="text-white">{partnerName}</strong>
              </span>
            </div>
         </div>

@@ -8,8 +8,10 @@ import WalletBalance from '../components/shared/WalletBalance';
 import VideoCallFrame from '../components/shared/VideoCallFrame';
 import { useAuth } from '../hooks/useAuth';
 import DraftContractTable from '../components/negotiation/DraftContractTable';
-import { getMarketListings, createMarketListing } from '../lib/supabase/queries/listings';
+import { getFarmerProducts, getFarmerProductsByWallet } from '../lib/supabase/queries/listings';
+import { getAllFarmerProfiles } from '../lib/supabase/queries/auth';
 import { createDraftContract, updateContractStatus } from '../lib/supabase/queries/contracts';
+import { getRequestsForFarmer, getRequestsForTrader, createContactRequest, acceptRequest, rejectRequest } from '../lib/supabase/queries/contactRequests';
 import { supabase } from '../lib/supabase/client';
 import { encodeMeetingParams } from '../lib/utils/url';
 import {
@@ -32,7 +34,9 @@ import {
   MessageSquare,
   PackageCheck,
   FileText,
-  X
+  X,
+  User,
+  Award
 } from 'lucide-react';
 
 import DisputeReportForm from '../components/dispute/DisputeReportForm';
@@ -89,10 +93,13 @@ function HomePageContent() {
   }, [activeNegotiationId, negotiations]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // --- TAB 1 STATE (Farmer listings) ---
-  const [myListings, setMyListings] = useState<any[]>([]);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newListing, setNewListing] = useState({ name: '', qty: '', location: '', desc: '' });
+  // --- TAB 1 STATE (Farmer listings & Contact Requests) ---
+  const [farmerProfiles, setFarmerProfiles] = useState<any[]>([]);
+  const [contactRequests, setContactRequests] = useState<any[]>([]);
+  const [showFarmerModal, setShowFarmerModal] = useState<any>(null);
+  const [selectedFarmerProducts, setSelectedFarmerProducts] = useState<any[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [contactNote, setContactNote] = useState('');
 
   // --- TAB 3 STATE (Delivery List & Detail) ---
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
@@ -108,28 +115,26 @@ function HomePageContent() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [sttMessages]);
 
-  useEffect(() => {
-    async function loadListings() {
-      try {
-        const dbListings = await getMarketListings();
-        if (dbListings) {
-          const mapped = dbListings.map((l: any) => ({
-            id: l.id,
-            name: l.ten_san_pham,
-            qty: l.so_luong,
-            location: l.khu_vuc,
-            desc: l.mo_ta || 'Nông sản chất lượng từ nông dân đã xác thực.',
-            farmer: l.nguoi_dung?.ten_hien_thi || 'Nông dân AgriTrust',
-            vi_nguoi_ban: l.vi_nguoi_ban || l.nong_dan_id
-          }));
-          setMyListings(mapped);
-        }
-      } catch (err) {
-        console.error('Không thể tải tin đăng từ Supabase, dùng dữ liệu giả lập:', err);
+  const loadTab1Data = async () => {
+    if (!user) return;
+    try {
+      if (user.vai_tro === 'thuong_lai') {
+        const profiles = await getAllFarmerProfiles();
+        setFarmerProfiles(profiles || []);
+        const reqs = await getRequestsForTrader(user.dia_chi_vi);
+        setContactRequests(reqs || []);
+      } else {
+        const reqs = await getRequestsForFarmer(user.dia_chi_vi);
+        setContactRequests(reqs || []);
       }
+    } catch (err) {
+      console.error('Error loading tab 1 data:', err);
     }
-    loadListings();
-  }, []);
+  };
+
+  useEffect(() => {
+    loadTab1Data();
+  }, [user]);
 
   // Helper bị loại bỏ vì đã lấy trực tiếp từ DB
   // const getPartnerName = (walletAddress: string) => { ... }
@@ -256,10 +261,10 @@ function HomePageContent() {
   const isNongDan = user.vai_tro === 'nong_dan';
 
   // --- ACTIONS TAB 1 -> TAB 2 ---
-  const handleContactNegotiation = async (listing: any) => {
+  const handleContactNegotiation = async (req: any) => {
     try {
-      const soLuongSo = parseFloat(listing.qty) || 0;
-      const donVi = listing.qty.replace(/[0-9.]/g, '').trim() || 'kg';
+      const soLuongSo = parseFloat(req.san_pham?.so_luong || '1') || 0;
+      const donVi = req.san_pham?.don_vi_tinh || 'kg';
 
       // --- HACKATHON FIX: Đảm bảo cả 2 ví đều tồn tại trong DB để tránh lỗi Foreign Key ---
       // 1. Insert ví người mua (người đang đăng nhập) - Bỏ qua nếu đã tồn tại (mã 23505)
@@ -275,13 +280,13 @@ function HomePageContent() {
       }
 
       // 2. Insert ví người bán (chủ tin đăng) - Bỏ qua nếu đã tồn tại
-      const sellerWallet = listing.vi_nguoi_ban || listing.nong_dan_id || 'nong_dan_wallet_address_demo';
+      const sellerWallet = req.vi_nong_dan || 'nong_dan_wallet_address_demo';
       const { error: upsertErr2 } = await supabase.from('nguoi_dung').insert({
         dia_chi_vi: sellerWallet,
         vai_tro: 'nong_dan',
         ten_dang_nhap: `seller_${sellerWallet.slice(0, 6)}_${Date.now()}`,
         mat_khau: '123456',
-        ten_hien_thi: listing.farmer || 'Nhà vườn (Khách)'
+        ten_hien_thi: req.nong_dan?.ten_hien_thi || 'Nhà vườn (Khách)'
       });
       if (upsertErr2 && upsertErr2.code !== '23505') {
         console.error("Insert seller failed:", upsertErr2);
@@ -289,9 +294,9 @@ function HomePageContent() {
       // -----------------------------------------------------------------------------------
 
       const dbContract = await createDraftContract({
-        vi_nguoi_ban: sellerWallet,
-        vi_nguoi_mua: user.dia_chi_vi,
-        san_pham: listing.name,
+        vi_nguoi_ban: user.dia_chi_vi, // Nông dân tạo phòng
+        vi_nguoi_mua: req.vi_thuong_lai,
+        san_pham: req.san_pham?.ten_san_pham || 'Nông sản',
         so_luong: soLuongSo,
         don_vi_tinh: donVi,
         don_gia: 0,
@@ -303,13 +308,63 @@ function HomePageContent() {
       const encoded = encodeMeetingParams({
         channel: dbContract.id,
         scenario: 'A',
-        product: listing.name,
-        partner: listing.farmer
+        product: req.san_pham?.ten_san_pham || 'Nông sản',
+        partner: req.thuong_lai?.ten_hien_thi || 'Thương lái'
       });
       router.push(`/call?p=${encoded}`);
     } catch (err) {
       console.error("Lỗi khởi tạo phòng đàm phán:", err);
       alert("Không thể khởi tạo phòng đàm phán. Vui lòng thử lại!");
+    }
+  };
+
+  const handleAcceptRequest = async (req: any) => {
+    try {
+      await acceptRequest(req.id);
+      alert('Đã chấp nhận liên hệ! Hệ thống sẽ chuyển sang tạo phòng đàm phán.');
+      await handleContactNegotiation(req);
+    } catch (e) {
+      console.error(e);
+      alert('Lỗi khi chấp nhận');
+    }
+  };
+
+  const handleRejectRequest = async (id: string) => {
+    await rejectRequest(id);
+    loadTab1Data();
+  };
+
+  const openFarmerModal = async (farmer: any) => {
+    setShowFarmerModal(farmer);
+    setSelectedProductId(null);
+    setSelectedFarmerProducts([]);
+    try {
+      const prods = await getFarmerProductsByWallet(farmer.dia_chi_vi);
+      setSelectedFarmerProducts(prods || []);
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  const submitContactRequest = async () => {
+    if (!showFarmerModal) return;
+    try {
+      const sp = selectedProductId ? selectedFarmerProducts.find(p => p.id === selectedProductId) : null;
+      await createContactRequest({
+        vi_thuong_lai: user.dia_chi_vi,
+        vi_nong_dan: showFarmerModal.dia_chi_vi,
+        id_san_pham: sp ? sp.id : undefined,
+        ten_san_pham_snapshot: sp ? sp.ten_san_pham : 'Liên hệ chung',
+        loi_nhan: contactNote,
+        loai_lien_he: 'hen_lich'
+      });
+      setShowFarmerModal(null);
+      setContactNote('');
+      loadTab1Data();
+      alert('Gửi yêu cầu liên hệ thành công! Vui lòng chờ Nông dân phản hồi.');
+    } catch (e: any) {
+      console.error(e);
+      alert('Lỗi khi gửi yêu cầu liên hệ: ' + (e.message || JSON.stringify(e)));
     }
   };
 
@@ -506,7 +561,7 @@ function HomePageContent() {
 
         <div className="max-w-7xl mx-auto px-6 flex border-b border-slate-100">
           <button onClick={() => { setActiveTab('market'); setActiveNegotiationId(null); setActiveDeliveryId(null); }} className={`px-5 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'market' ? 'border-[#15803D] text-[#15803D]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-            <ShoppingBag size={16} /> Chợ Nông Sản
+            <ShoppingBag size={16} /> Kết nối Đối tác
           </button>
           <button onClick={() => { setActiveTab('negotiation'); setActiveNegotiationId(null); setActiveDeliveryId(null); }} className={`px-5 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'negotiation' ? 'border-[#15803D] text-[#15803D]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <MessageSquare size={16} /> Đàm phán & Hợp đồng
@@ -517,149 +572,328 @@ function HomePageContent() {
         </div>
       </header>
 
-      {/* 🟢 TAB 1: CHỢ NÔNG SẢN */}
+      {/* 🟢 TAB 1: KẾT NỐI ĐỐI TÁC */}
       {activeTab === 'market' && (
         <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-8 animate-fade-in-up">
           <div className="mb-6 flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-black text-slate-900">Chợ Nông Sản B2B</h1>
+              <h1 className="text-2xl font-black text-slate-900">Kết nối Đối tác</h1>
               <p className="text-sm text-slate-500 mt-1">
-                {isNongDan ? 'Đăng bán nông sản của bạn để Thương lái liên hệ đàm phán.' : 'Nguồn hàng nông sản chất lượng, sẵn sàng kết nối qua Smart Contract.'}
+                {isNongDan 
+                  ? 'Quản lý các yêu cầu liên hệ từ Thương lái quan tâm đến sản phẩm của bạn.' 
+                  : 'Khám phá Nông dân và sản phẩm của họ. Gửi yêu cầu liên hệ để bắt đầu đàm phán.'}
               </p>
             </div>
             {isNongDan && (
-              <button
-                onClick={() => setShowAddForm(!showAddForm)}
-                className="px-5 py-2.5 bg-[#15803D] hover:bg-[#166534] text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-md"
-              >
-                {showAddForm ? 'Đóng' : '+ Đăng bán Nông sản'}
-              </button>
+              <Link href="/profile" className="px-5 py-2.5 bg-[#15803D] hover:bg-[#166534] text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-md">
+                Cập nhật Nông sản (Profile)
+              </Link>
             )}
           </div>
 
-          {/* FORM ĐĂNG BÁN CHO NÔNG DÂN */}
-          {isNongDan && showAddForm && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6 animate-fade-in-up">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <ShoppingBag size={16} className="text-[#15803D]" /> Thêm nông sản của bạn
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tên nông sản</label>
-                  <input
-                    type="text" placeholder="Ví dụ: 3 Tấn Lúa ST25" value={newListing.name}
-                    onChange={e => setNewListing({ ...newListing, name: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#15803D] outline-none"
-                  />
+          {isNongDan ? (
+            /* DANH SÁCH YÊU CẦU LIÊN HỆ ĐẾN NÔNG DÂN */
+            <div className="space-y-4">
+              <h3 className="font-bold text-lg text-slate-900 mb-4">Yêu cầu liên hệ ({contactRequests.length})</h3>
+              {contactRequests.length === 0 ? (
+                <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 text-slate-500">
+                  Chưa có yêu cầu liên hệ nào.
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Số lượng</label>
-                  <input
-                    type="text" placeholder="Ví dụ: 3 tấn" value={newListing.qty}
-                    onChange={e => setNewListing({ ...newListing, qty: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#15803D] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vùng miền</label>
-                  <input
-                    type="text" placeholder="Ví dụ: Long An" value={newListing.location}
-                    onChange={e => setNewListing({ ...newListing, location: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#15803D] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mô tả chi tiết</label>
-                  <input
-                    type="text" placeholder="Độ ẩm, chất lượng, cam kết..." value={newListing.desc}
-                    onChange={e => setNewListing({ ...newListing, desc: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#15803D] outline-none"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={async () => {
-                  if (!newListing.name || !newListing.qty) return alert('Vui lòng nhập tên và số lượng nông sản.');
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {contactRequests.map(req => (
+                    <div key={req.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {req.thuong_lai?.anh_dai_dien ? (
+                            <img src={req.thuong_lai.anh_dai_dien} alt={req.thuong_lai.ten_hien_thi} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-sm">
+                              {(req.thuong_lai?.ten_hien_thi || 'T')[0]}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <h4 className="font-extrabold text-slate-900 text-sm truncate">{req.thuong_lai?.ten_hien_thi || 'Thương lái'}</h4>
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">Ví: {req.vi_thuong_lai.slice(0,5)}...{req.vi_thuong_lai.slice(-4)}</p>
+                          </div>
+                        </div>
+                        {req.trang_thai === 'cho_phan_hoi' && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md text-[10px] font-extrabold border border-blue-200 animate-pulse whitespace-nowrap shrink-0">Chờ phản hồi</span>}
+                        {req.trang_thai === 'da_dong_y' && <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md text-[10px] font-extrabold border border-emerald-200 whitespace-nowrap shrink-0">Đã đồng ý</span>}
+                        {req.trang_thai === 'tu_choi' && <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md text-[10px] font-extrabold border border-rose-200 whitespace-nowrap shrink-0">Đã từ chối</span>}
+                      </div>
 
-                  const newListingData = {
-                    vi_nguoi_ban: user?.dia_chi_vi || 'nong_dan_wallet_address_demo',
-                    ten_san_pham: newListing.name,
-                    so_luong: newListing.qty,
-                    khu_vuc: newListing.location || 'Đồng bằng Sông Cửu Long',
-                    mo_ta: newListing.desc || 'Nông sản chất lượng từ nông dân đã xác thực.'
-                  };
+                      <div className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100 flex-1 space-y-2 text-xs">
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Quan tâm:</span>
+                          <span className="font-black text-[#15803D] truncate">{req.ten_san_pham_snapshot || req.san_pham?.ten_san_pham || 'Liên hệ chung'}</span>
+                        </div>
+                        
+                        {/* Thông tin doanh nghiệp của Thương lái - Dạng bảng/inline gọn gàng */}
+                        {req.thuong_lai && (req.thuong_lai.ten_cong_ty || req.thuong_lai.so_dien_thoai || req.thuong_lai.ho_ten) && (
+                          <div className="pt-2 border-t border-slate-200/60 space-y-1 text-slate-500">
+                            {req.thuong_lai.ho_ten && (
+                              <p className="flex justify-between gap-2"><strong className="text-slate-650">Đại diện:</strong> <span className="text-slate-800 text-right truncate font-medium">{req.thuong_lai.ho_ten}</span></p>
+                            )}
+                            {req.thuong_lai.ten_cong_ty && (
+                              <p className="flex justify-between gap-2"><strong className="text-slate-650">Công ty:</strong> <span className="text-slate-800 text-right truncate font-medium">{req.thuong_lai.ten_cong_ty}</span></p>
+                            )}
+                            {req.thuong_lai.so_dien_thoai && (
+                              <p className="flex justify-between gap-2"><strong className="text-slate-650">SĐT:</strong> <span className="text-slate-800 font-mono font-medium">{req.thuong_lai.so_dien_thoai}</span></p>
+                            )}
+                            {req.thuong_lai.dia_chi && (
+                              <p className="flex justify-between gap-2"><strong className="text-slate-650">Địa chỉ:</strong> <span className="text-slate-850 text-right truncate font-medium">{req.thuong_lai.dia_chi}</span></p>
+                            )}
+                          </div>
+                        )}
 
-                  try {
-                    // Thử lưu vào Supabase
-                    const saved = await createMarketListing(newListingData);
-                    const item = {
-                      id: saved.id,
-                      name: saved.ten_san_pham,
-                      qty: saved.so_luong,
-                      location: saved.khu_vuc,
-                      desc: saved.mo_ta || '',
-                      farmer: user?.ten_hien_thi || 'Nông dân AgriTrust',
-                      vi_nguoi_ban: saved.vi_nguoi_ban
-                    };
-                    setMyListings(prev => [item, ...prev]);
-                  } catch (err) {
-                    console.error('Lỗi khi lưu lên Supabase, lưu tạm vào state để demo:', err);
-                    // Fallback sang local state để đảm bảo chương trình không bị gián đoạn khi demo
-                    const item = {
-                      id: `my-${Date.now()}`,
-                      name: newListing.name,
-                      qty: newListing.qty,
-                      location: newListing.location || 'Đồng bằng Sông Cửu Long',
-                      desc: newListing.desc || 'Nông sản chất lượng từ nông dân đã xác thực.',
-                      farmer: user?.ten_hien_thi || 'Nông dân AgriTrust',
-                      vi_nguoi_ban: user?.dia_chi_vi || 'nong_dan_wallet_address_demo'
-                    };
-                    setMyListings(prev => [item, ...prev]);
-                  }
+                        {/* Lời nhắn / Ghi chú dạng khối nhỏ gọn */}
+                        {req.loi_nhan && (
+                          <div className="pt-2 border-t border-slate-200/60">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Lời nhắn:</p>
+                            <p className="text-[11px] text-slate-600 italic bg-white p-2 rounded-lg border border-slate-100 leading-relaxed">
+                              "{req.loi_nhan}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
 
-                  setNewListing({ name: '', qty: '', location: '', desc: '' });
-                  setShowAddForm(false);
-                }}
-                className="mt-4 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-colors"
-              >
-                Đăng lên Chợ
-              </button>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {myListings.map(item => (
-              <div key={item.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-                <div className="p-5 flex-1">
-                  <div className="inline-flex px-3 py-1.5 bg-blue-50 text-blue-700 text-[11px] font-bold uppercase rounded-full mb-3 items-center gap-1.5">
-                    <MapPin size={12} /> {item.location}
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-900">{item.name}</h3>
-                  <p className="text-[#15803D] font-bold text-sm mt-2">Số lượng: {item.qty}</p>
-                  <p className="text-xs text-slate-500 mt-3 line-clamp-2">{item.desc}</p>
-
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
-                    <ShieldCheck size={14} className="text-emerald-500" />
-                    <span className="text-xs font-medium text-slate-700">{item.farmer}</span>
-                  </div>
-                </div>
-                <div className="p-4 bg-slate-50 border-t border-slate-100">
-                  {isNongDan ? (
-                    <div className="text-center text-xs text-slate-400 font-medium py-1">
-                      Đang chờ Thương lái liên hệ
+                      {req.trang_thai === 'cho_phan_hoi' && (
+                        <div className="flex gap-2 mt-auto">
+                          <button onClick={() => handleRejectRequest(req.id)} className="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition-colors">
+                            Từ chối
+                          </button>
+                          <button onClick={() => handleAcceptRequest(req)} className="flex-1 py-2 bg-[#15803D] hover:bg-[#166534] text-white rounded-xl text-xs font-bold transition-colors shadow-sm">
+                            Đồng ý
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => handleContactNegotiation(item)}
-                      className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <Video size={16} /> Liên hệ Đàm phán
-                    </button>
-                  )}
+                  ))}
                 </div>
+              )}
+            </div>
+          ) : (
+            /* DANH SÁCH SẢN PHẨM / NÔNG DÂN CHO THƯƠNG LÁI */
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {farmerProfiles.map(farmer => {
+                  const hasRequested = contactRequests.some(r => r.vi_nong_dan === farmer.dia_chi_vi && r.trang_thai !== 'tu_choi');
+                  const requestStatus = contactRequests.find(r => r.vi_nong_dan === farmer.dia_chi_vi)?.trang_thai;
+                  
+                  return (
+                    <div key={farmer.dia_chi_vi} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                      {/* Ảnh vườn ruộng (Sử dụng anh_bia thật sự của Nông dân, có fallback) */}
+                      <div className="h-32 bg-slate-200 relative">
+                        <img 
+                          src={farmer.anh_bia || `https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80`} 
+                          alt="Farm Cover" 
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-3 left-3 px-3 py-1 bg-white/90 backdrop-blur-sm text-slate-800 text-[11px] font-bold uppercase rounded-full flex items-center gap-1.5 shadow-sm">
+                          <MapPin size={12} className="text-[#15803D]" /> {farmer.khu_vuc || 'Việt Nam'}
+                        </div>
+                      </div>
+
+                      <div className="p-5 flex-1 -mt-6 relative">
+                        {/* Ảnh Đại Diện tròn thật sự của Nông dân */}
+                        <div className="bg-white rounded-full p-1 inline-block border-2 border-white shadow-sm mb-2">
+                          {farmer.anh_dai_dien ? (
+                            <img src={farmer.anh_dai_dien} alt={farmer.ten_hien_thi} className="w-10 h-10 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-10 h-10 bg-[#15803D] rounded-full flex items-center justify-center text-white font-bold">
+                              {(farmer.ten_hien_thi || farmer.ho_ten || 'A')[0]}
+                            </div>
+                          )}
+                        </div>
+
+                        <h3 className="text-lg font-bold text-slate-900">{farmer.ten_hien_thi || farmer.ten_nong_trai || 'Nhà Nông'}</h3>
+                        <p className="text-xs text-slate-500 mt-1 font-medium">{farmer.ho_ten}</p>
+                        
+                        <div className="mt-3 space-y-2">
+                          {farmer.san_pham_chinh && (
+                            <p className="text-xs text-slate-600 flex items-start gap-2">
+                              <ShoppingBag size={14} className="text-[#15803D] flex-shrink-0 mt-0.5" />
+                              <span>Sản phẩm chính: <strong>{farmer.san_pham_chinh}</strong></span>
+                            </p>
+                          )}
+                          {(farmer.dien_tich || farmer.kinh_nghiem) && (
+                            <p className="text-xs text-slate-600 flex items-start gap-2">
+                              <ShieldCheck size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                              <span>
+                                {farmer.dien_tich && `Quy mô: ${farmer.dien_tich}`}
+                                {farmer.dien_tich && farmer.kinh_nghiem && ' • '}
+                                {farmer.kinh_nghiem && `Kinh nghiệm: ${farmer.kinh_nghiem}`}
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 border-t border-slate-100">
+                        {hasRequested ? (
+                          <div className="w-full py-2.5 bg-slate-200 text-slate-600 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-default">
+                            {requestStatus === 'cho_phan_hoi' ? '⏳ Đã gửi yêu cầu' : '✅ Đã được chấp nhận'}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => openFarmerModal(farmer)}
+                            className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                          >
+                            <MessageSquare size={16} /> Xem Hồ Sơ & Liên hệ
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+
+              {/* Modal Chi tiết Hồ sơ Nông Dân */}
+              {showFarmerModal && (
+                <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden animate-scaleUp flex flex-col md:flex-row">
+                    
+                    {/* Cột trái: Hình ảnh & Thông tin thiết kế đồng bộ đẹp */}
+                    <div className="w-full md:w-5/12 bg-slate-50 border-r border-slate-100 flex flex-col">
+                      <div className="h-40 relative">
+                        <img 
+                          src={showFarmerModal.anh_bia || `https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80`} 
+                          alt="Farm Cover" 
+                          className="w-full h-full object-cover"
+                        />
+                        <button onClick={() => setShowFarmerModal(null)} className="md:hidden absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full"><X size={16} /></button>
+                      </div>
+
+                      {/* Avatar container overlapping in modal */}
+                      <div className="px-6 -mt-8 relative z-10 flex flex-col">
+                        <div className="bg-white rounded-full p-1 inline-block border-2 border-white shadow-md self-start">
+                          {showFarmerModal.anh_dai_dien ? (
+                            <img src={showFarmerModal.anh_dai_dien} alt={showFarmerModal.ten_hien_thi} className="w-16 h-16 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-16 h-16 bg-[#15803D] rounded-full flex items-center justify-center text-white font-black text-xl">
+                              {(showFarmerModal.ten_hien_thi || showFarmerModal.ho_ten || 'A')[0]}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <h3 className="font-black text-xl text-slate-900 mt-3">{showFarmerModal.ten_hien_thi}</h3>
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-md self-start mt-1.5">
+                          {showFarmerModal.vai_tro === 'nong_dan' ? 'Nông dân' : 'Thương lái'}
+                        </p>
+                        <p className="text-sm font-semibold text-[#15803D] mt-2 flex items-center gap-1">
+                          <MapPin size={14} /> {showFarmerModal.khu_vuc || 'Việt Nam'}
+                        </p>
+                        
+                        <div className="space-y-3 mt-4 pt-4 border-t border-slate-200/80 mb-6 text-sm">
+                          <div className="flex items-center gap-3 text-slate-650">
+                            <User size={16} className="text-slate-400 shrink-0" />
+                            <span>Đại diện: <strong>{showFarmerModal.ho_ten}</strong></span>
+                          </div>
+                          {showFarmerModal.dien_tich && (
+                            <div className="flex items-center gap-3 text-slate-650">
+                              <ShieldCheck size={16} className="text-slate-400 shrink-0" />
+                              <span>Quy mô: <strong>{showFarmerModal.dien_tich}</strong></span>
+                            </div>
+                          )}
+                          {showFarmerModal.chung_nhan && (
+                            <div className="flex items-center gap-3 text-slate-650">
+                              <Award size={16} className="text-emerald-500 shrink-0" />
+                              <span>Chứng nhận: <strong className="text-emerald-700">{showFarmerModal.chung_nhan}</strong></span>
+                            </div>
+                          )}
+                          {showFarmerModal.kinh_nghiem && (
+                            <div className="flex items-center gap-3 text-slate-650">
+                              <ShieldCheck size={16} className="text-slate-400 shrink-0" />
+                              <span>Kinh nghiệm: <strong>{showFarmerModal.kinh_nghiem}</strong></span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cột phải: Sản phẩm & Liên hệ */}
+                    <div className="w-full md:w-7/12 p-6 flex flex-col h-full max-h-[90vh]">
+                      <div className="flex justify-between items-center mb-4 hidden md:flex">
+                        <h3 className="font-bold text-lg text-slate-900">Danh sách Nông sản</h3>
+                        <button onClick={() => setShowFarmerModal(null)} className="text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={16} /></button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto pr-2 space-y-3 mb-6">
+                        {selectedFarmerProducts.length === 0 ? (
+                          <div className="text-center py-8 text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-xl">
+                            Chưa có sản phẩm nào được đăng tải.
+                          </div>
+                        ) : (
+                          selectedFarmerProducts.map(p => (
+                            <div 
+                              key={p.id} 
+                              onClick={() => {
+                                setSelectedProductId(p.id);
+                                setContactNote(`Chào anh/chị, tôi là thương lái quan tâm tới sản phẩm ${p.ten_san_pham} của anh/chị và muốn liên hệ trao đổi chi tiết về giao dịch này.`);
+                              }}
+                              className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex gap-3 items-center ${selectedProductId === p.id ? 'border-[#15803D] bg-[#f0fdf4] shadow-sm' : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50/50'}`}
+                            >
+                              {p.hinh_anh && p.hinh_anh.length > 0 ? (
+                                <img src={p.hinh_anh[0]} alt={p.ten_san_pham} className="w-16 h-16 rounded-lg object-cover border border-slate-200 shrink-0" />
+                              ) : (
+                                <div className="w-16 h-16 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0 border border-slate-200">
+                                  <ShoppingBag size={20} />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex justify-between items-start gap-2">
+                                  <h4 className="font-bold text-slate-900 text-sm truncate">{p.ten_san_pham}</h4>
+                                  <span className="text-[10px] font-bold text-[#15803D] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 shrink-0">{p.so_luong_uoc_tinh}</span>
+                                </div>
+                                <div className="flex justify-between items-center mt-1">
+                                  {p.gia_tham_khao ? (
+                                    <p className="text-xs font-extrabold text-[#15803D]">{p.gia_tham_khao}</p>
+                                  ) : (
+                                    <p className="text-[11px] text-slate-400 italic">Giá thương lượng</p>
+                                  )}
+                                  {p.mua_vu && (
+                                    <p className="text-[10px] text-slate-500 font-medium">Vụ: {p.mua_vu}</p>
+                                  )}
+                                </div>
+                                {p.mo_ta && <p className="text-[11px] text-slate-450 truncate mt-1">{p.mo_ta}</p>}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        <div 
+                          onClick={() => {
+                            setSelectedProductId(null);
+                            setContactNote('');
+                          }}
+                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-center text-center ${selectedProductId === null && selectedFarmerProducts.length > 0 ? 'border-[#15803D] bg-[#f0fdf4] shadow-sm' : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50/50'}`}
+                        >
+                          <span className="text-xs font-bold text-slate-600">Tôi muốn liên hệ chung (không chọn SP cụ thể)</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Lời nhắn / Đề xuất (Tuỳ chọn)</label>
+                        <textarea
+                          rows={2}
+                          className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:border-[#15803D] focus:ring-1 focus:ring-[#15803D] outline-none resize-none"
+                          placeholder="Xin chào, tôi muốn đàm phán mua lô hàng của bạn..."
+                          value={contactNote}
+                          onChange={(e) => setContactNote(e.target.value)}
+                        />
+                        <button 
+                          onClick={submitContactRequest} 
+                          className="w-full mt-3 py-3.5 bg-slate-900 hover:bg-black text-white rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                        >
+                          <MessageSquare size={18} /> Gửi Yêu Cầu Liên Hệ
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </main>
       )}
 

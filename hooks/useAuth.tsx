@@ -8,6 +8,12 @@ export interface AuthUser {
   vai_tro: 'nong_dan' | 'thuong_lai';
   ten_dang_nhap: string;
   ten_hien_thi: string;
+  // Các trường profile bổ sung
+  ho_ten?: string;
+  so_dien_thoai?: string;
+  dia_chi?: string;
+  anh_dai_dien?: string;
+  trang_thai_xac_thuc?: string;
 }
 
 interface AuthContextType {

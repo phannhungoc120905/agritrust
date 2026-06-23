@@ -37,8 +37,15 @@ export default function ConnectWalletButton() {
   }, [connected, publicKey, user, updateUser]);
 
   const handleConnect = async () => {
-    // Chỉ mở modal kết nối nếu chưa kết nối
-    if (!connected) {
+    if (connected) {
+      if (confirm('Bạn có muốn ngắt kết nối ví hiện tại để liên kết ví khác không?')) {
+        try {
+          await disconnect();
+        } catch (err) {
+          console.error('Lỗi khi ngắt kết nối ví:', err);
+        }
+      }
+    } else {
       setVisible(true);
     }
   };
