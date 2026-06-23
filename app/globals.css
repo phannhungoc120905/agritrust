@@ -1,0 +1,350 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* B2B AgriTrust Design Tokens */
+  --color-primary: #15803d;
+  --color-primary-hover: #166534;
+  --color-primary-active: #14532d;
+
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+
+  /* Semantic status colors for escrow contract states */
+  --color-status-pending-bg: #eff6ff;
+  --color-status-pending-text: #1d4ed8;
+  --color-status-pending-border: #dbeafe;
+
+  --color-status-success-bg: #f0fdf4;
+  --color-status-success-text: #15803d;
+  --color-status-success-border: #dcfce7;
+
+  --color-status-dispute-bg: #fffbeb;
+  --color-status-dispute-text: #b45309;
+  --color-status-dispute-border: #fef3c7;
+
+  --color-status-expired-bg: #f5f5f4;
+  --color-status-expired-text: #78716c;
+  --color-status-expired-border: #e7e5e4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* =====================================================================
+   DESIGN SYSTEM COMPONENTS (Tailwind 4 Utilities)
+   ===================================================================== */
+
+/* 1. BUTTONS (Bo góc nhẹ 6px, hover đổi sắc độ, không gradient) */
+@utility btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: center;
+  transition: background-color 0.15s ease-in-out;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background-color: var(--color-primary-hover);
+  }
+
+  &:active {
+    background-color: var(--color-primary-active);
+  }
+
+  &:disabled {
+    background-color: var(--color-neutral-200);
+    color: var(--color-neutral-400);
+    cursor: not-allowed;
+  }
+}
+
+@utility btn-secondary {
+  background-color: #ffffff;
+  color: var(--color-neutral-700);
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: center;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  border: 1px solid var(--color-neutral-200);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background-color: var(--color-neutral-100);
+    border-color: var(--color-neutral-300);
+  }
+}
+
+@utility btn-destructive {
+  background-color: #b91c1c;
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: center;
+  transition: background-color 0.15s ease-in-out;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background-color: #991b1b;
+  }
+}
+
+@utility btn-ghost {
+  color: var(--color-neutral-600);
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: center;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background-color: var(--color-neutral-100);
+    color: var(--color-neutral-900);
+  }
+}
+
+/* 2. BADGE TRẠNG THÁI HỢP ĐỒNG (Pill nhỏ, nền nhạt + chữ đậm cùng tông) */
+@utility badge-status-pending {
+  background-color: var(--color-status-pending-bg);
+  color: var(--color-status-pending-text);
+  border: 1px solid var(--color-status-pending-border);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+@utility badge-status-success {
+  background-color: var(--color-status-success-bg);
+  color: var(--color-status-success-text);
+  border: 1px solid var(--color-status-success-border);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+@utility badge-status-dispute {
+  background-color: var(--color-status-dispute-bg);
+  color: var(--color-status-dispute-text);
+  border: 1px solid var(--color-status-dispute-border);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+@utility badge-status-expired {
+  background-color: var(--color-status-expired-bg);
+  color: var(--color-status-expired-text);
+  border: 1px solid var(--color-status-expired-border);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 3. CARD FINTECH (Nền trắng, viền mỏng 1px, shadow mờ) */
+@utility card-fintech {
+  background-color: #ffffff;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 0.375rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* 4. INPUT FINTECH (Viền mỏng, focus chuyển border sang primary, không glow) */
+@utility input-fintech {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  background-color: #ffffff;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-neutral-900);
+  outline: none;
+  transition: border-color 0.15s ease-in-out;
+
+  &:focus {
+    border-color: var(--color-primary);
+  }
+}
+
+/* 5. KHUNG VIDEO CALL */
+@utility video-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-neutral-200);
+  background-color: #171717;
+  aspect-ratio: 16/9;
+}
+
+@utility video-badge-live {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  background-color: rgba(239, 68, 68, 0.9);
+  color: #ffffff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+@utility video-label {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* 6. CHAT TRANSCRIPT BUBBLES */
+@utility chat-bubble-farmer {
+  background-color: #f0fdf4;
+  color: #14532d;
+  border: 1px solid #dcfce7;
+  border-radius: 0.5rem;
+  border-top-left-radius: 0;
+  padding: 0.75rem;
+}
+
+@utility chat-bubble-buyer {
+  background-color: var(--color-neutral-100);
+  color: var(--color-neutral-900);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 0.5rem;
+  border-top-right-radius: 0;
+  padding: 0.75rem;
+}
+
+/* 7. BANNER CẢNH BÁO GIÁ */
+@utility price-alert-banner {
+  background-color: var(--color-status-dispute-bg);
+  color: var(--color-status-dispute-text);
+  border: 1px solid var(--color-status-dispute-border);
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  display: flex;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+/* =====================================================================
+   LEAFLET CUSTOM STYLES FOR PREMIUM UI (Feedback 3)
+   ===================================================================== */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+  padding: 2px !important;
+}
+
+.leaflet-popup-content {
+  margin: 8px 12px !important;
+  font-family: inherit !important;
+}
+
+.leaflet-popup-tip {
+  background: white !important;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.05) !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  top: 8px !important;
+  right: 8px !important;
+  color: #94a3b8 !important;
+  font-size: 16px !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button:hover {
+  color: #475569 !important;
+}
+
+/* Custom leaflet tooltip styling (Feedback 2) */
+.custom-leaflet-tooltip {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1) !important;
+}
+
+.custom-leaflet-tooltip::before {
+  border-top-color: rgba(15, 23, 42, 0.95) !important;
+}

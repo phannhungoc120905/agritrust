@@ -1,0 +1,189 @@
+{
+  "address": "AgriTrust1111111111111111111111111111111111",
+  "metadata": {
+    "name": "agritrust_escrow",
+    "version": "0.1.0",
+    "specVersion": "0.1.0",
+    "description": "AgriTrust SPL Token escrow smart contract"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
+      "docs": ["Create escrow PDA, create vault token account, and transfer buyer funds into the vault."],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "seller" },
+        { "name": "mint" },
+        { "name": "buyerTokenAccount", "writable": true },
+        { "name": "sellerTokenAccount", "writable": true },
+        {
+          "name": "escrowAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [101, 115, 99, 114, 111, 119] },
+              { "kind": "account", "path": "buyer" },
+              { "kind": "account", "path": "seller" },
+              { "kind": "account", "path": "mint" }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [118, 97, 117, 108, 116] },
+              { "kind": "account", "path": "escrowAccount" }
+            ]
+          }
+        },
+        { "name": "systemProgram", "address": "11111111111111111111111111111111" },
+        { "name": "tokenProgram", "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
+        { "name": "rent", "address": "SysvarRent111111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "unitPrice", "type": "u64" },
+        { "name": "expectedQty", "type": "u64" },
+        { "name": "deadline", "type": "i64" },
+        { "name": "seller", "type": "pubkey" }
+      ]
+    },
+    {
+      "name": "confirmReceipt",
+      "discriminator": [203, 36, 80, 115, 249, 12, 141, 170],
+      "docs": ["Transfer 100% of vault funds to seller and mark escrow as resolved."],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "seller" },
+        { "name": "mint" },
+        { "name": "sellerTokenAccount", "writable": true },
+        { "name": "vault", "writable": true },
+        { "name": "escrowAccount", "writable": true },
+        { "name": "tokenProgram", "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }
+      ],
+      "args": []
+    },
+    {
+      "name": "resolvePartial",
+      "discriminator": [118, 98, 162, 241, 17, 211, 48, 130],
+      "docs": ["Pay seller by actual quantity and refund the remainder to buyer."],
+      "accounts": [
+        { "name": "buyer", "writable": true, "signer": true },
+        { "name": "seller" },
+        { "name": "mint" },
+        { "name": "buyerTokenAccount", "writable": true },
+        { "name": "sellerTokenAccount", "writable": true },
+        { "name": "vault", "writable": true },
+        { "name": "escrowAccount", "writable": true },
+        { "name": "tokenProgram", "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }
+      ],
+      "args": [
+        { "name": "actualQty", "type": "u64" }
+      ]
+    },
+    {
+      "name": "claimTimeout",
+      "discriminator": [130, 234, 45, 53, 120, 90, 86, 178],
+      "docs": ["After deadline, seller claims 100% of vault funds and escrow becomes timed out."],
+      "accounts": [
+        { "name": "seller", "writable": true, "signer": true },
+        { "name": "buyer" },
+        { "name": "mint" },
+        { "name": "sellerTokenAccount", "writable": true },
+        { "name": "vault", "writable": true },
+        { "name": "escrowAccount", "writable": true },
+        { "name": "tokenProgram", "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "EscrowAccount",
+      "discriminator": [36, 69, 48, 18, 128, 225, 125, 135],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "mint", "type": "pubkey" },
+          { "name": "buyerTokenAccount", "type": "pubkey" },
+          { "name": "sellerTokenAccount", "type": "pubkey" },
+          { "name": "vault", "type": "pubkey" },
+          { "name": "unitPrice", "type": "u64" },
+          { "name": "expectedQty", "type": "u64" },
+          { "name": "deadline", "type": "i64" },
+          { "name": "totalAmount", "type": "u64" },
+          { "name": "status", "type": { "defined": { "name": "EscrowStatus" } } },
+          { "name": "bump", "type": "u8" },
+          { "name": "vaultBump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    { "code": 6000, "name": "NotLocked", "msg": "Escrow is not locked." },
+    { "code": 6001, "name": "DeadlineNotPassed", "msg": "Delivery deadline has not passed." },
+    { "code": 6002, "name": "DeadlinePassed", "msg": "Delivery deadline already passed." },
+    { "code": 6003, "name": "InvalidQuantity", "msg": "Actual quantity is greater than expected quantity." },
+    { "code": 6004, "name": "MathOverflow", "msg": "Math overflow." },
+    { "code": 6005, "name": "SellerMismatch", "msg": "Seller account does not match the seller argument." }
+  ],
+  "types": [
+    {
+      "name": "EscrowAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "mint", "type": "pubkey" },
+          { "name": "buyerTokenAccount", "type": "pubkey" },
+          { "name": "sellerTokenAccount", "type": "pubkey" },
+          { "name": "vault", "type": "pubkey" },
+          { "name": "unitPrice", "type": "u64" },
+          { "name": "expectedQty", "type": "u64" },
+          { "name": "deadline", "type": "i64" },
+          { "name": "totalAmount", "type": "u64" },
+          { "name": "status", "type": { "defined": { "name": "EscrowStatus" } } },
+          { "name": "bump", "type": "u8" },
+          { "name": "vaultBump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "escrowAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "mint", "type": "pubkey" },
+          { "name": "buyerTokenAccount", "type": "pubkey" },
+          { "name": "sellerTokenAccount", "type": "pubkey" },
+          { "name": "vault", "type": "pubkey" },
+          { "name": "unitPrice", "type": "u64" },
+          { "name": "expectedQty", "type": "u64" },
+          { "name": "deadline", "type": "i64" },
+          { "name": "totalAmount", "type": "u64" },
+          { "name": "status", "type": { "defined": { "name": "EscrowStatus" } } },
+          { "name": "bump", "type": "u8" },
+          { "name": "vaultBump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "EscrowStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Locked" },
+          { "name": "Resolved" },
+          { "name": "TimedOut" }
+        ]
+      }
+    }
+  ]
+}
