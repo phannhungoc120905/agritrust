@@ -133,6 +133,48 @@
   ],
   "types": [
     {
+      "name": "EscrowAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "mint", "type": "pubkey" },
+          { "name": "buyerTokenAccount", "type": "pubkey" },
+          { "name": "sellerTokenAccount", "type": "pubkey" },
+          { "name": "vault", "type": "pubkey" },
+          { "name": "unitPrice", "type": "u64" },
+          { "name": "expectedQty", "type": "u64" },
+          { "name": "deadline", "type": "i64" },
+          { "name": "totalAmount", "type": "u64" },
+          { "name": "status", "type": { "defined": { "name": "EscrowStatus" } } },
+          { "name": "bump", "type": "u8" },
+          { "name": "vaultBump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "escrowAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "mint", "type": "pubkey" },
+          { "name": "buyerTokenAccount", "type": "pubkey" },
+          { "name": "sellerTokenAccount", "type": "pubkey" },
+          { "name": "vault", "type": "pubkey" },
+          { "name": "unitPrice", "type": "u64" },
+          { "name": "expectedQty", "type": "u64" },
+          { "name": "deadline", "type": "i64" },
+          { "name": "totalAmount", "type": "u64" },
+          { "name": "status", "type": { "defined": { "name": "EscrowStatus" } } },
+          { "name": "bump", "type": "u8" },
+          { "name": "vaultBump", "type": "u8" }
+        ]
+      }
+    },
+    {
       "name": "EscrowStatus",
       "type": {
         "kind": "enum",
