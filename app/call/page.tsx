@@ -364,6 +364,13 @@ function CallPageContent() {
       return;
     }
 
+    // Thiết lập timeout 40 giây tự động giải phóng trạng thái chờ ký nếu Phantom bị treo hoặc chậm
+    const timeoutId = setTimeout(() => {
+      setIsSigningSeller(false);
+      setIsSigningBuyer(false);
+      alert('Quá trình ký số bằng ví Phantom đang mất nhiều thời gian hơn bình thường (hơn 40s). Trạng thái chờ đã được giải phóng để bạn có thể thử lại. Vui lòng kiểm tra ví của bạn và thử lại.');
+    }, 40000);
+
     try {
       if (signerRole === 'nong_dan') setIsSigningSeller(true);
       else setIsSigningBuyer(true);
@@ -454,6 +461,7 @@ function CallPageContent() {
         alert('Lỗi ký số: ' + error.message);
       }
     } finally {
+      clearTimeout(timeoutId);
       setIsSigningSeller(false);
       setIsSigningBuyer(false);
     }

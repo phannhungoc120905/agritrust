@@ -10,6 +10,16 @@ export function useEscrow() {
   const { wallet } = useSolanaWallet();
   const [loading, setLoading] = useState(false);
 
+  // Tự động tắt trạng thái loading sau 45s đề phòng ví/RPC bị treo
+  const startLoadingWithTimeout = (timeoutMs = 45000) => {
+    setLoading(true);
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      console.warn(`[useEscrow] Tự động giải phóng trạng thái chờ sau ${timeoutMs}ms.`);
+    }, timeoutMs);
+    return timeoutId;
+  };
+
   // Helper tìm PDA Escrow của 2 bên
   const getEscrowPda = (buyer: PublicKey, seller: PublicKey) => {
     const [pda] = PublicKey.findProgramAddressSync(
@@ -29,7 +39,7 @@ export function useEscrow() {
     deadlineSeconds: number,
     totalUsdc: number
   ) => {
-    setLoading(true);
+    const timeoutId = startLoadingWithTimeout();
     let logRecord: any = null;
 
     try {
@@ -109,13 +119,14 @@ export function useEscrow() {
       }
       throw err;
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
 
   // 2. Xác nhận nhận hàng đủ - confirm_receipt
   const confirmReceipt = async (contractId: string, buyerAddress: string, sellerAddress: string) => {
-    setLoading(true);
+    const timeoutId = startLoadingWithTimeout();
     let logRecord: any = null;
 
     try {
@@ -168,6 +179,7 @@ export function useEscrow() {
       }
       throw err;
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -180,7 +192,7 @@ export function useEscrow() {
     actualQty: number,
     settlementDetails: { disputeId: string }
   ) => {
-    setLoading(true);
+    const timeoutId = startLoadingWithTimeout();
     let logRecord: any = null;
 
     try {
@@ -233,13 +245,14 @@ export function useEscrow() {
       }
       throw err;
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
 
   // 4. Giải ngân khi quá hạn - claim_timeout
   const claimTimeout = async (contractId: string, buyerAddress: string, sellerAddress: string) => {
-    setLoading(true);
+    const timeoutId = startLoadingWithTimeout();
     let logRecord: any = null;
 
     try {
@@ -292,6 +305,7 @@ export function useEscrow() {
       }
       throw err;
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
