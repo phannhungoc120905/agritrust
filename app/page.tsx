@@ -19,6 +19,7 @@ import {
   FileSignature,
   Truck,
   ChevronRight,
+  ChevronDown,
   Loader2,
   FileDown,
   CheckCircle2,
@@ -100,6 +101,7 @@ function HomePageContent() {
   const [selectedFarmerProducts, setSelectedFarmerProducts] = useState<any[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [contactNote, setContactNote] = useState('');
+  const [expandedPartners, setExpandedPartners] = useState<{ [key: string]: boolean }>({});
 
   // --- TAB 3 STATE (Delivery List & Detail) ---
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
@@ -163,6 +165,7 @@ function HomePageContent() {
               id: c.id,
               title: `Thương vụ: ${c.so_luong} ${c.don_vi_tinh} ${c.san_pham}`,
               partnerName: partnerName,
+              partnerAddress: partnerAddress,
               status: c.trang_thai === 'du_thao'
                 ? (c.noi_dung_nhap_ai?.is_seller_online === true && c.noi_dung_nhap_ai?.is_buyer_online === true
                     ? 'dang_dam_phan'
@@ -249,6 +252,13 @@ function HomePageContent() {
     }
   }, [activeNegotiationId, negotiations]);
 
+  // Tự động chuyển sang tab Đàm phán khi đã có đối tác đồng ý kết nối
+  useEffect(() => {
+    if (contactRequests.some(r => r.trang_thai === 'da_dong_y') && activeTab === 'market') {
+      setActiveTab('negotiation');
+    }
+  }, [contactRequests, activeTab]);
+
   if (loading || !user) {
     return (
       <div className="flex-grow flex items-center justify-center bg-white text-neutral-400 min-h-screen gap-2">
@@ -259,6 +269,31 @@ function HomePageContent() {
   }
 
   const isNongDan = user.vai_tro === 'nong_dan';
+
+  // Group các cuộc đàm phán/hợp đồng theo đối tác kết nối
+  const getGroupedNegotiations = () => {
+    const groups: {
+      [key: string]: {
+        partnerName: string;
+        partnerAddress: string;
+        items: any[];
+      };
+    } = {};
+
+    negotiations.forEach((nego) => {
+      const partnerKey = nego.partnerAddress || nego.partnerName || 'unknown_partner';
+      if (!groups[partnerKey]) {
+        groups[partnerKey] = {
+          partnerName: nego.partnerName,
+          partnerAddress: nego.partnerAddress || '',
+          items: [],
+        };
+      }
+      groups[partnerKey].items.push(nego);
+    });
+
+    return Object.values(groups);
+  };
 
   // --- ACTIONS TAB 1 -> TAB 2 ---
   const handleContactNegotiation = async (req: any) => {
@@ -560,9 +595,11 @@ function HomePageContent() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 flex border-b border-slate-100">
-          <button onClick={() => { setActiveTab('market'); setActiveNegotiationId(null); setActiveDeliveryId(null); }} className={`px-5 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'market' ? 'border-[#15803D] text-[#15803D]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-            <ShoppingBag size={16} /> Kết nối Đối tác
-          </button>
+          {!contactRequests.some(r => r.trang_thai === 'da_dong_y') && (
+            <button onClick={() => { setActiveTab('market'); setActiveNegotiationId(null); setActiveDeliveryId(null); }} className={`px-5 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'market' ? 'border-[#15803D] text-[#15803D]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+              <ShoppingBag size={16} /> Kết nối Đối tác
+            </button>
+          )}
           <button onClick={() => { setActiveTab('negotiation'); setActiveNegotiationId(null); setActiveDeliveryId(null); }} className={`px-5 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'negotiation' ? 'border-[#15803D] text-[#15803D]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <MessageSquare size={16} /> Đàm phán & Hợp đồng
           </button>
@@ -931,44 +968,124 @@ function HomePageContent() {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                {negotiations.map(nego => (
-                  <div key={nego.id} onClick={() => openNegotiation(nego)} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 cursor-pointer transition-all flex flex-col md:flex-row md:items-center justify-between group gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex flex-shrink-0 items-center justify-center ${nego.status === 'da_chot' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                        {nego.status === 'da_chot' ? <Lock size={20} /> : <MessageSquare size={20} />}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-lg truncate max-w-[250px] sm:max-w-md">{nego.title}</h3>
-                        <p className="text-sm text-slate-500 mt-0.5">Đối tác: <span className="font-semibold text-slate-700">{nego.partnerName}</span></p>
-                        {nego.status === 'da_chot' && nego.contract && (
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                              {(nego.contract.tong_tien_usdc_khoa || 0).toLocaleString()} SOL
+              <div className="space-y-6">
+                {getGroupedNegotiations().length === 0 ? (
+                  <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400">
+                    Chưa có cuộc đàm phán hay hợp đồng nào được tạo.
+                  </div>
+                ) : (
+                  getGroupedNegotiations().map((group) => {
+                    const totalNego = group.items.length;
+                    const lockedNego = group.items.filter(n => n.status === 'da_chot').length;
+                    const allLocked = lockedNego === totalNego;
+
+                    return (
+                      <div key={group.partnerAddress || group.partnerName} className="bg-slate-50/50 border border-slate-200/60 rounded-3xl p-6 shadow-sm space-y-4">
+                        {/* Partner Header */}
+                        <div 
+                          onClick={() => {
+                            const partnerKey = group.partnerAddress || group.partnerName;
+                            setExpandedPartners(prev => ({
+                              ...prev,
+                              [partnerKey]: prev[partnerKey] === false ? true : false
+                            }));
+                          }}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/60 cursor-pointer select-none group/partnerHeader"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 text-[#15803D] flex items-center justify-center font-bold text-sm shadow-sm select-none">
+                              {group.partnerName.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h3 className="font-extrabold text-slate-800 text-base group-hover/partnerHeader:text-[#15803D] transition-colors">{group.partnerName}</h3>
+                                {expandedPartners[group.partnerAddress || group.partnerName] !== false ? (
+                                  <ChevronDown size={15} className="text-slate-400 group-hover/partnerHeader:text-[#15803D] transition-all" />
+                                ) : (
+                                  <ChevronRight size={15} className="text-slate-400 group-hover/partnerHeader:text-[#15803D] transition-all" />
+                                )}
+                              </div>
+                              {group.partnerAddress && (
+                                <p className="text-[11px] font-mono text-slate-400 mt-0.5">{group.partnerAddress.slice(0, 8)}...{group.partnerAddress.slice(-8)}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="bg-slate-200/80 text-slate-600 px-2.5 py-1 rounded-full text-[11px] font-bold">
+                              {totalNego} thương vụ
                             </span>
-                            <span className="text-[11px] font-semibold text-slate-400">
-                              / {(nego.contract.don_gia * nego.contract.so_luong).toLocaleString('vi-VN')} VNĐ
-                            </span>
+                            {allLocked ? (
+                              <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-bold border border-emerald-200/50">
+                                Đã chốt tất cả ({lockedNego}/{totalNego})
+                              </span>
+                            ) : (
+                              <span className="bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-bold border border-amber-200/50 animate-pulse">
+                                Đang đàm phán ({totalNego - lockedNego} thương vụ)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* List of negotiations under this partner */}
+                        {expandedPartners[group.partnerAddress || group.partnerName] !== false && (
+                          <div className="space-y-3 pl-0 sm:pl-2 animate-fade-in">
+                            {group.items.map((nego) => (
+                              <div
+                                key={nego.id}
+                                onClick={() => openNegotiation(nego)}
+                                className="bg-white p-4.5 rounded-2xl border border-slate-200/80 hover:border-emerald-300 hover:shadow-sm cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between group gap-4"
+                              >
+                                <div className="flex items-center gap-3.5">
+                                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${nego.status === 'da_chot' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                    {nego.status === 'da_chot' ? <Lock size={16} /> : <MessageSquare size={16} />}
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-slate-700 text-sm group-hover:text-emerald-800 transition-colors">{nego.title}</h4>
+                                    {nego.status === 'da_chot' && nego.contract && (
+                                      <div className="flex items-center gap-1.5 mt-1 font-mono text-[10px] text-slate-500">
+                                        <span className="text-emerald-700 bg-emerald-50/60 px-1.5 py-0.5 rounded border border-emerald-100/50">
+                                          {(nego.contract.tong_tien_usdc_khoa || 0).toLocaleString()} SOL
+                                        </span>
+                                        <span>•</span>
+                                        <span>{(nego.contract.don_gia * nego.contract.so_luong).toLocaleString('vi-VN')} VNĐ</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between sm:justify-end gap-3 pt-2.5 sm:pt-0 border-t sm:border-0 border-slate-100">
+                                  {nego.status === 'da_chot' ? (
+                                    <span className="bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-md text-[11px] font-bold border border-emerald-200/50">
+                                      Đã Chốt & Khóa
+                                    </span>
+                                  ) : nego.status === 'dang_dam_phan' ? (
+                                    <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-md text-[11px] font-bold border border-indigo-200/50 animate-pulse">
+                                      Đang Đàm phán...
+                                    </span>
+                                  ) : nego.status === 'dang_lien_he' ? (
+                                    <span className="bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-md text-[11px] font-bold border border-amber-200/50 animate-pulse">
+                                      Đang Liên hệ...
+                                    </span>
+                                  ) : nego.status === 'da_chot_nhap_tam_dung' ? (
+                                    <span className="bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-md text-[11px] font-bold border border-blue-200/50">
+                                      Chốt nháp (Tạm dừng)
+                                    </span>
+                                  ) : (
+                                    <span className="bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-md text-[11px] font-bold border border-slate-200">
+                                      Tạm dừng
+                                    </span>
+                                  )}
+                                  <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
-                    </div>
-                    <div className="flex items-center justify-between md:justify-end gap-4 border-t md:border-0 border-slate-100 pt-3 md:pt-0 w-full md:w-auto">
-                      {nego.status === 'da_chot' ? (
-                        <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-200">Đã Chốt & Khóa</span>
-                      ) : nego.status === 'dang_dam_phan' ? (
-                        <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold border border-indigo-200 animate-pulse">Đang Đàm phán...</span>
-                      ) : nego.status === 'dang_lien_he' ? (
-                        <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-lg text-xs font-bold border border-amber-200 animate-pulse">Đang Liên hệ...</span>
-                      ) : nego.status === 'da_chot_nhap_tam_dung' ? (
-                        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg text-xs font-bold border border-blue-200">Đã chốt nháp (Tạm dừng)</span>
-                      ) : (
-                        <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-lg text-xs font-bold border border-slate-300">Đàm phán tạm dừng</span>
-                      )}
-                      <ChevronRight size={20} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })
+                )}
               </div>
             </div>
           ) : (
