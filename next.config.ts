@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
     '192.168.2.7',
     'cqqmj-171-225-184-188.free.pinggy.net',
     'localhost',
+    '*.lhr.life',
+    '*.localhost.run',
+    '*.ngrok-free.app',
+    '*.pinggy.net',
+    '*',
   ],
 };
 

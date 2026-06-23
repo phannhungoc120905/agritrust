@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { loginUser } from '../../lib/supabase/queries/auth';
 import {
@@ -14,8 +14,10 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get('redirect');
   const { login } = useAuth();
 
   const [username, setUsername] = useState('');
@@ -42,7 +44,7 @@ export default function LoginPage() {
           vai_tro: user.vai_tro,
           ten_dang_nhap: user.ten_dang_nhap,
           ten_hien_thi: user.ten_hien_thi || user.ten_dang_nhap,
-        });
+        }, redirectPath || undefined);
       } else {
         setErrorMsg('Sai Tên đăng nhập hoặc Mật khẩu. Vui lòng thử lại.');
       }
@@ -100,6 +102,7 @@ export default function LoginPage() {
                   placeholder="nongdan hoặc thuonglai"
                   className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
                   disabled={isLoading}
+                  suppressHydrationWarning
                 />
               </div>
             </div>
@@ -120,6 +123,7 @@ export default function LoginPage() {
                   placeholder="Nhập mật khẩu"
                   className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
                   disabled={isLoading}
+                  suppressHydrationWarning
                 />
               </div>
             </div>
@@ -177,5 +181,17 @@ export default function LoginPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col justify-center items-center min-h-screen bg-[#FAFAF9] text-neutral-450 gap-2">
+        <span className="w-5 h-5 border-2 border-[#15803D]/30 border-t-[#15803D] rounded-full animate-spin"></span>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   );
 }

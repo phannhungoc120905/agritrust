@@ -13,9 +13,20 @@ interface VideoCallFrameProps {
   onToggleMute?: (isMuted: boolean) => void;
   isChatOpen?: boolean;
   extraToolbarButtons?: React.ReactNode;
+  onRemoteUsersChange?: (users: any[]) => void;
 }
 
-export default function VideoCallFrame({ channelName, role, onJoinedStateChange, onHangUp, onToggleChat, onToggleMute, isChatOpen, extraToolbarButtons }: VideoCallFrameProps) {
+export default function VideoCallFrame({ 
+  channelName, 
+  role, 
+  onJoinedStateChange, 
+  onHangUp, 
+  onToggleChat, 
+  onToggleMute, 
+  isChatOpen, 
+  extraToolbarButtons,
+  onRemoteUsersChange
+}: VideoCallFrameProps) {
   const router = useRouter();
   const [inCall, setInCall] = useState(false);
   const [isDemoCall, setIsDemoCall] = useState(false);
@@ -23,6 +34,11 @@ export default function VideoCallFrame({ channelName, role, onJoinedStateChange,
   const [cameraOff, setCameraOff] = useState(false);
   const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
   const [isJoining, setIsJoining] = useState(false);
+
+  // Sync remoteUsers with parent
+  useEffect(() => {
+    onRemoteUsersChange?.(remoteUsers);
+  }, [remoteUsers, onRemoteUsersChange]);
 
   const localVideoRef = useRef<HTMLDivElement>(null);
   const rtcClientRef = useRef<any>(null);

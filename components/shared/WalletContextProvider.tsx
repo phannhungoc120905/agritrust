@@ -9,6 +9,8 @@ import { clusterApiUrl } from '@solana/web3.js';
 // Import CSS của thư viện Wallet Adapter UI
 import '@solana/wallet-adapter-react-ui/styles.css';
 
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
+
 interface Props {
   children: ReactNode;
 }
@@ -22,9 +24,9 @@ export const WalletContextProvider: FC<Props> = ({ children }) => {
     return process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl(network);
   }, [network]);
 
-  // Danh sách các ví hỗ trợ, ở đây rỗng để tự động nhận dạng các ví Standard (ví dụ: Phantom)
+  // Danh sách các ví hỗ trợ
   const wallets = useMemo(
-    () => [],
+    () => [new PhantomWalletAdapter()],
     []
   );
 

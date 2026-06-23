@@ -158,7 +158,13 @@ function HomePageContent() {
               id: c.id,
               title: `Thương vụ: ${c.so_luong} ${c.don_vi_tinh} ${c.san_pham}`,
               partnerName: partnerName,
-              status: c.trang_thai === 'du_thao' ? 'dang_dam_phan' : 'da_chot',
+              status: c.trang_thai === 'du_thao'
+                ? (c.noi_dung_nhap_ai?.is_seller_online === true && c.noi_dung_nhap_ai?.is_buyer_online === true
+                    ? 'dang_dam_phan'
+                    : (c.noi_dung_nhap_ai?.is_seller_online === true || c.noi_dung_nhap_ai?.is_buyer_online === true
+                        ? 'dang_lien_he'
+                        : (c.don_gia > 0 || (c.dieu_khoan_chat_luong && c.dieu_khoan_chat_luong.length > 0) || c.noi_dung_nhap_ai?.buyerSignature || c.noi_dung_nhap_ai?.sellerSignature ? 'da_chot_nhap_tam_dung' : 'dam_phan_tam_dung')))
+                : 'da_chot',
               deliveryStatus: c.trang_thai === 'da_khoa_tien' ? 'dang_van_chuyen' :
                 c.trang_thai === 'dang_tranh_chap' ? 'cho_nghiem_thu' :
                   c.trang_thai === 'da_xac_nhan' || c.trang_thai === 'da_giai_quyet' ? 'da_hoan_thanh' : 'dang_van_chuyen',
@@ -309,7 +315,7 @@ function HomePageContent() {
 
   const openNegotiation = (nego: any) => {
     if (nego.status === 'da_chot') {
-      setActiveNegotiationId(nego.id);
+      router.push(`/contract/${nego.id}`);
     } else {
       const encoded = encodeMeetingParams({
         channel: nego.id,
@@ -714,19 +720,29 @@ function HomePageContent() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between md:justify-end gap-4 border-t md:border-0 border-slate-100 pt-3 md:pt-0 w-full md:w-auto">
-                      {nego.status === 'da_chot'
-                        ? <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-200">Đã Chốt & Khóa</span>
-                        : nego.status === 'dang_lien_he'
-                          ? <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-lg text-xs font-bold border border-amber-200 animate-pulse">Đang Liên hệ...</span>
-                          : <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold border border-indigo-200 animate-pulse">Đang Đàm phán...</span>
-                      }
+                      {nego.status === 'da_chot' ? (
+                        <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-200">Đã Chốt & Khóa</span>
+                      ) : nego.status === 'dang_dam_phan' ? (
+                        <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold border border-indigo-200 animate-pulse">Đang Đàm phán...</span>
+                      ) : nego.status === 'dang_lien_he' ? (
+                        <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-lg text-xs font-bold border border-amber-200 animate-pulse">Đang Liên hệ...</span>
+                      ) : nego.status === 'da_chot_nhap_tam_dung' ? (
+                        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg text-xs font-bold border border-blue-200">Đã chốt nháp (Tạm dừng)</span>
+                      ) : (
+                        <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-lg text-xs font-bold border border-slate-300">Đàm phán tạm dừng</span>
+                      )}
                       <ChevronRight size={20} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          ) : (negotiations.find(n => n.id === activeNegotiationId)?.status === 'dang_dam_phan' || negotiations.find(n => n.id === activeNegotiationId)?.status === 'dang_lien_he') ? (
+          ) : (
+            negotiations.find(n => n.id === activeNegotiationId)?.status === 'dam_phan_tam_dung' ||
+            negotiations.find(n => n.id === activeNegotiationId)?.status === 'da_chot_nhap_tam_dung' ||
+            negotiations.find(n => n.id === activeNegotiationId)?.status === 'dang_lien_he' ||
+            negotiations.find(n => n.id === activeNegotiationId)?.status === 'dang_dam_phan'
+          ) ? (
             // GIAO DIỆN PHÒNG HỌP VIDEO FULL SCREEN CHUẨN (ZOOM/MEET)
             <div className="fixed inset-0 z-[200] bg-black flex flex-col animate-fade-in">
               {/* Header của phòng họp riêng */}

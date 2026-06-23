@@ -9,7 +9,7 @@ import PriceWarningBanner from '../../components/negotiation/PriceWarningBanner'
 import ConfirmContractButton from '../../components/negotiation/ConfirmContractButton';
 import { createDraftContract } from '../../lib/supabase/queries/contracts';
 import { AgoraSTTClient } from '../../lib/agora/sttClient';
-import { decodeMeetingParams } from '../../lib/utils/url';
+import { decodeMeetingParams, encodeMeetingParams } from '../../lib/utils/url';
 import { supabase } from '../../lib/supabase/client';
 
 import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
@@ -19,7 +19,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, PublicKey, TransactionInstruction } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { ContractSignature } from '../../components/negotiation/DraftContractTable';
-import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft, MessageSquare, Send } from 'lucide-react';
+import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft, MessageSquare, Send, Share2 } from 'lucide-react';
 
 interface TranscriptLine {
   id: string;
@@ -41,7 +41,31 @@ function CallPageContent() {
   const channelParam = decoded?.channel || searchParams.get('channel');
   const channelName = channelParam || 'dam-phan-lua-st25';
   
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, login } = useAuth();
+  const startRealSTTRef = useRef<any>(null);
+
+  const setCallActiveInDb = async (active: boolean) => {
+    if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id' && user) {
+      try {
+        const { data: con } = await supabase.from('hop_dong').select('noi_dung_nhap_ai').eq('id', channelName).single();
+        const currentAiContent = con?.noi_dung_nhap_ai || {};
+        
+        const isSeller = user.vai_tro === 'nong_dan';
+        const updatedAiContent = {
+          ...currentAiContent,
+          is_seller_online: isSeller ? active : (currentAiContent.is_seller_online || false),
+          is_buyer_online: !isSeller ? active : (currentAiContent.is_buyer_online || false)
+        };
+
+        await supabase.from('hop_dong').update({
+          noi_dung_nhap_ai: updatedAiContent
+        }).eq('id', channelName);
+        console.log(`[DB] Đặt trạng thái online: Seller=${updatedAiContent.is_seller_online}, Buyer=${updatedAiContent.is_buyer_online}`);
+      } catch (err) {
+        console.warn('Lỗi cập nhật trạng thái cuộc gọi:', err);
+      }
+    }
+  };
 
   const productParam = decoded?.product || searchParams.get('product') || 'Lúa thơm ST25';
   const partnerParam = decoded?.partner || searchParams.get('partner') || 'Đối tác';
@@ -50,6 +74,23 @@ function CallPageContent() {
   const [proposedPrice, setProposedPrice] = useState(0);
   const [productName, setProductName] = useState(productParam);
   const [partnerName, setPartnerName] = useState(partnerParam);
+
+  const [copiedLink, setCopiedLink] = useState(false);
+  const handleShareLink = () => {
+    if (typeof window !== 'undefined' && user) {
+      const encoded = encodeMeetingParams({
+        channel: channelName,
+        scenario: scenario,
+        product: productName,
+        partner: user.ten_hien_thi
+      });
+      const domain = window.location.origin;
+      const shareUrl = `${domain}/call?p=${encoded}`;
+      navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  };
 
   const [referencePrice, setReferencePrice] = useState(() => {
     const name = productParam.toLowerCase();
@@ -65,8 +106,59 @@ function CallPageContent() {
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [activeStep, setActiveStep] = useState(1); // 1: Đàm thoại, 2: Trích xuất, 3: Ký quỹ
   const [isRealSTTActive, setIsRealSTTActive] = useState(false);
+  const [sttError, setSttError] = useState<string | null>(null);
   const [isMockActive, setIsMockActive] = useState(false);
   const [inCall, setInCall] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isDemoCall, setIsDemoCall] = useState(false);
+  const [partnerCount, setPartnerCount] = useState(0);
+
+  const suggestionData = React.useMemo(() => {
+    const pName = productName.toLowerCase();
+    if (pName.includes('sầu riêng') || pName.includes('ri6')) {
+      return {
+        productName: productName,
+        qty: '1 tấn',
+        price: '120 triệu đồng một tấn',
+        quality: 'Sầu riêng Ri6 cơm vàng hạt lép chín tự nhiên, không sượng.',
+        penalty: 'Tỷ lệ sượng trên 5% giảm 10% đơn giá, sượng trên 10% bên mua được trả lại hàng.'
+      };
+    }
+    if (pName.includes('cà phê') || pName.includes('robusta')) {
+      return {
+        productName: productName,
+        qty: '2 tấn',
+        price: '75 triệu đồng một tấn',
+        quality: 'Cà phê nhân xô chế biến ướt, hạt sàn 18, độ ẩm dưới 12.5%.',
+        penalty: 'Độ ẩm thực tế trên 13% phạt giảm 1% trọng lượng, trên 14% bên mua hủy hợp đồng.'
+      };
+    }
+    if (pName.includes('dưa leo') || pName.includes('dưa chuột')) {
+      return {
+        productName: productName,
+        qty: '1 tấn',
+        price: '12 triệu đồng một tấn',
+        quality: 'Dưa leo sạch, hái sớm trong ngày, quả dài đều từ 12 đến 15 cm.',
+        penalty: 'Tỷ lệ dập nát hoặc quả cong vẹo trên 5% thì giảm 5% giá trị hợp đồng.'
+      };
+    }
+    if (pName.includes('thanh long')) {
+      return {
+        productName: productName,
+        qty: '3 tấn',
+        price: '22 triệu đồng một tấn',
+        quality: 'Thanh long ruột đỏ vỏ bóng đẹp không sâu bệnh, tai xanh cứng cáp.',
+        penalty: 'Tai úa héo trên 10% giảm 8% giá trị đơn hàng, dập nát trên 15% hủy hợp đồng.'
+      };
+    }
+    return {
+      productName: productName,
+      qty: '10 tấn',
+      price: '8.5 triệu đồng một tấn',
+      quality: 'Lúa ST25 tươi thu hoạch bằng máy, độ ẩm dưới 14%, không lẫn tạp chất.',
+      penalty: 'Độ ẩm thực tế trên 14% phạt giảm 2% đơn giá, trên 15% bên mua được trả lại lúa.'
+    };
+  }, [productName]);
 
   // Chữ ký điện tử
   const { publicKey, signMessage, sendTransaction } = useWallet();
@@ -330,6 +422,8 @@ function CallPageContent() {
 
       // 💾 Lưu chữ ký vào Database ngay lập tức để không mất state khi F5
       if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
+        newNoiDungNhapAi.is_seller_online = user?.vai_tro === 'nong_dan' ? true : (newNoiDungNhapAi.is_seller_online || false);
+        newNoiDungNhapAi.is_buyer_online = user?.vai_tro === 'thuong_lai' ? true : (newNoiDungNhapAi.is_buyer_online || false);
         import('../../lib/supabase/queries/contracts').then(m => {
           m.updateContractDraftData(channelName, {
             san_pham: contractDraft.san_pham,
@@ -365,37 +459,7 @@ function CallPageContent() {
     }
   };
 
-  const simulatePartnerSignature = () => {
-    const fakeSig: ContractSignature = {
-      name: user?.vai_tro === 'nong_dan' ? partnerName : 'Nông Dân Đối Tác',
-      wallet: 'F54X3RjJk1n6rK8n2JjG3bJjG3bJjG3bJjG3bJjG3bJj', // Valid Base58 Mock Address
-      timestamp: new Date().toISOString(),
-      txHash: 'SimulateTxHash' + Math.random().toString(36).substring(7)
-    };
 
-    let newNoiDungNhapAi = { ...(contractDraft?.noi_dung_nhap_ai || {}) };
-    if (user?.vai_tro === 'nong_dan') {
-      setBuyerSignature(fakeSig);
-      newNoiDungNhapAi.buyerSignature = fakeSig;
-    } else {
-      setSellerSignature(fakeSig);
-      newNoiDungNhapAi.sellerSignature = fakeSig;
-    }
-
-    if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
-      import('../../lib/supabase/queries/contracts').then(m => {
-        m.updateContractDraftData(channelName, {
-          san_pham: contractDraft.san_pham,
-          so_luong: contractDraft.so_luong,
-          don_vi_tinh: contractDraft.don_vi_tinh,
-          don_gia: contractDraft.don_gia,
-          han_giao_hang: contractDraft.han_giao_hang,
-          dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
-          noi_dung_nhap_ai: newNoiDungNhapAi
-        }).catch(e => console.warn('Lỗi lưu chữ ký ảo DB:', e));
-      });
-    }
-  };
 
   // Ref để lưu AgoraSTTClient và các câu thoại
   const sttClientRef = useRef<AgoraSTTClient | null>(null);
@@ -419,9 +483,9 @@ function CallPageContent() {
     });
 
     channel.on('broadcast', { event: 'stt_text' }, ({ payload }) => {
-      const { text, userId, isFinal } = payload;
-      // Tránh tự xử lý lại tin của chính mình do client đã hiển thị
-      if (userId === (user.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai')) return;
+      const { text, userId, isFinal, senderWallet } = payload;
+      // Tránh tự xử lý lại tin của chính mình bằng địa chỉ ví (hoặc vai trò nếu không có ví)
+      if (senderWallet ? senderWallet === user.dia_chi_vi : userId === (user.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai')) return;
 
       if (!text.trim()) return;
       setDisplayedSubtitle({ text, role: userId });
@@ -511,6 +575,8 @@ function CallPageContent() {
       router.push('/dashboard');
     });
 
+
+
     channel.subscribe();
     sttChannelRef.current = channel;
 
@@ -527,6 +593,7 @@ function CallPageContent() {
       if (sttClientRef.current) {
         sttClientRef.current.stopSTT();
       }
+      setCallActiveInDb(false);
     };
   }, [channelName]);
 
@@ -565,6 +632,11 @@ function CallPageContent() {
         // 2. TẢI HỢP ĐỒNG NHÁP
         const con = await getContractById(channelName);
         if (con) {
+          const hasDraftAgreed = con.don_gia > 0 || 
+                                (con.dieu_khoan_chat_luong && con.dieu_khoan_chat_luong.length > 0) || 
+                                con.noi_dung_nhap_ai?.buyerSignature || 
+                                con.noi_dung_nhap_ai?.sellerSignature;
+
           setContractDraft({
             ...con,
             san_pham: con.san_pham,
@@ -586,6 +658,10 @@ function CallPageContent() {
           
           if (con.san_pham) {
             setProductName(con.san_pham);
+          }
+
+          if (hasDraftAgreed) {
+            setIsModalOpen(true);
           }
 
           if (user) {
@@ -615,16 +691,21 @@ function CallPageContent() {
     }
   }, [channelName, user]);
 
+  // Tự động chuyển hướng đến trang đăng nhập nếu chưa đăng nhập
+  useEffect(() => {
+    if (!loading && !user) {
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
+      const redirectUrl = currentPath ? `/login?redirect=${encodeURIComponent(currentPath)}` : '/login';
+      router.push(redirectUrl);
+    }
+  }, [user, loading, router]);
+
   // Sync ref với state
   useEffect(() => {
     transcriptLinesRef.current = transcriptLines;
   }, [transcriptLines]);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
+  // Bỏ tự động redirect sang /login để cho phép chọn vai trò Khách ngay tại trang này
 
   // ==========================================
   // TỰ ĐỘNG LƯU HỢP ĐỒNG KHI CÓ THAY ĐỔI
@@ -642,7 +723,11 @@ function CallPageContent() {
           don_gia: contractDraft.don_gia,
           han_giao_hang: contractDraft.han_giao_hang,
           dieu_khoan_chat_luong: contractDraft.dieu_khoan_chat_luong,
-          noi_dung_nhap_ai: contractDraft.noi_dung_nhap_ai
+          noi_dung_nhap_ai: {
+            ...(contractDraft.noi_dung_nhap_ai || {}),
+            is_seller_online: user?.vai_tro === 'nong_dan' ? true : (contractDraft.noi_dung_nhap_ai?.is_seller_online || false),
+            is_buyer_online: user?.vai_tro === 'thuong_lai' ? true : (contractDraft.noi_dung_nhap_ai?.is_buyer_online || false)
+          }
         }).catch(e => console.warn('Lỗi auto-save hợp đồng:', e));
       });
     }, 1500);
@@ -751,6 +836,7 @@ function CallPageContent() {
     setTranscriptLines([]);
     setContractDraft(null);
     setExtractError('');
+    setSttError(null);
     setDisplayedSubtitle(null);
     setActiveStep(1);
 
@@ -814,13 +900,16 @@ function CallPageContent() {
   // ==========================================
   // 2. STT THẬT (Web Speech API tiếng Việt qua STT Client)
   // ==========================================
-  const startRealSTT = useCallback(() => {
+  const startRealSTT = useCallback((preserveHistory: boolean = false) => {
     if (isRealSTTActiveRef.current || isMockActiveRef.current) return;
     if (!sttClientRef.current) return;
 
-    setTranscriptLines([]);
-    setContractDraft(null);
+    if (!preserveHistory) {
+      setTranscriptLines([]);
+      setContractDraft(null);
+    }
     setExtractError('');
+    setSttError(null);
     setDisplayedSubtitle(null);
     setActiveStep(1);
 
@@ -833,12 +922,12 @@ function CallPageContent() {
         // Cập nhật phụ đề tức thời (realtime)
         setDisplayedSubtitle({ text, role: userId });
 
-        // Phát Broadcast Text cho đối tác
+        // Phát Broadcast Text cho đối tác (kèm địa chỉ ví để tránh lọc trùng sai vai trò)
         if (sttChannelRef.current) {
           sttChannelRef.current.send({
             type: 'broadcast',
             event: 'stt_text',
-            payload: { text, userId, isFinal }
+            payload: { text, userId, isFinal, senderWallet: user?.dia_chi_vi }
           });
         }
 
@@ -880,12 +969,23 @@ function CallPageContent() {
         }
       },
       userRole,
-      false // useMock = false
+      false, // useMock = false
+      (errorType, message) => {
+        console.warn(`[STT Error] Type: ${errorType}, Msg: ${message}`);
+        setSttError(message);
+        setIsRealSTTActive(false);
+      }
     );
 
     setIsRealSTTActive(true);
     setIsMockActive(false);
   }, [user]);
+
+  useEffect(() => {
+    startRealSTTRef.current = startRealSTT;
+  }, [startRealSTT]);
+
+
 
   const stopRealSTT = useCallback(() => {
     if (sttClientRef.current) {
@@ -894,6 +994,7 @@ function CallPageContent() {
     setIsRealSTTActive(false);
     setIsMockActive(false);
     setDisplayedSubtitle(null);
+    setSttError(null);
 
     const allLines = transcriptLinesRef.current;
     if (allLines.length > 0 && activeStep === 1) {
@@ -908,12 +1009,12 @@ function CallPageContent() {
     const userRole = user?.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai';
     const text = chatInput.trim();
     
-    // Broadcast text to partner
+    // Broadcast text to partner (kèm địa chỉ ví để tránh lọc trùng sai vai trò)
     if (sttChannelRef.current) {
       sttChannelRef.current.send({
         type: 'broadcast',
         event: 'stt_text',
-        payload: { text, userId: userRole, isFinal: true }
+        payload: { text, userId: userRole, isFinal: true, senderWallet: user?.dia_chi_vi }
       });
     }
 
@@ -1039,6 +1140,8 @@ function CallPageContent() {
              ...updatedTerms.noi_dung_nhap_ai,
              confidence: updatedTerms.confidence,
              evidence: updatedTerms.evidence,
+             is_seller_online: user?.vai_tro === 'nong_dan' ? true : (updatedTerms.noi_dung_nhap_ai?.is_seller_online || false),
+             is_buyer_online: user?.vai_tro === 'thuong_lai' ? true : (updatedTerms.noi_dung_nhap_ai?.is_buyer_online || false)
           }
         }).catch(e => console.warn('Lỗi lưu hợp đồng lên DB:', e));
       });
@@ -1057,11 +1160,17 @@ function CallPageContent() {
 
   const handleJoinedStateChange = useCallback((joined: boolean, isDemo: boolean) => {
     setInCall(joined);
+    setIsDemoCall(isDemo);
     if (joined) {
+      // Cập nhật trạng thái cuộc gọi bắt đầu lên DB (cho cả cuộc gọi thật và demo)
+      setCallActiveInDb(true);
       if (isDemo) {
         startMockSTT();
       } else {
-        startRealSTT();
+        // Trì hoãn 2 giây để Agora RTC chiếm mic và kết nối trước, tránh race condition phần cứng
+        setTimeout(() => {
+          startRealSTT();
+        }, 2000);
       }
     } else {
       if (sttClientRef.current) {
@@ -1070,8 +1179,11 @@ function CallPageContent() {
       setIsRealSTTActive(false);
       setIsMockActive(false);
       setDisplayedSubtitle(null);
+      setSttError(null);
+      // Cập nhật trạng thái cuộc gọi kết thúc lên DB
+      setCallActiveInDb(false);
     }
-  }, [startMockSTT, startRealSTT]);
+  }, [startMockSTT, startRealSTT, setCallActiveInDb]);
 
   const handleHangUp = useCallback(async () => {
     if (sttClientRef.current) {
@@ -1080,6 +1192,10 @@ function CallPageContent() {
     setIsRealSTTActive(false);
     setIsMockActive(false);
     setDisplayedSubtitle(null);
+    setSttError(null);
+
+    // Đặt trạng thái cuộc gọi kết thúc lên DB
+    await setCallActiveInDb(false);
 
     // Dọn dẹp hợp đồng rác nếu chưa có trao đổi gì
     const allLines = transcriptLinesRef.current;
@@ -1092,7 +1208,7 @@ function CallPageContent() {
       }
     }
     router.push('/dashboard');
-  }, [router, channelName]);
+  }, [router, channelName, setCallActiveInDb]);
 
   // ==========================================
   // LƯU HỢP ĐỒNG VÀ CHUYỂN TRANG
@@ -1133,7 +1249,7 @@ function CallPageContent() {
     router.push('/dashboard');
   };
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-neutral-900 text-white gap-2">
         <Loader2 size={18} className="animate-spin text-indigo-400" />
@@ -1142,6 +1258,15 @@ function CallPageContent() {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-neutral-950 text-white p-4 font-sans gap-3">
+        <Loader2 size={24} className="animate-spin text-emerald-500" />
+        <p className="text-sm font-semibold text-neutral-300">Đang chuẩn bị phòng đàm phán...</p>
+        <p className="text-xs text-neutral-500">Vui lòng đăng nhập tài khoản thành viên để tham gia cuộc họp.</p>
+      </div>
+    );
+  }
   const isNongDan = user.vai_tro === 'nong_dan';
   const currentUserName = user?.ten_hien_thi || 'Tôi';
   const nongDanName = isNongDan ? currentUserName : partnerParam;
@@ -1166,6 +1291,17 @@ function CallPageContent() {
           >
             <ArrowLeft size={14} />
             Quay lại
+          </button>
+          <button
+            onClick={handleShareLink}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+              copiedLink
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
+                : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border-white/5'
+            }`}
+          >
+            <Share2 size={14} />
+            {copiedLink ? 'Đã sao chép!' : 'Chia sẻ link'}
           </button>
            <div className="hidden md:flex items-center gap-1.5 pl-4 border-l border-white/10">
              <span className="text-xs text-neutral-400 font-medium">
@@ -1207,6 +1343,7 @@ function CallPageContent() {
             onToggleChat={() => setIsChatOpen(!isChatOpen)}
             onToggleMute={handleToggleMute}
             isChatOpen={isChatOpen}
+            onRemoteUsersChange={(users) => setPartnerCount(users.length)}
             extraToolbarButtons={
               inCall && activeStep === 1 ? (
                 contractDraft?.san_pham ? (
@@ -1349,11 +1486,96 @@ function CallPageContent() {
             </div>
           )}
 
+          {/* FLOATING SUGGESTIONS PANEL */}
+          {inCall && showSuggestions && (
+            <div className="absolute top-24 left-4 z-40 w-80 bg-neutral-900/95 backdrop-blur-md border border-amber-500/30 p-5 rounded-2xl shadow-2xl text-white pointer-events-auto animate-fadeIn flex flex-col gap-3.5 max-h-[70vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2 flex-shrink-0">
+                <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                  <Sparkles size={14} className="animate-pulse" />
+                  <span>Nội dung nên đàm thoại</span>
+                </div>
+                <button
+                  onClick={() => setShowSuggestions(false)}
+                  className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="text-[11px] text-neutral-300 leading-relaxed space-y-3 flex-grow">
+                <p>Nói to các câu sau để hệ thống AI nhận diện chính xác các điều khoản hợp đồng:</p>
+                
+                <div className="space-y-3">
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
+                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">1. Sản phẩm & Số lượng</span>
+                    <p className="font-bold text-neutral-100 italic">
+                      &ldquo;Tôi muốn đàm phán mua/bán {suggestionData.qty} {suggestionData.productName}&rdquo;
+                    </p>
+                  </div>
+
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
+                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">2. Đơn giá chốt</span>
+                    <p className="font-bold text-neutral-100 italic">
+                      &ldquo;Giá tôi chốt là {suggestionData.price}&rdquo;
+                    </p>
+                  </div>
+
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
+                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">3. Hạn giao hàng</span>
+                    <p className="font-bold text-neutral-100 italic">
+                      &ldquo;Hạn giao hàng sẽ là trong vòng 7 ngày tới&rdquo;
+                    </p>
+                  </div>
+
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
+                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">4. Cam kết chất lượng</span>
+                    <p className="text-neutral-150 font-medium italic">
+                      &ldquo;Cam kết chất lượng: {suggestionData.quality}&rdquo;
+                    </p>
+                  </div>
+
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
+                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">5. Điều khoản đền bù</span>
+                    <p className="text-neutral-150 font-medium italic">
+                      &ldquo;Đền bù: {suggestionData.penalty}&rdquo;
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-white/5 flex items-center gap-1.5 text-emerald-400 font-extrabold text-[10px] uppercase tracking-wider">
+                  <Check size={12} className="flex-shrink-0" />
+                  <span>Nói "Chốt hợp đồng" để AI lập hợp đồng</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* FLOATING CLOSED CAPTIONS (phụ đề) */}
-          {(isRealSTTActive || isMockActive) && (
-            <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 z-45 text-center pointer-events-none animate-fadeIn">
-              <div className={`bg-black/75 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 shadow-2xl text-white inline-block max-w-full transition-all ${!displayedSubtitle ? 'opacity-60 scale-95' : 'scale-100'}`}>
-                {displayedSubtitle ? (
+          {(isRealSTTActive || isMockActive || sttError) && (
+            <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 z-45 text-center pointer-events-none animate-fadeIn flex flex-col items-center">
+              <div className={`bg-black/75 backdrop-blur-md px-5 py-3 rounded-2xl border shadow-2xl text-white inline-block max-w-full transition-all ${
+                sttError 
+                  ? 'border-red-500/30 bg-red-950/20 scale-100' 
+                  : !displayedSubtitle 
+                    ? 'border-white/10 opacity-60 scale-95' 
+                    : 'border-white/10 scale-100'
+              }`}>
+                {sttError ? (
+                  <div className="flex flex-col items-center gap-1.5 justify-center py-1">
+                    <div className="flex items-center gap-2 text-red-400">
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                      <p className="text-xs font-bold uppercase tracking-wider">Lỗi Nhận Diện Giọng Nói</p>
+                    </div>
+                    <p className="text-xs text-neutral-300 font-semibold max-w-md leading-relaxed">
+                      {sttError}
+                    </p>
+                    <p className="text-[10px] text-indigo-400 font-bold mt-1">
+                      💡 Mẹo: Bạn có thể bật ô Chat ở thanh điều khiển bên dưới để nhập đàm thoại thủ công!
+                    </p>
+                  </div>
+                ) : displayedSubtitle ? (
                   <>
                     <span className={`text-[9px] uppercase tracking-wider font-extrabold block mb-1 ${
                       displayedSubtitle.role === 'nong_dan' ? 'text-emerald-400' : 'text-indigo-400'
@@ -1373,6 +1595,21 @@ function CallPageContent() {
                     <p className="text-xs font-semibold">STT đang nghe... Bạn hãy thử nói gì đó!</p>
                   </div>
                 )}
+              </div>
+
+              {/* Nút dấu sao gợi ý đàm thoại */}
+              <div className="mt-2.5 pointer-events-auto">
+                <button
+                  onClick={() => setShowSuggestions(!showSuggestions)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[10px] uppercase tracking-wider font-extrabold transition-all shadow-xl active:scale-95 cursor-pointer border ${
+                    showSuggestions 
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-400' 
+                      : 'bg-slate-900/90 text-amber-400 hover:text-amber-300 border-amber-500/20 hover:bg-slate-800'
+                  }`}
+                >
+                  <Sparkles size={12} className={showSuggestions ? '' : 'animate-pulse'} />
+                  Gợi ý nội dung đàm thoại
+                </button>
               </div>
             </div>
           )}
@@ -1507,25 +1744,25 @@ function CallPageContent() {
                 isSigningSeller={isSigningSeller}
                 currentRole={user?.vai_tro as 'nong_dan' | 'thuong_lai'}
                 partnerTyping={partnerTyping}
+                partnerCount={partnerCount}
+                isDemoCall={isDemoCall}
               />
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-800 pt-4 flex-shrink-0">
               <button
-                onClick={simulatePartnerSignature}
-                className="px-4 py-2.5 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/40 rounded-xl text-xs font-bold transition-colors mr-auto"
-                title="Sử dụng trong lúc Demo để không phải đổi ví"
-              >
-                Mô phỏng đối tác đã ký
-              </button>
-              <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors"
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors mr-auto"
               >
                 Đóng
               </button>
+
               <div className="flex-1 max-w-[280px]">
-                {!buyerSignature || !sellerSignature ? (
+                {partnerCount === 0 && !isDemoCall ? (
+                  <button disabled className="w-full px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
+                    Chờ đối tác vào phòng...
+                  </button>
+                ) : !buyerSignature || !sellerSignature ? (
                   <button disabled className="w-full px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
                     Chờ cả 2 bên Ký xác nhận
                   </button>

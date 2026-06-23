@@ -13,7 +13,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  login: (userData: AuthUser) => void;
+  login: (userData: AuthUser, redirectPath?: string | null) => void;
   logout: () => void;
   updateUser: (userData: AuthUser) => void;
 }
@@ -39,10 +39,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const login = (userData: AuthUser) => {
+  const login = (userData: AuthUser, redirectPath?: string | null) => {
     setUser(userData);
     localStorage.setItem('agritrust_session', JSON.stringify(userData));
-    router.push('/');
+
+    // Đồng bộ thông tin tài khoản (bao gồm cả tài khoản Khách) vào Database
+    import('../lib/supabase/client').then(async ({ supabase }) => {
+      const { error } = await supabase.from('nguoi_dung').insert({
+        dia_chi_vi: userData.dia_chi_vi,
+        vai_tro: userData.vai_tro,
+        ten_dang_nhap: userData.ten_dang_nhap,
+        mat_khau: '123456',
+        ten_hien_thi: userData.ten_hien_thi
+      });
+      if (error && error.code !== '23505') {
+        console.error('Lỗi khi đồng bộ tài khoản vào DB:', error.message);
+      }
+    });
+
+    if (redirectPath !== null) {
+      router.push(redirectPath || '/');
+    }
   };
 
   const logout = () => {

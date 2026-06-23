@@ -7,9 +7,11 @@ export class AgoraSTTClient {
   private channelName: string;
   private isListening: boolean = false;
   private onTranscriptCallback?: (text: string, userId: string, isFinal: boolean) => void;
+  private onErrorCallback?: (errorType: string, message: string) => void;
   private recognition: any = null;
   private currentUserId: string = 'nong_dan';
   private usingMock: boolean = false;
+  private mockFallbackAllowed: boolean = false;
   private sentenceBuffer: string = '';
   private flushTimer: NodeJS.Timeout | null = null;
 
@@ -23,16 +25,38 @@ export class AgoraSTTClient {
    * @param onTranscript Callback nhận text + userId khi có transcript mới
    * @param userId Vai trò của người nói hiện tại ('nong_dan' | 'thuong_lai')
    * @param useMock Bắt buộc dùng mock (để giả lập khi demo)
+   * @param onError Callback nhận thông báo lỗi nếu STT thất bại
    */
   public async startSTT(
     onTranscript: (text: string, userId: string, isFinal: boolean) => void,
     userId: string = 'nong_dan',
-    useMock: boolean = false
+    useMock: boolean = false,
+    onError?: (errorType: string, message: string) => void
   ) {
     if (this.isListening) return;
     this.onTranscriptCallback = onTranscript;
+    this.onErrorCallback = onError;
     this.currentUserId = userId;
     this.isListening = true;
+    this.mockFallbackAllowed = useMock;
+
+    // Kiểm tra kết nối không bảo mật (HTTP) - Chrome chặn hoàn toàn SpeechRecognition nếu không phải HTTPS hoặc localhost
+    if (
+      typeof window !== 'undefined' &&
+      window.location.protocol !== 'https:' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    ) {
+      console.warn('[STT] Kết nối không bảo mật (HTTP). SpeechRecognition yêu cầu HTTPS/localhost.');
+      if (!useMock) {
+        this.isListening = false;
+        onError?.(
+          'insecure-origin',
+          'Ứng dụng đang chạy trên kết nối không bảo mật (HTTP). Nhận diện giọng nói (STT) yêu cầu chạy HTTPS hoặc localhost để hoạt động.'
+        );
+        return;
+      }
+    }
 
     if (useMock) {
       console.log(`[STT] Chạy chế độ giả lập hội thoại trong channel: ${this.channelName}`);
@@ -41,10 +65,10 @@ export class AgoraSTTClient {
       return;
     }
 
-    // Pre-warm: Gọi getUserMedia để trình duyệt populate device list mic
-    // Không làm bước này có thể khiến SpeechRecognition báo "audio-capture" error
+    // Pre-warm: Chỉ gọi getUserMedia để trình duyệt populate list mic nếu là demo giả lập.
+    // Đối với phòng thật, ta nhường hoàn toàn quyền mở mic cho Agora RTC trước để tránh tranh chấp phần cứng.
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (useMock && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const warmStream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
         warmStream?.getTracks().forEach(t => t.stop());
         console.log('[STT] Pre-warm mic thành công.');
@@ -64,15 +88,28 @@ export class AgoraSTTClient {
       this.usingMock = false;
       try {
         this.startRealSTT(SpeechRecognition);
-      } catch (e) {
-        console.warn('[STT] Không thể khởi tạo Web Speech API, chuyển sang mock:', e);
-        this.usingMock = true;
-        this.mockSTT();
+      } catch (e: any) {
+        console.warn('[STT] Không thể khởi tạo Web Speech API:', e);
+        onError?.('init-failed', e.message || 'Không thể khởi tạo bộ nhận diện giọng nói SpeechRecognition.');
+        if (useMock) {
+          this.usingMock = true;
+          this.mockSTT();
+        } else {
+          this.stopSTT();
+        }
       }
     } else {
-      console.warn('[STT] Trình duyệt không hỗ trợ Web Speech API. Chuyển sang mock.');
-      this.usingMock = true;
-      this.mockSTT();
+      console.warn('[STT] Trình duyệt không hỗ trợ Web Speech API.');
+      onError?.(
+        'not-supported',
+        'Trình duyệt này không hỗ trợ bộ nhận diện giọng nói của Web (Web Speech API). Khuyên dùng Google Chrome hoặc Microsoft Edge.'
+      );
+      if (useMock) {
+        this.usingMock = true;
+        this.mockSTT();
+      } else {
+        this.stopSTT();
+      }
     }
   }
 
@@ -140,13 +177,30 @@ export class AgoraSTTClient {
         // Chỉ là warning nhẹ, không làm phiền user
         return;
       }
-      console.warn('[STT] Cảnh báo nhận diện:', event.error); // Dùng warn thay vì error để tránh popup Next.js
+      console.warn('[STT] Cảnh báo nhận diện:', event.error);
       
-      if (event.error === 'not-allowed' || event.error === 'service-not-available' || event.error === 'audio-capture') {
-        console.warn('[STT] Tắt STT do lỗi quyền truy cập mic hoặc dịch vụ không khả dụng. Chuyển sang MOCK.');
+      let userFriendlyMessage = `Lỗi nhận diện: ${event.error}`;
+      if (event.error === 'not-allowed') {
+        userFriendlyMessage = 'Trình duyệt chặn truy cập Mic hoặc kết nối không bảo mật. Hãy chạy trên HTTPS / localhost và cấp quyền truy cập micro.';
+      } else if (event.error === 'audio-capture') {
+        userFriendlyMessage = 'Không tìm thấy thiết bị Microphone phần cứng hoặc micro đang bị chiếm bởi một ứng dụng khác.';
+      } else if (event.error === 'service-not-available') {
+        userFriendlyMessage = 'Dịch vụ nhận diện Speech của máy chủ trình duyệt không khả dụng. Vui lòng kiểm tra lại kết nối mạng.';
+      } else if (event.error === 'network') {
+        userFriendlyMessage = 'Lỗi kết nối mạng khi truyền tải luồng âm thanh nhận dạng.';
+      } else if (event.error === 'language-not-supported') {
+        userFriendlyMessage = 'Trình duyệt này chưa cài đặt gói ngôn ngữ Tiếng Việt (vi-VN) để nhận dạng.';
+      }
+
+      this.onErrorCallback?.(event.error, userFriendlyMessage);
+      
+      if (this.mockFallbackAllowed) {
+        console.warn('[STT] Tắt STT do lỗi và chuyển sang MOCK.');
         this.stopSTT();
         this.usingMock = true;
         this.mockSTT();
+      } else {
+        this.stopSTT();
       }
     };
 
@@ -154,11 +208,16 @@ export class AgoraSTTClient {
     try {
       recognition.start();
       console.log('[STT] Đã bắt đầu nhận diện giọng nói tiếng Việt.');
-    } catch (e) {
-      console.warn('[STT] Không thể bắt đầu recognition, chuyển sang mock:', e);
-      this.stopSTT();
-      this.usingMock = true;
-      this.mockSTT();
+    } catch (e: any) {
+      console.warn('[STT] Không thể bắt đầu recognition:', e);
+      this.onErrorCallback?.('start-failed', e.message || 'Không thể bắt đầu phiên nhận dạng giọng nói.');
+      if (this.mockFallbackAllowed) {
+        this.stopSTT();
+        this.usingMock = true;
+        this.mockSTT();
+      } else {
+        this.stopSTT();
+      }
     }
   }
 
@@ -198,17 +257,19 @@ export class AgoraSTTClient {
     return this.isListening;
   }
 
-  // Dừng dịch hội thoại
+  // Dừng dịch hội thoại và dọn dẹp các sự kiện
   public stopSTT() {
     this.isListening = false;
     this.flushSentenceBuffer();
 
-    // Dừng Web Speech API nếu đang chạy
+    // Dừng Web Speech API nếu đang chạy và gỡ bỏ hoàn toàn sự kiện
     if (this.recognition) {
       try {
+        this.recognition.onend = null;
+        this.recognition.onerror = null;
         this.recognition.stop();
       } catch (e) {
-        // Bỏ qua
+        // Bỏ qua lỗi khi cố gắng dừng
       }
       this.recognition = null;
     }

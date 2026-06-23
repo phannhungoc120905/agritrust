@@ -3,7 +3,7 @@
 import React from 'react';
 import { QualityRule } from '../../types/contract';
 import { convertVndToUsdc } from '../../lib/solana/convertVndUsdc';
-import { FileSignature, Stamp, CheckCircle2, Link2 } from 'lucide-react';
+import { FileSignature, Stamp, CheckCircle2, Link2, Plus, Trash2 } from 'lucide-react';
 
 interface DraftTerms {
   san_pham: string;
@@ -35,6 +35,8 @@ interface DraftContractTableProps {
   isSigningSeller?: boolean;
   currentRole?: 'nong_dan' | 'thuong_lai';
   partnerTyping?: boolean;
+  partnerCount?: number;
+  isDemoCall?: boolean;
 }
 
 export default function DraftContractTable({ 
@@ -50,7 +52,9 @@ export default function DraftContractTable({
   isSigningBuyer,
   isSigningSeller,
   currentRole,
-  partnerTyping
+  partnerTyping,
+  partnerCount = 0,
+  isDemoCall = false
 }: DraftContractTableProps) {
   const [typedBuyerName, setTypedBuyerName] = React.useState('');
   const [typedSellerName, setTypedSellerName] = React.useState('');
@@ -61,6 +65,21 @@ export default function DraftContractTable({
   const handleQualityRuleChange = (index: number, field: keyof QualityRule, value: any) => {
     const newRules = [...(terms.dieu_khoan_chat_luong || [])];
     newRules[index] = { ...newRules[index], [field]: value };
+    onChange({ ...terms, dieu_khoan_chat_luong: newRules });
+  };
+
+  const handleAddQualityRule = () => {
+    const newRules = [...(terms.dieu_khoan_chat_luong || [])];
+    newRules.push({
+      tieu_chi: '',
+      nguong_phan_tram: 0,
+      muc_phat: ''
+    });
+    onChange({ ...terms, dieu_khoan_chat_luong: newRules });
+  };
+
+  const handleRemoveQualityRule = (index: number) => {
+    const newRules = (terms.dieu_khoan_chat_luong || []).filter((_, idx) => idx !== index);
     onChange({ ...terms, dieu_khoan_chat_luong: newRules });
   };
 
@@ -244,8 +263,9 @@ export default function DraftContractTable({
               <thead className="bg-slate-100 border-b border-slate-400">
                 <tr>
                   <th className="py-3 px-5 font-semibold w-1/2 border-r border-slate-300">Tiêu chí kiểm định</th>
-                  <th className="py-3 px-5 font-semibold w-1/4 border-r border-slate-300 text-center">Ngưỡng tối đa</th>
-                  <th className="py-3 px-5 font-semibold text-center">Hình thức xử lý / Mức phạt</th>
+                  <th className="py-3 px-5 font-semibold w-1/5 border-r border-slate-300 text-center">Ngưỡng tối đa</th>
+                  <th className="py-3 px-5 font-semibold border-r border-slate-300 text-center">Hình thức xử lý / Mức phạt</th>
+                  {!isLocked && <th className="py-3 px-3 font-semibold text-center w-12"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
@@ -257,7 +277,7 @@ export default function DraftContractTable({
                         value={rule.tieu_chi ?? ''}
                         onChange={(e) => handleQualityRuleChange(idx, 'tieu_chi', e.target.value)}
                         disabled={isLocked}
-                        className={`w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
+                        className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-850 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                       />
                     </td>
                     <td className="py-3 px-5 border-r border-slate-300 text-center">
@@ -267,28 +287,53 @@ export default function DraftContractTable({
                           value={rule.nguong_phan_tram ?? ''}
                           onChange={(e) => handleQualityRuleChange(idx, 'nguong_phan_tram', parseFloat(e.target.value) || 0)}
                           disabled={isLocked}
-                          className={`w-16 bg-transparent border-b border-transparent hover:border-dashed hover:border-slate-400 focus:border-slate-900 outline-none font-medium text-slate-900 text-center ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
+                          className={`w-16 bg-transparent border-b border-dashed border-slate-400 hover:border-slate-850 focus:border-slate-900 outline-none font-medium text-slate-900 text-center ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                         />
                         <span className="font-medium">%</span>
                       </div>
                     </td>
-                    <td className="py-3 px-5 text-center">
+                    <td className="py-3 px-5 border-r border-slate-300 text-center">
                       <div className="flex justify-center items-center gap-1 text-red-700 font-bold w-full">
                         <textarea
                           value={rule.muc_phat || ''}
                           onChange={(e) => handleQualityRuleChange(idx, 'muc_phat', e.target.value)}
                           disabled={isLocked}
-                          className={`w-full bg-transparent border-b border-transparent hover:border-dashed hover:border-red-400 focus:border-red-600 outline-none text-center resize-none overflow-hidden py-1 leading-tight ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
+                          className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-red-600 focus:border-red-600 outline-none text-center resize-none overflow-hidden py-1 leading-tight ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                           placeholder="Ví dụ: Từ chối nhận hàng"
                           rows={Math.max(1, Math.ceil((rule.muc_phat?.length || 0) / 22))}
                         />
                       </div>
                     </td>
+                    {!isLocked && (
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveQualityRule(idx)}
+                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                          title="Xóa tiêu chí"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {!isLocked && (
+            <div className="mt-4 flex justify-start">
+              <button
+                type="button"
+                onClick={handleAddQualityRule}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-dashed border-slate-400 rounded transition-all shadow-sm bg-white"
+              >
+                <Plus size={14} className="text-slate-500" />
+                Thêm tiêu chí kiểm định (Điều 2)
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ĐIỀU 3: CHỮ KÝ VÀ BẢO CHỨNG SỐ */}
@@ -326,20 +371,28 @@ export default function DraftContractTable({
                   
                   {currentRole === 'nong_dan' && onSignSeller && !isLocked && (
                     <div className="w-full max-w-[220px] flex flex-col gap-2">
-                      <input 
-                        type="text" 
-                        placeholder="Nhập họ tên của bạn..." 
-                        value={typedSellerName}
-                        onChange={(e) => setTypedSellerName(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:border-emerald-500 outline-none text-center bg-white shadow-inner"
-                      />
-                      <button 
-                        disabled={!typedSellerName.trim() || isSigningSeller}
-                        onClick={() => onSignSeller(typedSellerName)}
-                        className="w-full bg-[#ab9ff2] hover:bg-[#9789eb] text-white py-2 rounded-lg text-sm font-bold shadow disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                      >
-                        {isSigningSeller ? <span className="animate-pulse">Đang ký...</span> : 'Ký bằng Phantom'}
-                      </button>
+                      {partnerCount === 0 && !isDemoCall ? (
+                        <p className="text-xs text-red-500 font-semibold italic text-center leading-normal">
+                          ⚠️ Chờ đối tác tham gia cuộc họp để ký hợp đồng
+                        </p>
+                      ) : (
+                        <>
+                          <input 
+                            type="text" 
+                            placeholder="Nhập họ tên của bạn..." 
+                            value={typedSellerName}
+                            onChange={(e) => setTypedSellerName(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:border-emerald-500 outline-none text-center bg-white shadow-inner"
+                          />
+                          <button 
+                            disabled={!typedSellerName.trim() || isSigningSeller}
+                            onClick={() => onSignSeller(typedSellerName)}
+                            className="w-full bg-[#ab9ff2] hover:bg-[#9789eb] text-white py-2 rounded-lg text-sm font-bold shadow disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                          >
+                            {isSigningSeller ? <span className="animate-pulse">Đang ký...</span> : 'Ký bằng Phantom'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                   {currentRole !== 'nong_dan' && (
@@ -376,20 +429,28 @@ export default function DraftContractTable({
                   
                   {currentRole === 'thuong_lai' && onSignBuyer && !isLocked && (
                     <div className="w-full max-w-[220px] flex flex-col gap-2">
-                      <input 
-                        type="text" 
-                        placeholder="Nhập họ tên của bạn..." 
-                        value={typedBuyerName}
-                        onChange={(e) => setTypedBuyerName(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:border-indigo-500 outline-none text-center bg-white shadow-inner"
-                      />
-                      <button 
-                        disabled={!typedBuyerName.trim() || isSigningBuyer}
-                        onClick={() => onSignBuyer(typedBuyerName)}
-                        className="w-full bg-[#ab9ff2] hover:bg-[#9789eb] text-white py-2 rounded-lg text-sm font-bold shadow disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                      >
-                        {isSigningBuyer ? <span className="animate-pulse">Đang ký...</span> : 'Ký bằng Phantom'}
-                      </button>
+                      {partnerCount === 0 && !isDemoCall ? (
+                        <p className="text-xs text-red-500 font-semibold italic text-center leading-normal">
+                          ⚠️ Chờ đối tác tham gia cuộc họp để ký hợp đồng
+                        </p>
+                      ) : (
+                        <>
+                          <input 
+                            type="text" 
+                            placeholder="Nhập họ tên của bạn..." 
+                            value={typedBuyerName}
+                            onChange={(e) => setTypedBuyerName(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:border-indigo-500 outline-none text-center bg-white shadow-inner"
+                          />
+                          <button 
+                            disabled={!typedBuyerName.trim() || isSigningBuyer}
+                            onClick={() => onSignBuyer(typedBuyerName)}
+                            className="w-full bg-[#ab9ff2] hover:bg-[#9789eb] text-white py-2 rounded-lg text-sm font-bold shadow disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                          >
+                            {isSigningBuyer ? <span className="animate-pulse">Đang ký...</span> : 'Ký bằng Phantom'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                   {currentRole !== 'thuong_lai' && (
