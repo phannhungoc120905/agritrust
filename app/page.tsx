@@ -252,13 +252,6 @@ function HomePageContent() {
     }
   }, [activeNegotiationId, negotiations]);
 
-  // Tự động chuyển sang tab Đàm phán khi đã có đối tác đồng ý kết nối
-  useEffect(() => {
-    if (contactRequests.some(r => r.trang_thai === 'da_dong_y') && activeTab === 'market') {
-      setActiveTab('negotiation');
-    }
-  }, [contactRequests, activeTab]);
-
   if (loading || !user) {
     return (
       <div className="flex-grow flex items-center justify-center bg-white text-neutral-400 min-h-screen gap-2">
@@ -595,11 +588,9 @@ function HomePageContent() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 flex border-b border-slate-100">
-          {!contactRequests.some(r => r.trang_thai === 'da_dong_y') && (
-            <button onClick={() => { setActiveTab('market'); setActiveNegotiationId(null); setActiveDeliveryId(null); }} className={`px-5 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'market' ? 'border-[#15803D] text-[#15803D]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-              <ShoppingBag size={16} /> Kết nối Đối tác
-            </button>
-          )}
+          <button onClick={() => { setActiveTab('market'); setActiveNegotiationId(null); setActiveDeliveryId(null); }} className={`px-5 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'market' ? 'border-[#15803D] text-[#15803D]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+            <ShoppingBag size={16} /> Kết nối Đối tác
+          </button>
           <button onClick={() => { setActiveTab('negotiation'); setActiveNegotiationId(null); setActiveDeliveryId(null); }} className={`px-5 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'negotiation' ? 'border-[#15803D] text-[#15803D]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <MessageSquare size={16} /> Đàm phán & Hợp đồng
           </button>
