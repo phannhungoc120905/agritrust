@@ -78,7 +78,7 @@ export default function DashboardPage() {
       setLoadingContracts(true);
       const { data, error } = await supabase
         .from('hop_dong')
-        .select('*')
+        .select('*, nguoi_ban:nguoi_dung!hop_dong_vi_nguoi_ban_fkey(ten_hien_thi), nguoi_mua:nguoi_dung!hop_dong_vi_nguoi_mua_fkey(ten_hien_thi)')
         .order('ngay_tao', { ascending: false });
 
       if (error) throw error;
@@ -86,15 +86,29 @@ export default function DashboardPage() {
       if (!data || data.length === 0) {
         setContracts([]);
       } else {
-        const formattedDb = data.map((d: any) => ({
-          id: d.id.slice(0, 8),
-          dbId: d.id,
-          san_pham: d.san_pham,
-          so_luong: `${d.so_luong} ${d.don_vi_tinh}`,
-          gia: `${(d.don_gia * d.so_luong).toLocaleString('vi-VN')} VNĐ`,
-          trang_thai: d.trang_thai,
-          doi_tac: user?.vai_tro === 'nong_dan' ? 'Thương lái Trần Thị Thương' : 'Nông dân Nguyễn Văn Ruộng',
-        }));
+        const formattedDb = data.map((d: any) => {
+          const isSeller = d.vi_nguoi_ban === user?.dia_chi_vi;
+          const partnerInfo = isSeller ? d.nguoi_mua : d.nguoi_ban;
+          const partnerName = partnerInfo?.ten_hien_thi || (isSeller ? 'Thương lái' : 'Nông dân');
+
+          const richStatus = d.trang_thai === 'du_thao'
+            ? (d.noi_dung_nhap_ai?.is_seller_online === true && d.noi_dung_nhap_ai?.is_buyer_online === true
+                ? 'dang_dam_phan'
+                : (d.noi_dung_nhap_ai?.is_seller_online === true || d.noi_dung_nhap_ai?.is_buyer_online === true
+                    ? 'dang_lien_he'
+                    : (d.don_gia > 0 || (d.dieu_khoan_chat_luong && d.dieu_khoan_chat_luong.length > 0) || d.noi_dung_nhap_ai?.buyerSignature || d.noi_dung_nhap_ai?.sellerSignature ? 'da_chot_nhap_tam_dung' : 'dam_phan_tam_dung')))
+            : d.trang_thai;
+
+          return {
+            id: d.id.slice(0, 8),
+            dbId: d.id,
+            san_pham: d.san_pham,
+            so_luong: `${d.so_luong} ${d.don_vi_tinh}`,
+            gia: `${(d.don_gia * d.so_luong).toLocaleString('vi-VN')} VNĐ`,
+            trang_thai: richStatus,
+            doi_tac: partnerName,
+          };
+        });
         setContracts(formattedDb);
       }
     } catch (err) {
@@ -143,6 +157,10 @@ export default function DashboardPage() {
 
   const statusMap: Record<string, { label: string; class: string; icon: React.ReactNode }> = {
     du_thao: { label: 'Dự thảo', class: 'badge-status-expired', icon: <FileText size={12} /> },
+    dang_dam_phan: { label: 'Đang Đàm phán', class: 'bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full animate-pulse flex items-center font-bold', icon: <Video size={12} /> },
+    dang_lien_he: { label: 'Đang Liên hệ', class: 'bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full animate-pulse flex items-center font-bold', icon: <Video size={12} /> },
+    da_chot_nhap_tam_dung: { label: 'Đã chốt nháp (Tạm dừng)', class: 'bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full flex items-center font-bold', icon: <FileText size={12} /> },
+    dam_phan_tam_dung: { label: 'Đàm phán tạm dừng', class: 'bg-slate-100 text-slate-700 border border-slate-300 px-2 py-0.5 rounded-full flex items-center font-bold', icon: <FileText size={12} /> },
     da_khoa_tien: { label: 'Đã ký quỹ', class: 'badge-status-pending', icon: <Clock size={12} /> },
     da_xac_nhan: { label: 'Đã giải ngân', class: 'badge-status-success', icon: <CheckCircle2 size={12} /> },
     da_giai_quyet: { label: 'Đã phân xử', class: 'badge-status-success', icon: <CheckCircle2 size={12} /> },
@@ -287,9 +305,21 @@ export default function DashboardPage() {
                 ) : (
                   contracts.map((c) => {
                     const status = statusMap[c.trang_thai] || statusMap.du_thao;
-                    const detailUrl = c.dbId
-                      ? `/contract/${c.dbId}?scenario=${localStorage.getItem('agritrust_demo_scenario') || 'A'}`
-                      : `/contract/dummy?scenario=${localStorage.getItem('agritrust_demo_scenario') || 'A'}`;
+                    const isDraft = c.trang_thai === 'dang_dam_phan' || 
+                                    c.trang_thai === 'dang_lien_he' || 
+                                    c.trang_thai === 'da_chot_nhap_tam_dung' || 
+                                    c.trang_thai === 'dam_phan_tam_dung' || 
+                                    c.trang_thai === 'du_thao';
+                    const detailUrl = isDraft
+                      ? `/call?p=${encodeMeetingParams({
+                          channel: c.dbId,
+                          scenario: 'A',
+                          product: c.san_pham,
+                          partner: c.doi_tac
+                        })}`
+                      : (c.dbId
+                          ? `/contract/${c.dbId}?scenario=${localStorage.getItem('agritrust_demo_scenario') || 'A'}`
+                          : `/contract/dummy?scenario=${localStorage.getItem('agritrust_demo_scenario') || 'A'}`);
                     return (
                       <Link
                         key={c.id}
