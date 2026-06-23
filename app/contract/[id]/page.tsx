@@ -15,6 +15,7 @@ import ApproveReportButtons from '../../../components/dispute/ApproveReportButto
 import SettlementProposal from '../../../components/dispute/SettlementProposal';
 import AgreeButtons from '../../../components/dispute/AgreeButtons';
 import TimeoutClaimButton from '../../../components/dispute/TimeoutClaimButton';
+import DraftContractTable from '../../../components/negotiation/DraftContractTable';
 import { 
   ArrowLeft, 
   FileText, 
@@ -45,6 +46,7 @@ function ContractPageContent() {
   const [txSignature, setTxSignature] = useState(initialTx);
   const [successMsg, setSuccessMsg] = useState('');
   const [transcripts, setTranscripts] = useState<any[]>([]);
+  const [viewMode, setViewMode] = useState<'paper' | 'overview'>('paper');
   
   // Trạng thái hiển thị form khiếu nại (Nghiệm thu đạt chuẩn hay Phát hiện sự cố)
   const [inspectionDecision, setInspectionDecision] = useState<'undecided' | 'ok' | 'issue'>('undecided');
@@ -225,7 +227,7 @@ function ContractPageContent() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white border-b border-neutral-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="btn-secondary gap-2 text-xs border-neutral-200 text-neutral-600">
+          <Link href="/" className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 transition-colors">
             <ArrowLeft size={14} /> Trở lại Trang chủ
           </Link>
           <span className="text-xs font-bold text-neutral-500">
@@ -238,113 +240,165 @@ function ContractPageContent() {
       <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* CỘT TRÁI: THÔNG TIN HỒ SƠ HỢP ĐỒNG GỐC */}
-        <div className="lg:col-span-6 space-y-6">
-          <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="lg:col-span-8 space-y-6">
+          <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm space-y-6 print:p-0 print:border-none print:shadow-none">
             
-            <div className="flex justify-between items-start border-b border-neutral-100 pb-3">
+            <div className="flex justify-between items-start border-b border-neutral-100 pb-3 print:hidden">
               <div>
                 <h3 className="font-extrabold text-neutral-900 text-[15px] flex items-center gap-2">
                   <FileText size={17} className="text-[#15803D]" /> Hồ sơ Hợp đồng Ký quỹ
                 </h3>
-                <p className="text-[11px] text-neutral-450 mt-0.5">Thông số pháp lý đã khóa an toàn trên Blockchain</p>
+                <p className="text-[11px] text-neutral-450 mt-0.5">Văn bản mô phỏng hợp đồng có chữ ký số Blockchain</p>
               </div>
-              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                contract.trang_thai === 'da_khoa_tien' ? 'bg-blue-50 text-blue-600 border border-blue-100 animate-pulse' :
-                contract.trang_thai === 'da_xac_nhan' || contract.trang_thai === 'da_giai_quyet' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                'bg-amber-50 text-amber-600 border border-amber-100'
-              }`}>
-                {contract.trang_thai === 'da_khoa_tien' ? 'Đã ký quỹ (Locked)' :
-                 contract.trang_thai === 'da_xac_nhan' ? 'Đã giải ngân 100%' :
-                 contract.trang_thai === 'da_giai_quyet' ? 'Đã phân xử' : contract.trang_thai}
-              </span>
+              <div className="flex items-center gap-3">
+                <div className="flex bg-neutral-100 rounded-lg p-1 border border-neutral-200">
+                  <button 
+                    onClick={() => setViewMode('paper')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'paper' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+                  >
+                    Chế độ Văn bản
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('overview')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'overview' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+                  >
+                    Chế độ Tổng quan
+                  </button>
+                </div>
+                {viewMode === 'paper' && (
+                  <button 
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-100 text-neutral-700 border border-neutral-200 hover:bg-neutral-200 transition-colors"
+                  >
+                    In / Lưu PDF
+                  </button>
+                )}
+                <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  contract.trang_thai === 'da_khoa_tien' ? 'bg-blue-50 text-blue-600 border border-blue-100 animate-pulse' :
+                  contract.trang_thai === 'da_xac_nhan' || contract.trang_thai === 'da_giai_quyet' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                  'bg-amber-50 text-amber-600 border border-amber-100'
+                }`}>
+                  {contract.trang_thai === 'da_khoa_tien' ? 'Đã ký quỹ (Locked)' :
+                   contract.trang_thai === 'da_xac_nhan' ? 'Đã giải ngân 100%' :
+                   contract.trang_thai === 'da_giai_quyet' ? 'Đã phân xử' : contract.trang_thai}
+                </span>
+              </div>
             </div>
 
-            {/* Core Values */}
-            <div className="grid grid-cols-3 gap-2.5 bg-neutral-50 p-4 rounded-xl border border-neutral-150 text-center">
-              <div>
-                <span className="text-[10px] text-neutral-400 font-bold block mb-1">NÔNG SẢN</span>
-                <span className="text-xs font-extrabold text-neutral-800">{contract.san_pham}</span>
+            {/* Render conditional UI based on viewMode */}
+            {viewMode === 'paper' ? (
+              <div className="print:m-0 print:max-h-none print:overflow-visible max-h-[75vh] overflow-y-auto">
+                <DraftContractTable 
+                  terms={contract}
+                  onChange={() => {}} // Disabled
+                  isLocked={true}
+                  buyerName={contract.buyer_name}
+                  sellerName={contract.seller_name}
+                  buyerSignature={contract.noi_dung_nhap_ai?.buyerSignature || {
+                    name: contract.buyer_name,
+                    wallet: contract.vi_nguoi_mua,
+                    timestamp: contract.ngay_tao,
+                    txHash: ''
+                  }}
+                  sellerSignature={contract.noi_dung_nhap_ai?.sellerSignature || {
+                    name: contract.seller_name,
+                    wallet: contract.vi_nguoi_ban,
+                    timestamp: contract.ngay_tao,
+                    txHash: ''
+                  }}
+                  currentRole={isNongDan ? 'nong_dan' : 'thuong_lai'}
+                />
               </div>
-              <div className="border-x border-neutral-200">
-                <span className="text-[10px] text-neutral-400 font-bold block mb-1">SỐ LƯỢNG GỐC</span>
-                <span className="text-xs font-extrabold text-neutral-800">{contract.so_luong} {contract.don_vi_tinh}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-neutral-400 font-bold block mb-1">ĐƠN GIÁ CHỐT</span>
-                <span className="text-xs font-extrabold text-neutral-800">{(contract.don_gia).toLocaleString('vi-VN')} đ</span>
-              </div>
-            </div>
-
-            {/* Blockchain Details */}
-            <div className="space-y-3.5 text-xs">
-              <div className="flex justify-between border-b border-neutral-100 pb-2">
-                <span className="text-neutral-450">Địa chỉ Escrow (PDA):</span>
-                <span className="font-mono text-neutral-800 text-[11px] font-semibold">{contract.dia_chi_vi_escrow || 'MOCK_ESCROW_PDA_VAULT'}</span>
-              </div>
-              <div className="flex justify-between border-b border-neutral-100 pb-2">
-                <span className="text-neutral-450">Tổng số tiền ký quỹ:</span>
-                <span className="font-bold text-[#15803D]">{(contract.don_gia * contract.so_luong).toLocaleString('vi-VN')} VNĐ</span>
-              </div>
-              <div className="flex justify-between border-b border-neutral-100 pb-2">
-                <span className="text-neutral-450">Tương đương token:</span>
-                <span className="font-bold text-[#15803D] font-mono">{contract.tong_tien_usdc_khoa || Math.round((contract.don_gia * contract.so_luong) / 25000)} USDC</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-450">Hạn giao nhận cam kết:</span>
-                <span className="font-bold text-neutral-800">{new Date(contract.han_giao_hang).toLocaleString('vi-VN')}</span>
-              </div>
-              
-              <div className="border-t border-neutral-100 pt-3.5 mt-3.5 space-y-2.5">
-                <p className="font-bold text-neutral-800 text-[11px] uppercase tracking-wider">Chữ ký số các bên</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-150 text-[11px] space-y-1">
-                    <span className="text-neutral-400 font-semibold block">Đại diện Bên A (Bên bán):</span>
-                    <span className="font-bold text-neutral-800 block text-xs">
-                      {contract.noi_dung_nhap_ai?.sellerSignature?.name || contract.seller_name || 'Chưa cập nhật tên'}
-                    </span>
-                    <span className="font-mono text-[9px] text-neutral-500 break-all block">
-                      {contract.noi_dung_nhap_ai?.sellerSignature?.wallet 
-                        ? `${contract.noi_dung_nhap_ai.sellerSignature.wallet.slice(0, 6)}...${contract.noi_dung_nhap_ai.sellerSignature.wallet.slice(-4)}` 
-                        : (contract.vi_nguoi_ban ? `${contract.vi_nguoi_ban.slice(0, 6)}...${contract.vi_nguoi_ban.slice(-4)}` : 'Chưa có ví')}
-                    </span>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-3 gap-2.5 bg-neutral-50 p-4 rounded-xl border border-neutral-150 text-center">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 font-bold block mb-1">NÔNG SẢN</span>
+                    <span className="text-xs font-extrabold text-neutral-800">{contract.san_pham}</span>
                   </div>
-                  <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-150 text-[11px] space-y-1">
-                    <span className="text-neutral-400 font-semibold block">Đại diện Bên B (Bên mua):</span>
-                    <span className="font-bold text-neutral-800 block text-xs">
-                      {contract.noi_dung_nhap_ai?.buyerSignature?.name || contract.buyer_name || 'Chưa cập nhật tên'}
-                    </span>
-                    <span className="font-mono text-[9px] text-neutral-500 break-all block">
-                      {contract.noi_dung_nhap_ai?.buyerSignature?.wallet 
-                        ? `${contract.noi_dung_nhap_ai.buyerSignature.wallet.slice(0, 6)}...${contract.noi_dung_nhap_ai.buyerSignature.wallet.slice(-4)}` 
-                        : (contract.vi_nguoi_mua ? `${contract.vi_nguoi_mua.slice(0, 6)}...${contract.vi_nguoi_mua.slice(-4)}` : 'Chưa có ví')}
-                    </span>
+                  <div className="border-x border-neutral-200">
+                    <span className="text-[10px] text-neutral-400 font-bold block mb-1">SỐ LƯỢNG GỐC</span>
+                    <span className="text-xs font-extrabold text-neutral-800">{contract.so_luong} {contract.don_vi_tinh}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-neutral-400 font-bold block mb-1">ĐƠN GIÁ CHỐT</span>
+                    <span className="text-xs font-extrabold text-neutral-800">{(contract.don_gia).toLocaleString('vi-VN')} đ</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex justify-between border-b border-neutral-100 pb-2">
+                    <span className="text-neutral-450">Địa chỉ Escrow (PDA):</span>
+                    <span className="font-mono text-neutral-800 text-[11px] font-semibold">{contract.dia_chi_vi_escrow || 'MOCK_ESCROW_PDA_VAULT'}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-neutral-100 pb-2">
+                    <span className="text-neutral-450">Tổng số tiền ký quỹ:</span>
+                    <span className="font-bold text-[#15803D]">{(contract.don_gia * contract.so_luong).toLocaleString('vi-VN')} VNĐ</span>
+                  </div>
+                  <div className="flex justify-between border-b border-neutral-100 pb-2">
+                    <span className="text-neutral-450">Tương đương token:</span>
+                    <span className="font-bold text-[#15803D] font-mono">{contract.tong_tien_usdc_khoa || Math.round((contract.don_gia * contract.so_luong) / 4000000)} SOL</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-450">Hạn giao nhận cam kết:</span>
+                    <span className="font-bold text-neutral-800">{new Date(contract.han_giao_hang).toLocaleString('vi-VN')}</span>
+                  </div>
+                  
+                  <div className="border-t border-neutral-100 pt-3.5 mt-3.5 space-y-2.5">
+                    <p className="font-bold text-neutral-800 text-[11px] uppercase tracking-wider">Chữ ký số các bên</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-150 text-[11px] space-y-1">
+                        <span className="text-neutral-400 font-semibold block">Đại diện Bên A (Bên bán):</span>
+                        <span className="font-bold text-neutral-800 block text-xs">
+                          {contract.noi_dung_nhap_ai?.sellerSignature?.name || contract.seller_name || 'Chưa cập nhật tên'}
+                        </span>
+                        <span className="font-mono text-[9px] text-neutral-500 break-all block">
+                          {contract.noi_dung_nhap_ai?.sellerSignature?.wallet 
+                            ? `${contract.noi_dung_nhap_ai.sellerSignature.wallet.slice(0, 6)}...${contract.noi_dung_nhap_ai.sellerSignature.wallet.slice(-4)}` 
+                            : (contract.vi_nguoi_ban ? `${contract.vi_nguoi_ban.slice(0, 6)}...${contract.vi_nguoi_ban.slice(-4)}` : 'Chưa có ví')}
+                        </span>
+                      </div>
+                      <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-150 text-[11px] space-y-1">
+                        <span className="text-neutral-400 font-semibold block">Đại diện Bên B (Bên mua):</span>
+                        <span className="font-bold text-neutral-800 block text-xs">
+                          {contract.noi_dung_nhap_ai?.buyerSignature?.name || contract.buyer_name || 'Chưa cập nhật tên'}
+                        </span>
+                        <span className="font-mono text-[9px] text-neutral-500 break-all block">
+                          {contract.noi_dung_nhap_ai?.buyerSignature?.wallet 
+                            ? `${contract.noi_dung_nhap_ai.buyerSignature.wallet.slice(0, 6)}...${contract.noi_dung_nhap_ai.buyerSignature.wallet.slice(-4)}` 
+                            : (contract.vi_nguoi_mua ? `${contract.vi_nguoi_mua.slice(0, 6)}...${contract.vi_nguoi_mua.slice(-4)}` : 'Chưa có ví')}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Logs giao dịch */}
-            {txSignature && (
-              <div className="p-3 bg-indigo-50/50 border border-indigo-150 rounded-xl text-xs space-y-1.5">
-                <p className="font-bold text-indigo-700 flex items-center gap-1.5">
-                  <ShieldCheck size={14} /> Chữ ký Giao dịch Solana (Devnet):
-                </p>
-                <a
-                  href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-[10px] text-neutral-600 break-all hover:underline hover:text-indigo-600 block"
-                >
-                  {txSignature}
-                </a>
-              </div>
-            )}
+            <div className="print:hidden space-y-3">
+              {txSignature && (
+                <div className="p-3 bg-indigo-50/50 border border-indigo-150 rounded-xl text-xs space-y-1.5">
+                  <p className="font-bold text-indigo-700 flex items-center gap-1.5">
+                    <ShieldCheck size={14} /> Chữ ký Giao dịch Solana (Devnet):
+                  </p>
+                  <a
+                    href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] text-neutral-600 break-all hover:underline hover:text-indigo-600 block"
+                  >
+                    {txSignature}
+                  </a>
+                </div>
+              )}
 
-            {successMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-150 text-[#15803D] rounded-xl text-xs font-bold text-center">
-                {successMsg}
-              </div>
-            )}
+              {successMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-150 text-[#15803D] rounded-xl text-xs font-bold text-center">
+                  {successMsg}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Kịch bản C - Giải ngân do quá hạn (Chỉ dành cho Nông dân gọi) */}
@@ -373,11 +427,13 @@ function ContractPageContent() {
               <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50 max-h-[400px]">
                 {transcripts.map((msg, idx) => {
                   const isMe = msg.vi_nguoi_noi === user?.dia_chi_vi;
+                  const senderName = msg.vi_nguoi_noi === contract.vi_nguoi_ban ? contract.seller_name : contract.buyer_name;
                   const senderRole = msg.vi_nguoi_noi === contract.vi_nguoi_ban ? 'Nông dân' : 'Thương lái';
+                  const displayName = senderName || senderRole;
                   return (
                     <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                       <span className="text-[10px] font-bold text-neutral-400 mb-1 px-1 uppercase tracking-wider">
-                        {senderRole}
+                        {displayName}
                       </span>
                       <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-[13px] leading-relaxed shadow-sm ${
                         isMe 
@@ -396,7 +452,7 @@ function ContractPageContent() {
         </div>
 
         {/* CỘT PHẢI: QUY TRÌNH NGHIỆM THU, GIAO NHẬN VÀ KHIẾU NẠI */}
-        <div className="lg:col-span-6 space-y-6">
+        <div className="lg:col-span-4 space-y-6 print:hidden">
           
           {contract.trang_thai === 'da_khoa_tien' && !dispute && (
             <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm space-y-5">
@@ -446,7 +502,7 @@ function ContractPageContent() {
                       <div>
                         <h4 className="font-bold text-neutral-800 text-xs uppercase">Xác nhận Giải ngân 100%</h4>
                         <p className="text-[11px] text-neutral-400 max-w-xs mx-auto mt-1">
-                          Hệ thống sẽ chuyển toàn bộ USDC đang khóa trong két sắt Solana sang ví của Nông dân.
+                          Hệ thống sẽ chuyển toàn bộ SOL đang khóa trong két sắt Solana sang ví của Nông dân.
                         </p>
                       </div>
                       <div className="flex justify-center gap-2">

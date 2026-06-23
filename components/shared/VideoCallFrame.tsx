@@ -506,13 +506,6 @@ export default function VideoCallFrame({
             </button>
 
             <button
-              onClick={joinDemoMode}
-              className="flex items-center justify-center gap-2 px-8 py-3 w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-full text-sm font-semibold transition-all animate-pulse"
-            >
-              Vào phòng nhanh (Demo an toàn)
-            </button>
-
-            <button
               onClick={() => router.push('/')}
               className="flex items-center justify-center gap-2 px-8 py-3 w-full bg-neutral-900/60 hover:bg-neutral-900 border border-white/10 text-neutral-400 hover:text-white rounded-full text-sm font-semibold transition-all"
             >

@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS yeu_cau_lien_he (
 -- Khi yêu cầu cũ bị từ chối / hết hạn / đã kết nối → có thể gửi mới
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_request
   ON yeu_cau_lien_he (vi_thuong_lai, vi_nong_dan)
-  WHERE trang_thai IN ('cho_phan_hoi', 'da_xem', 'da_dong_y', 'da_hen_lich');
+  WHERE trang_thai IN ('cho_phan_hoi', 'da_xem');
 
 CREATE INDEX IF NOT EXISTS idx_yeucau_thuonglai ON yeu_cau_lien_he(vi_thuong_lai);
 CREATE INDEX IF NOT EXISTS idx_yeucau_nongdan ON yeu_cau_lien_he(vi_nong_dan);

@@ -25,6 +25,39 @@ export async function createContactRequest(data: {
   if (error) {
     // Unique index violation = đã có yêu cầu active
     if (error.code === '23505') {
+      // KHI BỊ TRÙNG LẶP DO CONSTRAINT idx_unique_active_request:
+      // Kiểm tra xem yêu cầu cũ có phải là 'da_dong_y' hay không. 
+      // Nếu đã đồng ý (đã xong đàm phán cũ) thì ta cho phép tái sử dụng record này
+      // bằng cách update nó thành 'cho_phan_hoi' với thông tin sản phẩm mới.
+      const { data: existing } = await supabase
+        .from('yeu_cau_lien_he')
+        .select('id, trang_thai')
+        .eq('vi_thuong_lai', data.vi_thuong_lai)
+        .eq('vi_nong_dan', data.vi_nong_dan)
+        .in('trang_thai', ['cho_phan_hoi', 'da_xem', 'da_dong_y', 'da_hen_lich'])
+        .single();
+        
+      if (existing && existing.trang_thai === 'da_dong_y') {
+        const { data: updated, error: updateError } = await supabase
+          .from('yeu_cau_lien_he')
+          .update({
+            trang_thai: 'cho_phan_hoi',
+            id_san_pham: data.id_san_pham || null,
+            ten_san_pham_snapshot: data.ten_san_pham_snapshot,
+            loi_nhan: data.loi_nhan || null,
+            loai_lien_he: data.loai_lien_he,
+            thoi_gian_hen: data.thoi_gian_hen || null,
+            ngay_tao: new Date().toISOString() // Đặt lại ngày tạo để nổi lên đầu
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
+          
+        if (!updateError) {
+          return updated;
+        }
+      }
+
       throw new Error('Bạn đã gửi yêu cầu liên hệ cho nông dân này. Vui lòng chờ phản hồi.');
     }
     console.error('Lỗi khi tạo yêu cầu liên hệ:', error.message);

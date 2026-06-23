@@ -705,8 +705,9 @@ function HomePageContent() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {farmerProfiles.map(farmer => {
-                  const hasRequested = contactRequests.some(r => r.vi_nong_dan === farmer.dia_chi_vi && r.trang_thai !== 'tu_choi');
-                  const requestStatus = contactRequests.find(r => r.vi_nong_dan === farmer.dia_chi_vi)?.trang_thai;
+                  const farmerRequests = contactRequests.filter(r => r.vi_nong_dan === farmer.dia_chi_vi);
+                  const hasPendingRequest = farmerRequests.some(r => r.trang_thai === 'cho_phan_hoi');
+                  const hasAcceptedRequest = farmerRequests.some(r => r.trang_thai === 'da_chap_nhan');
                   
                   return (
                     <div key={farmer.dia_chi_vi} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
@@ -726,7 +727,7 @@ function HomePageContent() {
                         {/* Ảnh Đại Diện tròn thật sự của Nông dân */}
                         <div className="bg-white rounded-full p-1 inline-block border-2 border-white shadow-sm mb-2">
                           {farmer.anh_dai_dien ? (
-                            <img src={farmer.anh_dai_dien} alt={farmer.ten_hien_thi} className="w-10 h-10 rounded-full object-cover" />
+                            <img src={farmer.anh_dai_dien} alt={farmer.ten_hien_thi} className="w-16 h-16 rounded-full object-cover" />
                           ) : (
                             <div className="w-10 h-10 bg-[#15803D] rounded-full flex items-center justify-center text-white font-bold">
                               {(farmer.ten_hien_thi || farmer.ho_ten || 'A')[0]}
@@ -758,16 +759,16 @@ function HomePageContent() {
                       </div>
 
                       <div className="p-4 bg-slate-50 border-t border-slate-100">
-                        {hasRequested ? (
+                        {hasPendingRequest ? (
                           <div className="w-full py-2.5 bg-slate-200 text-slate-600 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-default">
-                            {requestStatus === 'cho_phan_hoi' ? '⏳ Đã gửi yêu cầu' : '✅ Đã được chấp nhận'}
+                            ⏳ Đang chờ Nông dân phản hồi
                           </div>
                         ) : (
                           <button
                             onClick={() => openFarmerModal(farmer)}
                             className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
                           >
-                            <MessageSquare size={16} /> Xem Hồ Sơ & Liên hệ
+                            <MessageSquare size={16} /> {hasAcceptedRequest ? 'Liên hệ thêm SP mới' : 'Xem Hồ Sơ & Liên hệ'}
                           </button>
                         )}
                       </div>
@@ -1101,15 +1102,6 @@ function HomePageContent() {
               <div className="absolute top-20 left-6 z-40 flex flex-col items-start gap-3 pointer-events-none">
                 <button onClick={() => setActiveNegotiationId(null)} className="pointer-events-auto px-4 py-2 bg-black/50 hover:bg-black/80 text-white rounded-xl text-xs font-bold border border-white/10 flex items-center gap-1 backdrop-blur-sm">
                   <ChevronRight size={14} className="rotate-180" /> Thoát phòng
-                </button>
-
-                <button
-                  onClick={simulateLiveSTT}
-                  disabled={isTyping || contractDraft}
-                  className="pointer-events-auto mt-2 px-5 py-2.5 rounded-full bg-indigo-600/90 backdrop-blur-md hover:bg-indigo-500 text-white font-bold text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2 border border-white/10"
-                >
-                  <Mic size={14} className={isTyping ? "animate-pulse text-red-300" : ""} />
-                  {isTyping ? "Hệ thống AI đang nghe..." : "Giả lập Thoại thương lượng"}
                 </button>
               </div>
 
