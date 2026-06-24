@@ -35,6 +35,7 @@ export default function AgreeButtons({
 
   const isNongDan = user?.vai_tro === 'nong_dan';
   const isThuongLai = user?.vai_tro === 'thuong_lai';
+  const bothAgreed = buyerAgreed && sellerAgreed;
 
   const handleBuyerAgree = async () => {
     setBuyerLoading(true);
@@ -42,7 +43,7 @@ export default function AgreeButtons({
     try {
       // Cập nhật đồng ý của người mua và nhận về dữ liệu mới nhất
       const updatedData = await updateAgreement(disputeId, 'nguoi_mua_dong_y', true);
-      // Kiểm tra xem cả hai bên đã đồng ý chưa để gọi smart contract
+      // Thương lái (Buyer) là Signer hợp lệ on-chain, nên có thể kích hoạt trực tiếp nếu cả 2 đã đồng ý
       if (updatedData.nguoi_ban_dong_y && updatedData.nguoi_mua_dong_y) {
         await executeResolvePartial();
       } else {
@@ -59,14 +60,11 @@ export default function AgreeButtons({
     setSellerLoading(true);
     setErrorMsg('');
     try {
-      // Cập nhật đồng ý của người bán và nhận về dữ liệu mới nhất
-      const updatedData = await updateAgreement(disputeId, 'nguoi_ban_dong_y', true);
-      // Kiểm tra xem cả hai bên đã đồng ý chưa để gọi smart contract
-      if (updatedData.nguoi_ban_dong_y && updatedData.nguoi_mua_dong_y) {
-        await executeResolvePartial();
-      } else {
-        window.location.reload();
-      }
+      // Cập nhật đồng ý của người bán (Nông dân)
+      await updateAgreement(disputeId, 'nguoi_ban_dong_y', true);
+      // Nông dân không phải là Signer on-chain cho lệnh resolve_partial (chỉ Buyer ký được),
+      // nên ta reload để cập nhật trạng thái đã đồng ý, chờ Thương lái thực thi on-chain.
+      window.location.reload();
     } catch (err: any) {
       setErrorMsg(err.message || 'Lỗi khi cập nhật đồng ý.');
     } finally {
@@ -75,21 +73,26 @@ export default function AgreeButtons({
   };
 
   const executeResolvePartial = async () => {
-    const result = await resolvePartial(
-      contractId,
-      buyerAddress,
-      sellerAddress,
-      actualQty,
-      { disputeId }
-    );
-    if (result.success) {
-      try {
-        // Đồng bộ trạng thái tranh chấp thành 'da_giai_ngan' trong DB sau khi giải ngân on-chain thành công
-        await updateDisputeResolved(disputeId);
-      } catch (dbErr) {
-        console.error('Lỗi khi đồng bộ trạng thái giải quyết tranh chấp trong DB:', dbErr);
+    setErrorMsg('');
+    try {
+      const result = await resolvePartial(
+        contractId,
+        buyerAddress,
+        sellerAddress,
+        actualQty,
+        { disputeId }
+      );
+      if (result.success) {
+        try {
+          // Đồng bộ trạng thái tranh chấp thành 'da_giai_ngan' trong DB
+          await updateDisputeResolved(disputeId);
+        } catch (dbErr) {
+          console.error('Lỗi khi đồng bộ trạng thái giải quyết tranh chấp trong DB:', dbErr);
+        }
+        onSuccess(result.txSignature);
       }
-      onSuccess(result.txSignature);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Lỗi khi thực thi giải ngân on-chain.');
     }
   };
 
@@ -113,7 +116,7 @@ export default function AgreeButtons({
               label="Bấm Đồng ý"
               onClick={handleBuyerAgree}
               loading={buyerLoading || txLoading}
-              disabled={!isThuongLai}
+              disabled={!isThuongLai || bothAgreed}
             />
           )}
         </div>
@@ -130,11 +133,30 @@ export default function AgreeButtons({
               label="Bấm Đồng ý"
               onClick={handleSellerAgree}
               loading={sellerLoading || txLoading}
-              disabled={!isNongDan}
+              disabled={!isNongDan || bothAgreed}
             />
           )}
         </div>
       </div>
+
+      {bothAgreed && (
+        <div className="pt-2 text-center border-t border-neutral-200 mt-2">
+          {isThuongLai ? (
+            <button
+              onClick={executeResolvePartial}
+              disabled={txLoading}
+              className="w-full py-3 px-6 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 cursor-pointer"
+            >
+              {txLoading ? 'Đang thực thi giải ngân on-chain...' : 'Ký thực thi giải ngân trên Blockchain'}
+            </button>
+          ) : (
+            <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700 font-semibold flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+              <span>Cả hai bên đã đồng thuận! Đang chờ Thương lái ký thực thi giao dịch on-chain...</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {errorMsg && <p className="text-xs text-red-500 text-center font-semibold">⚠️ {errorMsg}</p>}
     </div>

@@ -2403,13 +2403,13 @@ function HomePageContent() {
                   <div className="flex items-baseline gap-3">
                     <span className="text-xl font-black">
                       {negotiations
-                        .filter(n => n.status === 'da_chot' && n.contract?.tong_tien_usdc_khoa)
+                        .filter(n => n.status === 'da_chot' && n.contract?.trang_thai === 'da_khoa_tien' && n.contract?.tong_tien_usdc_khoa)
                         .reduce((sum, n) => sum + (n.contract.tong_tien_usdc_khoa || 0), 0)
                         .toLocaleString('en-US')} SOL
                     </span>
                     <span className="text-xs font-semibold text-emerald-200">
                       (~{negotiations
-                        .filter(n => n.status === 'da_chot' && n.contract?.don_gia && n.contract?.so_luong)
+                        .filter(n => n.status === 'da_chot' && n.contract?.trang_thai === 'da_khoa_tien' && n.contract?.don_gia && n.contract?.so_luong)
                         .reduce((sum, n) => sum + (n.contract.don_gia * n.contract.so_luong), 0)
                         .toLocaleString('vi-VN')} VNĐ)
                     </span>

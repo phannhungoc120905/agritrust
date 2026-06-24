@@ -1,101 +1,71 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::errors::EscrowError;
 use crate::state::*;
 
 #[derive(Accounts)]
 pub struct ResolvePartial<'info> {
+    /// Thương lái ký giải quyết tranh chấp theo tỷ lệ thực giao
     #[account(mut)]
     pub buyer: Signer<'info>,
-    /// CHECK: Checked by escrow PDA seeds and has_one constraint.
+
+    /// CHECK: Nông dân — nhận phần tiền tương ứng hàng thực giao
+    #[account(mut)]
     pub seller: UncheckedAccount<'info>,
-    pub mint: Account<'info, Mint>,
-    #[account(mut)]
-    pub buyer_token_account: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub seller_token_account: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub vault: Account<'info, TokenAccount>,
+
+    /// Escrow PDA: chia lamports theo tỷ lệ, sau đó close
     #[account(
         mut,
-        seeds = [b"escrow", buyer.key().as_ref(), seller.key().as_ref(), mint.key().as_ref()],
+        seeds = [b"escrow", buyer.key().as_ref(), seller.key().as_ref()],
         bump = escrow_account.bump,
         has_one = buyer,
         has_one = seller,
-        has_one = mint,
         constraint = escrow_account.status == EscrowStatus::Locked @ EscrowError::NotLocked,
-        constraint = escrow_account.buyer_token_account == buyer_token_account.key(),
-        constraint = escrow_account.seller_token_account == seller_token_account.key(),
-        constraint = escrow_account.vault == vault.key()
+        close = buyer  // Rent về buyer, buyer cũng nhận phần refund
     )]
     pub escrow_account: Account<'info, EscrowAccount>,
-    pub token_program: Program<'info, Token>,
+
+    pub system_program: Program<'info, System>,
 }
 
 pub fn handler(ctx: Context<ResolvePartial>, actual_qty: u64) -> Result<()> {
-    let escrow_account = &mut ctx.accounts.escrow_account;
+    let escrow = &mut ctx.accounts.escrow_account;
 
     require!(
-        actual_qty <= escrow_account.expected_qty,
+        actual_qty <= escrow.expected_qty,
         EscrowError::InvalidQuantity
     );
 
-    let payout = escrow_account
+    // Tính payout (Lamports) vì escrow.unit_price đã được tính bằng Lamports từ Frontend
+    let payout_lamports = escrow
         .unit_price
         .checked_mul(actual_qty)
         .ok_or(EscrowError::MathOverflow)?;
-    let refund = escrow_account
-        .total_amount
-        .checked_sub(payout)
+
+    let refund_lamports = escrow
+        .total_lamports
+        .checked_sub(payout_lamports)
         .ok_or(EscrowError::MathOverflow)?;
 
-    let buyer_key = escrow_account.buyer;
-    let seller_key = escrow_account.seller;
-    let mint_key = escrow_account.mint;
-    let bump = escrow_account.bump;
-    let signer_seeds: &[&[&[u8]]] = &[&[
-        b"escrow",
-        buyer_key.as_ref(),
-        seller_key.as_ref(),
-        mint_key.as_ref(),
-        &[bump],
-    ]];
-
-    if payout > 0 {
-        let transfer_accounts = Transfer {
-            from: ctx.accounts.vault.to_account_info(),
-            to: ctx.accounts.seller_token_account.to_account_info(),
-            authority: escrow_account.to_account_info(),
-        };
-        let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            transfer_accounts,
-            signer_seeds,
-        );
-        token::transfer(transfer_ctx, payout)?;
+    // Trả lamports cho seller (phần hàng đã giao)
+    if payout_lamports > 0 {
+        **escrow.to_account_info().try_borrow_mut_lamports()? -= payout_lamports;
+        **ctx.accounts.seller.to_account_info().try_borrow_mut_lamports()? += payout_lamports;
     }
 
-    if refund > 0 {
-        let transfer_accounts = Transfer {
-            from: ctx.accounts.vault.to_account_info(),
-            to: ctx.accounts.buyer_token_account.to_account_info(),
-            authority: escrow_account.to_account_info(),
-        };
-        let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            transfer_accounts,
-            signer_seeds,
-        );
-        token::transfer(transfer_ctx, refund)?;
-    }
+    // Refund lamports cho buyer (phần hàng thiếu)
+    // Note: phần refund sẽ được xử lý thông qua `close = buyer` tự động,
+    // nhưng ta set total_lamports để đảm bảo kế toán đúng
+    // (phần còn lại trong PDA = refund + rent sẽ về buyer khi PDA close)
 
-    escrow_account.status = EscrowStatus::Resolved;
+    escrow.status = EscrowStatus::Resolved;
+
     msg!(
-        "Escrow resolved partially. actual_qty={}, payout={}, refund={}",
+        "✅ Escrow resolved partially. actual_qty={}, payout={} lamports, refund={} lamports.",
         actual_qty,
-        payout,
-        refund
+        payout_lamports,
+        refund_lamports
     );
+
     Ok(())
 }

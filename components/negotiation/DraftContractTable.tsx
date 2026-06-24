@@ -35,6 +35,8 @@ interface DraftContractTableProps {
   isSigningSeller?: boolean;
   currentRole?: 'nong_dan' | 'thuong_lai';
   partnerTyping?: boolean;
+  partnerTypingField?: string | null;
+  onFieldFocus?: (field: string) => void;
   partnerCount?: number;
   isDemoCall?: boolean;
 }
@@ -53,11 +55,27 @@ export default function DraftContractTable({
   isSigningSeller,
   currentRole,
   partnerTyping,
+  partnerTypingField,
+  onFieldFocus,
   partnerCount = 0,
   isDemoCall = false
 }: DraftContractTableProps) {
   const [typedBuyerName, setTypedBuyerName] = React.useState('');
   const [typedSellerName, setTypedSellerName] = React.useState('');
+  
+  // Convert ISO string (UTC) to local 'YYYY-MM-DDThh:mm' string for input type="datetime-local"
+  const getLocalDatetimeString = (isoString?: string | null) => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return '';
+      const tzOffset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+    } catch {
+      return '';
+    }
+  };
+
   const handleInputChange = (field: keyof DraftTerms, value: any) => {
     onChange({ ...terms, [field]: value });
   };
@@ -178,48 +196,64 @@ export default function DraftContractTable({
               <tbody className="divide-y divide-slate-300">
                 <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
                   <th className="py-4 px-5 font-semibold w-2/5 border-r border-slate-300">Tên nông sản</th>
-                  <td className="py-4 px-5">
+                  <td className="py-4 px-5 relative">
+                    {partnerTypingField === 'san_pham' && (
+                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đối tác đang sửa...</span>
+                    )}
                     <input
                       type="text"
                       value={terms.san_pham ?? ''}
                       onChange={(e) => handleInputChange('san_pham', e.target.value)}
+                      onFocus={() => onFieldFocus && onFieldFocus('san_pham')}
                       disabled={isLocked}
-                      className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
+                      className={`w-full bg-transparent border-b ${partnerTypingField === 'san_pham' ? 'border-indigo-500 bg-indigo-50/50' : 'border-dashed border-slate-400 hover:border-slate-800'} focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                     />
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-50 transition-colors">
                   <th className="py-4 px-5 font-semibold border-r border-slate-300">Số lượng & Đơn vị</th>
                   <td className="py-4 px-5 flex gap-4">
-                    <div className="flex items-center gap-2 flex-1">
+                    <div className="flex items-center gap-2 flex-1 relative">
+                      {partnerTypingField === 'so_luong' && (
+                        <span className="absolute -top-6 left-0 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đối tác đang sửa...</span>
+                      )}
                       <input
                         type="number"
                         value={terms.so_luong ?? ''}
                         onChange={(e) => handleInputChange('so_luong', parseFloat(e.target.value) || 0)}
+                        onFocus={() => onFieldFocus && onFieldFocus('so_luong')}
                         disabled={isLocked}
-                        className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-right ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
+                        className={`w-full bg-transparent border-b ${partnerTypingField === 'so_luong' ? 'border-indigo-500 bg-indigo-50/50' : 'border-dashed border-slate-400 hover:border-slate-800'} focus:border-slate-900 outline-none font-medium text-slate-900 text-right ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                       />
                     </div>
-                    <div className="flex items-center gap-2 w-28">
+                    <div className="flex items-center gap-2 w-28 relative">
+                      {partnerTypingField === 'don_vi_tinh' && (
+                        <span className="absolute -top-6 left-0 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đang sửa...</span>
+                      )}
                       <input
                         type="text"
                         value={terms.don_vi_tinh ?? ''}
                         onChange={(e) => handleInputChange('don_vi_tinh', e.target.value)}
+                        onFocus={() => onFieldFocus && onFieldFocus('don_vi_tinh')}
                         disabled={isLocked}
-                        className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 text-center ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
+                        className={`w-full bg-transparent border-b ${partnerTypingField === 'don_vi_tinh' ? 'border-indigo-500 bg-indigo-50/50' : 'border-dashed border-slate-400 hover:border-slate-800'} focus:border-slate-900 outline-none font-medium text-slate-900 text-center ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                       />
                     </div>
                   </td>
                 </tr>
                 <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
                   <th className="py-4 px-5 font-semibold border-r border-slate-300">Đơn giá (VNĐ)</th>
-                  <td className="py-4 px-5">
+                  <td className="py-4 px-5 relative">
+                    {partnerTypingField === 'don_gia' && (
+                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đối tác đang sửa...</span>
+                    )}
                     <input
                       type="number"
                       value={terms.don_gia ?? ''}
                       onChange={(e) => handleInputChange('don_gia', parseFloat(e.target.value) || 0)}
+                      onFocus={() => onFieldFocus && onFieldFocus('don_gia')}
                       disabled={isLocked}
-                      className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
+                      className={`w-full bg-transparent border-b ${partnerTypingField === 'don_gia' ? 'border-indigo-500 bg-indigo-50/50' : 'border-dashed border-slate-400 hover:border-slate-800'} focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                     />
                   </td>
                 </tr>
@@ -237,13 +271,24 @@ export default function DraftContractTable({
                 </tr>
                 <tr className="hover:bg-slate-50 transition-colors">
                   <th className="py-4 px-5 font-semibold border-r border-slate-300">Hạn giao hàng muộn nhất</th>
-                  <td className="py-4 px-5">
+                  <td className="py-4 px-5 relative">
+                    {partnerTypingField === 'han_giao_hang' && (
+                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đối tác đang sửa...</span>
+                    )}
                     <input
                       type="datetime-local"
-                      value={terms.han_giao_hang ? terms.han_giao_hang.slice(0, 16) : ''}
-                      onChange={(e) => handleInputChange('han_giao_hang', e.target.value ? new Date(e.target.value).toISOString() : null)}
+                      value={getLocalDatetimeString(terms.han_giao_hang)}
+                      onChange={(e) => {
+                        if (!e.target.value) {
+                          handleInputChange('han_giao_hang', null);
+                          return;
+                        }
+                        const localDate = new Date(e.target.value);
+                        handleInputChange('han_giao_hang', localDate.toISOString());
+                      }}
+                      onFocus={() => onFieldFocus && onFieldFocus('han_giao_hang')}
                       disabled={isLocked}
-                      className={`w-full bg-transparent border-b border-dashed border-slate-400 hover:border-slate-800 focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
+                      className={`w-full bg-transparent border-b ${partnerTypingField === 'han_giao_hang' ? 'border-indigo-500 bg-indigo-50/50' : 'border-dashed border-slate-400 hover:border-slate-800'} focus:border-slate-900 outline-none font-medium text-slate-900 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}
                     />
                   </td>
                 </tr>

@@ -137,6 +137,21 @@ export async function markRequestAsSeen(requestId: string) {
 
 // Nông dân đồng ý yêu cầu → gen room_id
 export async function acceptRequest(requestId: string) {
+  // Kiểm tra trước xem đã đồng ý chưa để tránh double-click lỗi
+  const { data: existing, error: getErr } = await supabase
+    .from('yeu_cau_lien_he')
+    .select('*')
+    .eq('id', requestId)
+    .maybeSingle();
+
+  if (getErr) {
+    console.error('Lỗi khi lấy thông tin yêu cầu:', getErr.message);
+  }
+
+  if (existing && existing.trang_thai === 'da_dong_y') {
+    return existing;
+  }
+
   const roomId = `room_${requestId.slice(0, 8)}_${Date.now().toString(36)}`;
 
   const { data, error } = await supabase
@@ -149,12 +164,23 @@ export async function acceptRequest(requestId: string) {
     .eq('id', requestId)
     .in('trang_thai', ['cho_phan_hoi', 'da_xem'])
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Lỗi khi chấp nhận yêu cầu:', error.message);
     throw error;
   }
+
+  // Nếu không update được dòng nào (do race condition/đã sửa trạng thái), trả về dữ liệu hiện tại
+  if (!data) {
+    const { data: latest } = await supabase
+      .from('yeu_cau_lien_he')
+      .select('*')
+      .eq('id', requestId)
+      .maybeSingle();
+    return latest;
+  }
+
   return data;
 }
 

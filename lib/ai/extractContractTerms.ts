@@ -173,7 +173,7 @@ HÃY TRẢ VỀ MỘT JSON HỢP LỆ DUY NHẤT.`
 
 export function fallbackExtract(transcript: string): ExtractedTermsWithMeta {
   const txt = transcript.toLowerCase();
-  
+
   // 1. Phân tích tên sản phẩm
   let san_pham = 'Nông sản';
   if (txt.includes('st25') || txt.includes('gạo st25') || txt.includes('lúa st25')) {
@@ -195,7 +195,7 @@ export function fallbackExtract(transcript: string): ExtractedTermsWithMeta {
   // 2. Phân tích số lượng và đơn vị tính
   let so_luong: number | null = null;
   let don_vi_tinh: string | null = 'tấn';
-  
+
   // Thử tìm kiểu "10 tấn", "5 kg", "1.5 tấn"
   const qtyMatch = transcript.match(/(\d+(?:\.\d+)?)\s*(tấn|kg|bao|tạ|tấn rưỡi|tấn)/i);
   if (qtyMatch) {

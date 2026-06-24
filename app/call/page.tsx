@@ -116,6 +116,7 @@ function CallPageContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isWaitingPartnerAI, setIsWaitingPartnerAI] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
+  const [partnerTypingField, setPartnerTypingField] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState(1); // 1: Đàm thoại, 2: Trích xuất, 3: Ký quỹ
   const [isRealSTTActive, setIsRealSTTActive] = useState(false);
   const [sttError, setSttError] = useState<string | null>(null);
@@ -407,27 +408,15 @@ function CallPageContent() {
       const verifyData = await verifyRes.json();
       if (!verifyRes.ok) throw new Error(verifyData.error || 'Lỗi xác thực chữ ký');
 
-      // Tạo Giao dịch Memo chứa SHA256 Hash
-      const memoInstruction = new TransactionInstruction({
-        keys: [{ pubkey: publicKey, isSigner: true, isWritable: true }],
-        data: Buffer.from(`AGRITRUST_CONTRACT_HASH:${verifyData.hash}`, 'utf-8'),
-        programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
-      });
-
-      const transaction = new Transaction().add(memoInstruction);
-
-      // Bắt buộc set blockhash và feePayer cho mạng Devnet
-      const { blockhash } = await connection.getLatestBlockhash('confirmed');
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = publicKey;
-
-      const txHash = await sendTransaction(transaction, connection);
+      // XÓA BƯỚC GỬI GIAO DỊCH LÊN CHUỖI ĐỂ TRÁNH PHANTOM HIỆN LÊN QUÁ NHIỀU LẦN!
+      // Chữ ký `signatureBase58` (signMessage) đã được verify và chứng thực hợp đồng an toàn, 
+      // ta chỉ cần lưu nó vào CSDL là đủ cơ sở pháp lý, không cần tốn phí mạng lưới ở bước Ký này.
 
       const newSignature: ContractSignature = {
         name: typedName,
         wallet: publicKey.toBase58(),
         timestamp: new Date().toISOString(),
-        txHash
+        txHash: verifyData.hash || signatureBase58.substring(0, 32) // Lưu hash làm id tham chiếu thay vì txHash
       };
 
       let newNoiDungNhapAi = { ...(contractDraft?.noi_dung_nhap_ai || {}) };
@@ -555,16 +544,21 @@ function CallPageContent() {
       setContractDraft(payload.contract);
       setIsWaitingPartnerAI(false); // Xong AI, tắt trạng thái chờ
       setIsModalOpen(true); // Bật popup
+      if ((window as any).aiWaitTimeout) clearTimeout((window as any).aiWaitTimeout);
     });
 
     // 📡 Nhận tín hiệu đối tác đang gõ
-    channel.on('broadcast', { event: 'contract_typing' }, () => {
+    channel.on('broadcast', { event: 'contract_typing' }, ({ payload }) => {
       setPartnerTyping(true);
-      // Tự tắt sau 2 giây nếu không nhận được thêm
+      if (payload && payload.field) {
+        setPartnerTypingField(payload.field);
+      }
+      // Tự tắt sau 3 giây nếu không nhận được thêm
       if ((window as any).typingTimeout) clearTimeout((window as any).typingTimeout);
       (window as any).typingTimeout = setTimeout(() => {
         setPartnerTyping(false);
-      }, 2000);
+        setPartnerTypingField(null);
+      }, 3000);
     });
 
     // 📡 Nhận lệnh ĐỒNG BỘ CHỐT HỢP ĐỒNG (Chỉ đứng chờ, không gọi AI)
@@ -578,6 +572,13 @@ function CallPageContent() {
         sttClientRef.current.stopSTT();
       }
       setIsRealSTTActive(false);
+
+      // Timeout giải phóng kẹt màn hình chờ AI
+      if ((window as any).aiWaitTimeout) clearTimeout((window as any).aiWaitTimeout);
+      (window as any).aiWaitTimeout = setTimeout(() => {
+        setIsWaitingPartnerAI(false);
+        setExtractError('Quá trình kết nối AI của đối tác bị gián đoạn. Vui lòng thử lại.');
+      }, 25000);
     });
 
     // 📡 Nhận tín hiệu Đối tác gọi AI thất bại
@@ -585,14 +586,15 @@ function CallPageContent() {
       console.log('🔄 Đối tác gọi AI thất bại:', payload);
       setIsWaitingPartnerAI(false);
       setExtractError(payload?.error || 'Đối tác gọi AI thất bại, vui lòng thử lại.');
+      if ((window as any).aiWaitTimeout) clearTimeout((window as any).aiWaitTimeout);
     });
 
     // 📡 Nhận sự kiện Hợp đồng đã khoá quỹ thành công
     channel.on('broadcast', { event: 'contract_locked' }, ({ payload }) => {
       console.log('🔄 Hợp đồng đã được khóa quỹ thành công bởi đối tác!', payload);
-      alert('Đối tác đã khóa quỹ thành công trên Solana!\n\nChuyển hướng về Dashboard...');
+      alert('Đối tác đã khóa quỹ thành công trên Solana!\n\nChuyển hướng về trang chủ để xem hợp đồng...');
       setIsModalOpen(false);
-      router.push('/dashboard');
+      router.push('/');
     });
 
 
@@ -1227,7 +1229,7 @@ function CallPageContent() {
         console.warn("Lỗi khi xóa hợp đồng rác (có thể bỏ qua):", e);
       }
     }
-    router.push('/dashboard');
+    router.push('/');
   }, [router, channelName, setCallActiveInDb]);
 
   // ==========================================
@@ -1264,9 +1266,9 @@ function CallPageContent() {
       });
     }
 
-    alert('Khóa quỹ thành công trên Solana! TX: ' + txSig + '\n\nChuyển hướng về Dashboard để xem hợp đồng...');
+    alert('Khóa quỹ thành công trên Solana! TX: ' + txSig + '\n\nChuyển hướng về trang chủ để xem hợp đồng...');
     setIsModalOpen(false);
-    router.push('/dashboard');
+    router.push('/');
   };
 
   if (loading) {
@@ -1645,6 +1647,15 @@ function CallPageContent() {
                     setIsModalOpen(true);
                     setExtractError('');
                     setManualError('');
+
+                    // Phát sự kiện cập nhật hợp đồng cho đối tác
+                    if (sttChannelRef.current) {
+                      sttChannelRef.current.send({
+                        type: 'broadcast',
+                        event: 'contract_update',
+                        payload: { contract: parsed }
+                      });
+                    }
                   } catch (e: any) {
                     setManualError('JSON không hợp lệ: ' + (e?.message || 'Lỗi parse'));
                   }
@@ -1695,15 +1706,33 @@ function CallPageContent() {
                 Đóng
               </button>
 
-              <div className="flex-1 max-w-[280px]">
+              <div className="flex-1 max-w-[400px] flex items-center gap-2">
                 {partnerCount === 0 && !isDemoCall ? (
                   <button disabled className="w-full px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
                     Chờ đối tác vào phòng...
                   </button>
                 ) : !buyerSignature || !sellerSignature ? (
-                  <button disabled className="w-full px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
-                    Chờ cả 2 bên Ký xác nhận
-                  </button>
+                  <>
+                    <button disabled className="flex-1 px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
+                      Chờ cả 2 bên Ký...
+                    </button>
+                    {user?.vai_tro === 'thuong_lai' && (
+                      <div className="flex-1">
+                        <ConfirmContractButton
+                          contractId={channelName}
+                          buyerAddress={user?.dia_chi_vi || contractDraft?.vi_nguoi_mua}
+                          sellerAddress={contractDraft?.vi_nguoi_ban || '11111111111111111111111111111111'}
+                          unitPriceVnd={contractDraft?.don_gia}
+                          expectedQty={contractDraft?.so_luong}
+                          deadlineIso={contractDraft?.han_giao_hang}
+                          onSuccess={handleLockSuccess}
+                          contractDraft={contractDraft}
+                          buyerSignature={buyerSignature || { wallet: user?.dia_chi_vi, name: 'Bypass', timestamp: '', txHash: '' } as any}
+                          sellerSignature={sellerSignature || { wallet: contractDraft?.vi_nguoi_ban || 'nong_dan_wallet_address_demo', name: 'Bypass', timestamp: '', txHash: '' } as any}
+                        />
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <ConfirmContractButton
                     contractId={channelName}

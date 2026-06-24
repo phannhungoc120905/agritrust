@@ -179,17 +179,17 @@ export class AgoraSTTClient {
       }
       console.warn('[STT] Cảnh báo nhận diện:', event.error);
       
-      let userFriendlyMessage = `Lỗi nhận diện: ${event.error}`;
+      let userFriendlyMessage = `Lỗi: ${event.error}`;
       if (event.error === 'not-allowed') {
-        userFriendlyMessage = 'Trình duyệt chặn truy cập Mic hoặc kết nối không bảo mật. Hãy chạy trên HTTPS / localhost và cấp quyền truy cập micro.';
+        userFriendlyMessage = 'Không có quyền truy cập Micro. Vui lòng cấp quyền trong cài đặt trình duyệt.';
       } else if (event.error === 'audio-capture') {
-        userFriendlyMessage = 'Không tìm thấy thiết bị Microphone phần cứng hoặc micro đang bị chiếm bởi một ứng dụng khác.';
+        userFriendlyMessage = 'Không tìm thấy Microphone hoặc thiết bị đang bị chiếm dụng.';
       } else if (event.error === 'service-not-available') {
-        userFriendlyMessage = 'Dịch vụ nhận diện Speech của máy chủ trình duyệt không khả dụng. Vui lòng kiểm tra lại kết nối mạng.';
+        userFriendlyMessage = 'Dịch vụ nhận diện giọng nói không khả dụng.';
       } else if (event.error === 'network') {
-        userFriendlyMessage = 'Lỗi kết nối mạng khi truyền tải luồng âm thanh nhận dạng.';
+        userFriendlyMessage = 'Lỗi kết nối mạng nhận dạng.';
       } else if (event.error === 'language-not-supported') {
-        userFriendlyMessage = 'Trình duyệt này chưa cài đặt gói ngôn ngữ Tiếng Việt (vi-VN) để nhận dạng.';
+        userFriendlyMessage = 'Trình duyệt không hỗ trợ tiếng Việt (vi-VN).';
       }
 
       this.onErrorCallback?.(event.error, userFriendlyMessage);

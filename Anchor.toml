@@ -2,17 +2,14 @@
 seeds = false
 skip-lint = false
 
-[programs.localnet]
-agritrust_escrow = "AgriTrust1111111111111111111111111111111111"
-
 [programs.devnet]
-agritrust_escrow = "AgriTrust1111111111111111111111111111111111"
+agritrust_escrow = "B9UVTiJQx8ftRob2oFQ5gSGQB6yraPX5UjAczyvqSYEU"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

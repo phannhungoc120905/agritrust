@@ -1,6 +1,4 @@
 import { extractContractTerms } from './extractContractTerms';
-import * as dotenv from 'dotenv';
-dotenv.config();
 
 async function main() {
   console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "Missing");

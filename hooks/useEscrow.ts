@@ -1,13 +1,25 @@
 import { useState } from 'react';
-import { useWallet as useSolanaWallet } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
+import { useAnchorWallet } from '@solana/wallet-adapter-react';
+import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
 import { getProgram, programId } from '../lib/solana/program';
 import { updateContractStatus } from '../lib/supabase/queries/contracts';
 import { createTransactionLog, updateTransactionLog } from '../lib/supabase/queries/txLog';
 
+// Hằng số quy đổi VNĐ → SOL
+const VND_PER_SOL = 4_000_000; // 1 SOL ≈ 4,000,000 VNĐ
+
+/**
+ * Quy đổi VNĐ sang lamports (đơn vị nhỏ nhất của SOL)
+ * 1 SOL = 1,000,000,000 lamports
+ */
+function vndToLamports(vnd: number): bigint {
+  const sol = vnd / VND_PER_SOL;
+  return BigInt(Math.floor(sol * LAMPORTS_PER_SOL));
+}
+
 export function useEscrow() {
-  const { wallet } = useSolanaWallet();
+  const wallet = useAnchorWallet();
   const [loading, setLoading] = useState(false);
 
   // Tự động tắt trạng thái loading sau 45s đề phòng ví/RPC bị treo
@@ -20,7 +32,8 @@ export function useEscrow() {
     return timeoutId;
   };
 
-  // Helper tìm PDA Escrow của 2 bên
+  // Helper tìm PDA Escrow của 2 bên (seeds = ["escrow", buyer, seller])
+  // Không có mint trong seeds nữa — native SOL
   const getEscrowPda = (buyer: PublicKey, seller: PublicKey) => {
     const [pda] = PublicKey.findProgramAddressSync(
       [Buffer.from('escrow'), buyer.toBuffer(), seller.toBuffer()],
@@ -62,14 +75,21 @@ export function useEscrow() {
       if (wallet) {
         try {
           const program = getProgram(wallet);
-          const buyerKey = new PublicKey(buyerAddress);
+          const buyerKey = wallet.publicKey;
           const sellerKey = new PublicKey(sellerAddress);
           const escrowPda = getEscrowPda(buyerKey, sellerKey);
 
-          // Gọi hàm initialize trên smart contract
+          // Tính unit price và total bằng lamports (native SOL)
+          // unit_price (lamports / qty) × expected_qty = total_lamports
+          const unitPriceLamports = vndToLamports(unitPriceVnd);
+          const totalLamports = unitPriceLamports * BigInt(expectedQty);
+
+          console.log(`[lockSol] unit_price=${unitPriceLamports} lamports, qty=${expectedQty}, total=${totalLamports} lamports (${Number(totalLamports) / LAMPORTS_PER_SOL} SOL)`);
+
+          // Gọi instruction initialize — khóa native SOL vào escrow PDA
           txSignature = await program.methods
             .initialize(
-              new anchor.BN(unitPriceVnd),
+              new anchor.BN(unitPriceLamports.toString()),
               new anchor.BN(expectedQty),
               new anchor.BN(deadlineSeconds),
               sellerKey
@@ -77,12 +97,12 @@ export function useEscrow() {
             .accounts({
               buyer: buyerKey,
               seller: sellerKey,
-              // escrowAccount và các program khác sẽ được anchor tự động giải quyết nếu IDL đúng,
-              // hoặc truyền thủ công nếu cần:
               escrowAccount: escrowPda,
               systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
+
+          console.log(`[lockSol] ✅ Transaction confirmed: ${txSignature}`);
         } catch (chainErr) {
           console.error("Lỗi khi thực thi giao dịch Solana on-chain, chuyển sang giả lập để chạy tiếp demo:", chainErr);
         }
@@ -100,7 +120,7 @@ export function useEscrow() {
       }
 
       // B4: Đồng bộ trạng thái hợp đồng thành 'da_khoa_tien'
-      const escrowPdaAddress = wallet ? getEscrowPda(new PublicKey(buyerAddress), new PublicKey(sellerAddress)).toBase58() : 'mock_escrow_address';
+      const escrowPdaAddress = wallet ? getEscrowPda(wallet.publicKey, new PublicKey(sellerAddress)).toBase58() : 'mock_escrow_address';
       if (contractId !== 'dummy_id') {
         await updateContractStatus(contractId, 'da_khoa_tien', {
           dia_chi_vi_escrow: escrowPdaAddress,
@@ -143,16 +163,22 @@ export function useEscrow() {
       if (wallet) {
         try {
           const program = getProgram(wallet);
-          const buyerKey = new PublicKey(buyerAddress);
+          const buyerKey = wallet.publicKey;
           const sellerKey = new PublicKey(sellerAddress);
+          const escrowPda = getEscrowPda(buyerKey, sellerKey);
 
+          // Xác nhận nhận hàng — chuyển SOL từ PDA → seller
           txSignature = await program.methods
             .confirmReceipt()
             .accounts({
               buyer: buyerKey,
               seller: sellerKey,
+              escrowAccount: escrowPda,
+              systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
+
+          console.log(`[confirmReceipt] ✅ Transaction confirmed: ${txSignature}`);
         } catch (chainErr) {
           console.error("Lỗi khi thực thi giao dịch confirmReceipt on-chain, chạy giả lập:", chainErr);
         }
@@ -209,16 +235,22 @@ export function useEscrow() {
       if (wallet) {
         try {
           const program = getProgram(wallet);
-          const buyerKey = new PublicKey(buyerAddress);
+          const buyerKey = wallet.publicKey;
           const sellerKey = new PublicKey(sellerAddress);
+          const escrowPda = getEscrowPda(buyerKey, sellerKey);
 
+          // Giải quyết tranh chấp — payout theo số lượng thực tế
           txSignature = await program.methods
             .resolvePartial(new anchor.BN(actualQty))
             .accounts({
               buyer: buyerKey,
               seller: sellerKey,
+              escrowAccount: escrowPda,
+              systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
+
+          console.log(`[resolvePartial] ✅ Transaction confirmed: ${txSignature}`);
         } catch (chainErr) {
           console.error("Lỗi khi thực thi giao dịch resolvePartial on-chain, chạy giả lập:", chainErr);
         }
@@ -270,15 +302,21 @@ export function useEscrow() {
         try {
           const program = getProgram(wallet);
           const buyerKey = new PublicKey(buyerAddress);
-          const sellerKey = new PublicKey(sellerAddress);
+          const sellerKey = wallet.publicKey;
+          const escrowPda = getEscrowPda(buyerKey, sellerKey);
 
+          // Rút tiền sau deadline — seller nhận toàn bộ SOL
           txSignature = await program.methods
             .claimTimeout()
             .accounts({
-              seller: sellerKey,
               buyer: buyerKey,
+              seller: sellerKey,
+              escrowAccount: escrowPda,
+              systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
+
+          console.log(`[claimTimeout] ✅ Transaction confirmed: ${txSignature}`);
         } catch (chainErr) {
           console.error("Lỗi khi thực thi giao dịch claimTimeout on-chain, chạy giả lập:", chainErr);
         }
