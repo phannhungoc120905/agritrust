@@ -95,13 +95,17 @@ Hãy phân tích và trả về một đối tượng JSON hợp lệ duy nhất
       const response = await openai.chat.completions.create({
         model: AI_MODEL,
         messages: [
-          { role: 'system', content: promptText }
+          { role: 'user', content: promptText }
         ],
         temperature: 0.1,
       });
 
       const resultText = response.choices[0]?.message?.content || '{}';
-      const cleanJsonStr = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      // Bóc tách cẩn thận JSON từ câu trả lời của LLM bằng Regex
+      // Đề phòng trường hợp Llama 3.3 giải thích dài dòng ở trên/dưới cục JSON
+      const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+      const cleanJsonStr = jsonMatch ? jsonMatch[0] : '{}';
       const parsedResult = JSON.parse(cleanJsonStr);
 
       return Response.json({
