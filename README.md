@@ -85,3 +85,30 @@ Dự án đã tích hợp hoàn tất các tính năng Đàm phán thông minh s
 *   `/lib`: Xử lý logic Supabase API, Agora Video Call, và Solana program provider.
 *   `/supabase`: File cấu trúc database mẫu `schema.sql`.
 *   `/programs`: Code Rust Smart Contract Solana Escrow (dành cho Blockchain dev).
+
+---
+
+## ⚠️ Danh sách Lỗi & Hạng mục Cần Tối Ưu Gấp (TODO Hackathon)
+
+Dưới đây là các vấn đề về Trải nghiệm người dùng (UX) và kỹ thuật đang cần được ưu tiên xử lý:
+
+### 1. Đồng bộ Dữ liệu Thời gian thực (Real-time Sync)
+- **Vấn đề:** Tính năng Real-time qua Supabase Channel / Websocket ở nhiều màn hình chưa hoạt động ổn định. Người dùng đang phải tự nhấn F5 (tải lại trang) từ đầu rất phiền phức mới thấy được trạng thái thay đổi của đối tác.
+- **Giải pháp:** Cần bọc lại các State quan trọng bằng `supabase.channel` xuyên suốt ở **tất cả các trang diễn ra luồng giao dịch**: từ Danh sách Đàm phán, Chi tiết Hợp đồng, cho đến các trang Chợ nông sản và Quản lý yêu cầu kết nối.
+
+### 2. Logic Kết nối Đối tác (Matching / Contact Request)
+- **Vấn đề:** Luồng kết nối đối tác đang bị lặp lại (loop). Khi Thương lái gửi yêu cầu, bên Nông dân không nhận được cập nhật trạng thái ngay lập tức (phải reload).
+- **Giải pháp:** Kiểm tra lại bảng `yeu_cau_ket_noi` trên Supabase, bắt sự kiện Insert/Update và dùng Toaster (thông báo popup) để báo cho Nông dân biết có yêu cầu mới.
+
+### 3. Giao diện Thẻ Hợp Đồng / Đàm Phán (UI/UX Cards)
+- **Vấn đề:** Các thẻ (Cards) hiển thị danh sách đàm phán/hợp đồng đang quá sơ sài. Thiếu các thông tin quan trọng như: Thời hạn chốt (Deadline), Khối lượng, Trạng thái chi tiết (Đang chờ ai?), Thời gian đếm ngược.
+- **Giải pháp:** Thiết kế lại Component `ContractCard` hiển thị đẩy đủ thông số: Sản phẩm, Thời hạn giao hàng, Trạng thái chữ ký của từng bên.
+
+### 4. Thông báo Cuộc gọi (Video Call Notification)
+- **Vấn đề:** Luồng gọi Video Call (Agora) đang thiếu cơ chế "Ringing/Báo cuộc gọi đến". Khi Thương lái bấm nút "Vào phòng họp đàm phán", bên Nông dân hoàn toàn không nhận được thông báo gì để bấm vào tham gia.
+- **Giải pháp:** Bắn một thông báo Websocket `INCOMING_CALL` ngay khi có người tham gia phòng Agora, hiển thị Popup (Ringtone) ở góc màn hình của đối tác để họ nhấn "Chấp nhận".
+
+### 5. Các điểm cần xem xét thêm (Technical Debt)
+- **Quản lý Vòng đời Hợp đồng:** Cần đảm bảo Nông dân không thể bấm "Nghiệm thu" trước Deadline (đã xử lý phần Backend, nhưng UI cần hiển thị thời gian đếm ngược rõ ràng hơn).
+- **Trải nghiệm AI (Trọng tài):** Đôi khi STT (Nhận diện giọng nói) có thể bắt nhầm từ ngữ. Cần làm rõ hơn tính năng "Xóa và sửa lại" để hai bên không bị kẹt với biên bản sai.
+- **Xử lý Mạng kém:** Thêm cơ chế tự động reconnect (kết nối lại) nếu mạng bị rớt giữa chừng lúc đang Video Call.
