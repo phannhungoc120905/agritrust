@@ -51,6 +51,7 @@ function ContractPageContent() {
 
   // Trạng thái hiển thị form khiếu nại (Nghiệm thu đạt chuẩn hay Phát hiện sự cố)
   const [inspectionDecision, setInspectionDecision] = useState<'undecided' | 'ok' | 'issue'>('undecided');
+  const [isBypassDeadline, setIsBypassDeadline] = useState(false);
 
   useEffect(() => {
     const action = searchParams.get('action');
@@ -520,9 +521,23 @@ function ContractPageContent() {
                 <div className="space-y-5">
                   {inspectionDecision === 'undecided' && (
                     <div className="space-y-4">
-                      <p className="text-xs text-neutral-500 leading-relaxed">
-                        Lô hàng nông sản đã được chuyển tới điểm giao nhận. Bạn đã kiểm nghiệm thực tế chưa? Vui lòng chọn tình trạng nghiệm thu bên dưới:
-                      </p>
+                      {contract?.han_giao_hang && new Date() < new Date(contract.han_giao_hang) && !isBypassDeadline ? (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col items-center justify-center text-center animate-fadeIn">
+                          <AlertCircle size={28} className="text-amber-500 mb-2" />
+                          <h4 className="text-sm font-bold text-amber-800 mb-1">Chưa tới hạn giao hàng</h4>
+                          <p className="text-xs text-amber-700 max-w-md">
+                            Hợp đồng này có hạn giao hàng là <strong>{new Date(contract.han_giao_hang).toLocaleDateString('vi-VN')}</strong>. 
+                            Vui lòng chờ đến ngày giao nhận thực tế để tiến hành nghiệm thu.
+                          </p>
+                          <button onClick={() => setIsBypassDeadline(true)} className="mt-3 text-[10px] text-amber-600/60 hover:text-amber-600 underline transition-colors cursor-pointer border-none bg-transparent">
+                            [Demo Bypass] Bỏ qua kiểm tra thời gian để test ngay
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs text-neutral-500 leading-relaxed">
+                            Lô hàng nông sản đã được chuyển tới điểm giao nhận. Bạn đã kiểm nghiệm thực tế chưa? Vui lòng chọn tình trạng nghiệm thu bên dưới:
+                          </p>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                         {/* Option 1: Hàng đạt chuẩn */}
@@ -545,6 +560,8 @@ function ContractPageContent() {
                           <span className="text-[10px] text-neutral-450 mt-1 block">Có hao hụt số lượng / lỗi chất lượng</span>
                         </button>
                       </div>
+                        </>
+                      )}
                     </div>
                   )}
 

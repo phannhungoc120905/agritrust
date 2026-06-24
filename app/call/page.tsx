@@ -180,6 +180,7 @@ function CallPageContent() {
   const [sellerSignature, setSellerSignature] = useState<ContractSignature | null>(null);
   const [isSigningBuyer, setIsSigningBuyer] = useState(false);
   const [isSigningSeller, setIsSigningSeller] = useState(false);
+  const [isContractFinalized, setIsContractFinalized] = useState(false);
 
   const isRealSTTActiveRef = useRef(isRealSTTActive);
   const isMockActiveRef = useRef(isMockActive);
@@ -592,9 +593,7 @@ function CallPageContent() {
     // 📡 Nhận sự kiện Hợp đồng đã khoá quỹ thành công
     channel.on('broadcast', { event: 'contract_locked' }, ({ payload }) => {
       console.log('🔄 Hợp đồng đã được khóa quỹ thành công bởi đối tác!', payload);
-      alert('Đối tác đã khóa quỹ thành công trên Solana!\n\nChuyển hướng về trang chủ để xem hợp đồng...');
-      setIsModalOpen(false);
-      router.push('/');
+      setIsContractFinalized(true);
     });
 
 
@@ -1270,9 +1269,7 @@ function CallPageContent() {
       });
     }
 
-    alert('Khóa quỹ thành công trên Solana! TX: ' + txSig + '\n\nChuyển hướng về trang chủ để xem hợp đồng...');
-    setIsModalOpen(false);
-    router.push('/');
+    setIsContractFinalized(true);
   };
 
   if (loading) {
@@ -1673,7 +1670,28 @@ function CallPageContent() {
               <X size={18} />
             </button>
 
-            <div className="flex-1 overflow-y-auto pr-2 mt-4 min-h-0">
+            {isContractFinalized ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-10 py-20 animate-scaleUp">
+                <div className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 ring-4 ring-emerald-500/30">
+                  <CheckCircle2 size={50} className="text-emerald-400" />
+                </div>
+                <h2 className="text-3xl font-black text-white mb-4">Chốt Hợp Đồng Thành Công! 🎉</h2>
+                <p className="text-neutral-400 max-w-lg mx-auto mb-10 text-base leading-relaxed">
+                  Hai bên đã đồng ý với các điều khoản và quỹ đã được khóa an toàn trên Smart Contract. Các bạn có thể chào tạm biệt và kết thúc đàm phán tại đây.
+                </p>
+                <button
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    router.push(channelName && channelName !== 'dummy_id' ? `/contract/${channelName}` : '/');
+                  }}
+                  className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-lg transition-colors shadow-lg shadow-emerald-900/50 flex items-center gap-2"
+                >
+                  Kết thúc cuộc gọi & Chuyển sang Theo dõi hợp đồng
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto pr-2 mt-4 min-h-0">
               <DraftContractTable
                 terms={contractDraft}
                 onChange={handleContractDraftChange}
@@ -1695,10 +1713,26 @@ function CallPageContent() {
             <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-800 pt-4 flex-shrink-0">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors mr-auto"
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors"
               >
-                Đóng
+                Đóng / Ẩn
               </button>
+              
+              {!isContractFinalized && (
+                <button
+                  onClick={() => {
+                    setContractDraft(null);
+                    setBuyerSignature(null);
+                    setSellerSignature(null);
+                    setActiveStep(1);
+                    startRealSTT(true);
+                    setIsModalOpen(false);
+                  }}
+                  className="px-5 py-2.5 bg-red-900/40 hover:bg-red-800/80 text-red-300 rounded-xl text-xs font-bold transition-colors mr-auto border border-red-800/30"
+                >
+                  Hủy Nháp & Đàm phán lại
+                </button>
+              )}
 
               <div className="flex-1 max-w-[400px] flex items-center gap-2">
                 {partnerCount === 0 && !isDemoCall ? (
@@ -1706,28 +1740,10 @@ function CallPageContent() {
                     Chờ đối tác vào phòng...
                   </button>
                 ) : !buyerSignature || !sellerSignature ? (
-                  <>
-                    <button disabled className="flex-1 px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
-                      Chờ cả 2 bên Ký...
-                    </button>
-                    {user?.vai_tro === 'thuong_lai' && (
-                      <div className="flex-1">
-                        <ConfirmContractButton
-                          contractId={channelName}
-                          buyerAddress={user?.dia_chi_vi || contractDraft?.vi_nguoi_mua}
-                          sellerAddress={contractDraft?.vi_nguoi_ban || '11111111111111111111111111111111'}
-                          unitPriceVnd={contractDraft?.don_gia}
-                          expectedQty={contractDraft?.so_luong}
-                          deadlineIso={contractDraft?.han_giao_hang}
-                          onSuccess={handleLockSuccess}
-                          contractDraft={contractDraft}
-                          buyerSignature={buyerSignature || { wallet: user?.dia_chi_vi, name: 'Bypass', timestamp: '', txHash: '' } as any}
-                          sellerSignature={sellerSignature || { wallet: contractDraft?.vi_nguoi_ban || 'nong_dan_wallet_address_demo', name: 'Bypass', timestamp: '', txHash: '' } as any}
-                        />
-                      </div>
-                    )}
-                  </>
-                ) : (
+                  <button disabled className="w-full px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
+                    Chờ cả 2 bên Ký...
+                  </button>
+                ) : user?.vai_tro === 'thuong_lai' ? (
                   <ConfirmContractButton
                     contractId={channelName}
                     buyerAddress={buyerSignature.wallet}
@@ -1740,9 +1756,15 @@ function CallPageContent() {
                     buyerSignature={buyerSignature}
                     sellerSignature={sellerSignature}
                   />
+                ) : (
+                  <button disabled className="w-full px-5 py-2.5 bg-emerald-900/50 text-emerald-400 border border-emerald-800/50 rounded-xl text-xs font-bold cursor-not-allowed text-center leading-tight">
+                    Đã ký! Chờ Thương lái khóa tiền...
+                  </button>
                 )}
               </div>
             </div>
+            </>
+            )}
           </div>
         </div>
       )}
