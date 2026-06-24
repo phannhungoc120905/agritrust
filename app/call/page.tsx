@@ -1520,13 +1520,13 @@ function CallPageContent() {
                       <span className="relative flex h-2 w-2">
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                       </span>
-                      <p className="text-xs font-bold uppercase tracking-wider">Lỗi Nhận Diện Giọng Nói</p>
+                      <p className="text-xs font-bold uppercase tracking-wider">Lỗi Micro</p>
                     </div>
                     <p className="text-xs text-neutral-300 font-semibold max-w-md leading-relaxed">
                       {sttError}
                     </p>
                     <p className="text-[10px] text-indigo-400 font-bold mt-1">
-                      💡 Mẹo: Bạn có thể bật ô Chat ở thanh điều khiển bên dưới để nhập đàm thoại thủ công!
+                      💡 Mẹo: Bật ô Chat bên dưới để gõ đàm thoại.
                     </p>
                   </div>
                 ) : displayedSubtitle ? (

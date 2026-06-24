@@ -181,15 +181,15 @@ export class AgoraSTTClient {
       
       let userFriendlyMessage = `Lỗi: ${event.error}`;
       if (event.error === 'not-allowed') {
-        userFriendlyMessage = 'Không có quyền truy cập Micro. Vui lòng cấp quyền trong cài đặt trình duyệt.';
+        userFriendlyMessage = 'Hãy cấp quyền truy cập Mic trong cài đặt trình duyệt.';
       } else if (event.error === 'audio-capture') {
-        userFriendlyMessage = 'Không tìm thấy Microphone hoặc thiết bị đang bị chiếm dụng.';
+        userFriendlyMessage = 'Không tìm thấy Mic hoặc thiết bị bị chiếm dụng.';
       } else if (event.error === 'service-not-available') {
-        userFriendlyMessage = 'Dịch vụ nhận diện giọng nói không khả dụng.';
+        userFriendlyMessage = 'Dịch vụ STT lỗi.';
       } else if (event.error === 'network') {
-        userFriendlyMessage = 'Lỗi kết nối mạng nhận dạng.';
+        userFriendlyMessage = 'Lỗi kết nối mạng.';
       } else if (event.error === 'language-not-supported') {
-        userFriendlyMessage = 'Trình duyệt không hỗ trợ tiếng Việt (vi-VN).';
+        userFriendlyMessage = 'Không hỗ trợ Tiếng Việt (vi-VN).';
       }
 
       this.onErrorCallback?.(event.error, userFriendlyMessage);
