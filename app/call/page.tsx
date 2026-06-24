@@ -996,6 +996,10 @@ function CallPageContent() {
         console.warn(`[STT Error] Type: ${errorType}, Msg: ${message}`);
         setSttError(message);
         setIsRealSTTActive(false);
+        // Tự động tắt cảnh báo sau 3 giây để tránh hiện quá lâu
+        setTimeout(() => {
+          setSttError(null);
+        }, 3000);
       }
     );
 
