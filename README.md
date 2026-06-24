@@ -113,8 +113,9 @@ Dưới đây là các vấn đề về Trải nghiệm người dùng (UX) và 
 - **Trải nghiệm AI (Trọng tài):** Đôi khi STT (Nhận diện giọng nói) có thể bắt nhầm từ ngữ. Cần làm rõ hơn tính năng "Xóa và sửa lại" để hai bên không bị kẹt với biên bản sai.
 - **Xử lý Mạng kém:** Thêm cơ chế tự động reconnect (kết nối lại) nếu mạng bị rớt giữa chừng lúc đang Video Call.
 
-### 6. Cảnh báo các Lỗ hổng Logic (Logic Flaws - Dành cho Dev xử lý)
+### 6. Cảnh báo các Lỗ hổng Logic & Quản lý State (Dành cho Dev xử lý)
 - **Lặp trạng thái Yêu cầu Kết nối:** Hiện tại hệ thống cho phép tạo nhiều dòng rác trong bảng `yeu_cau_lien_he` nếu Thương lái bấm gửi nhiều lần. Cần thêm hàm kiểm tra `if (exists)` trước khi gọi hàm Insert, hoặc chặn Nút "Gửi yêu cầu" ngay khi đã gửi.
+- **Lỗi hỏng/Vỡ State (State Desync):** Frontend đang gặp hiện tượng "Stale State" (State cũ không được xóa bỏ). Ví dụ khi chuyển đổi qua lại giữa các Hợp đồng hoặc các Tab, biến `useState` vẫn lưu dữ liệu của đối tác cũ. Dev cần dọn dẹp State bằng hàm `cleanup` trong `useEffect` hoặc reset State về `null` mỗi khi đổi `activeNegotiationId`.
 - **Kẹt State Đàm Phán (Video Call):** Khi 2 bên đang ở trạng thái đàm phán, nếu 1 bên thoát ngang giữa chừng hoặc rớt mạng mà chưa bấm "Lưu hợp đồng nháp", State của hệ thống không có luồng Hủy/Reset tự động (Timeout).
 - **Lỗ hổng On-chain Escrow:** Lệnh rút tiền (Giải ngân/Hoàn trả) hiện đang dựa vào hàm Client-side gọi Solana Program. Cần làm rõ hiển thị "Giao dịch đang xử lý (Loading)" để tránh trường hợp người dùng click spam nút "Rút tiền" nhiều lần dẫn tới lỗi Network fee.
 - **Dữ liệu Rác ở Chợ Nông Sản:** Chưa có tính năng "Đóng tin đăng / Ẩn tin" khi Nông dân đã bán hết hàng, dẫn đến Thương lái vẫn tiếp tục gửi yêu cầu vào một lô hàng đã chốt. Cần đồng bộ Logic: `Khi Hợp đồng được ký -> Giảm số lượng tồn kho của Lô hàng tương ứng xuống`.
