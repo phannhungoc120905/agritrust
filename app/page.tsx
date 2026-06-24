@@ -2409,8 +2409,8 @@ function HomePageContent() {
                     </span>
                     <span className="text-xs font-semibold text-emerald-200">
                       (~{negotiations
-                        .filter(n => n.status === 'da_chot' && n.contract?.trang_thai === 'da_khoa_tien' && n.contract?.don_gia && n.contract?.so_luong)
-                        .reduce((sum, n) => sum + (n.contract.don_gia * n.contract.so_luong), 0)
+                        .filter(n => n.status === 'da_chot' && n.contract?.trang_thai === 'da_khoa_tien' && n.contract?.tong_tien_usdc_khoa)
+                        .reduce((sum, n) => sum + ((n.contract.tong_tien_usdc_khoa || 0) * 4000000), 0)
                         .toLocaleString('vi-VN')} VNĐ)
                     </span>
                   </div>
@@ -2568,7 +2568,9 @@ function HomePageContent() {
                                             </span>
                                             <span className="text-slate-400 font-normal">•</span>
                                             <span className="text-slate-500 bg-slate-100/80 border border-slate-200/50 px-1.5 py-0.5 rounded font-semibold">
-                                              {(nego.contract.don_gia * nego.contract.so_luong).toLocaleString('vi-VN')} VNĐ
+                                              {nego.contract.tong_tien_usdc_khoa
+                                                ? (nego.contract.tong_tien_usdc_khoa * 4000000).toLocaleString('vi-VN')
+                                                : (nego.contract.don_gia * nego.contract.so_luong).toLocaleString('vi-VN')} VNĐ
                                             </span>
                                           </div>
                                         )}

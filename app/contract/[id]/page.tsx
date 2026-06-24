@@ -358,7 +358,11 @@ function ContractPageContent() {
                   </div>
                   <div className="flex justify-between border-b border-neutral-100 pb-2">
                     <span className="text-neutral-450">Tổng số tiền ký quỹ:</span>
-                    <span className="font-bold text-[#15803D]">{(contract.don_gia * contract.so_luong).toLocaleString('vi-VN')} VNĐ</span>
+                    <span className="font-bold text-[#15803D]">
+                      {contract.tong_tien_usdc_khoa
+                        ? (contract.tong_tien_usdc_khoa * 4000000).toLocaleString('vi-VN')
+                        : (contract.don_gia * contract.so_luong).toLocaleString('vi-VN')} VNĐ
+                    </span>
                   </div>
                   <div className="flex justify-between border-b border-neutral-100 pb-2">
                     <span className="text-neutral-450">Tương đương token:</span>
