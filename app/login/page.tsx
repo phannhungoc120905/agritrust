@@ -4,6 +4,7 @@ import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
+import { useLanguage } from '../../lib/useLanguage';
 import { loginUser } from '../../lib/supabase/queries/auth';
 import {
   User,
@@ -19,6 +20,7 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect');
   const { login } = useAuth();
+  const { isEnglish } = useLanguage();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +30,7 @@ function LoginPageContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
-      setErrorMsg('Vui lòng điền đầy đủ Tên đăng nhập và Mật khẩu.');
+      setErrorMsg(isEnglish ? 'Please enter both username and password.' : 'Vui lòng điền đầy đủ Tên đăng nhập và Mật khẩu.');
       return;
     }
 
@@ -44,11 +46,11 @@ function LoginPageContent() {
           ten_hien_thi: user.ten_hien_thi || user.ten_dang_nhap,
         }, redirectPath || undefined);
       } else {
-        setErrorMsg('Sai Tên đăng nhập hoặc Mật khẩu. Vui lòng thử lại.');
+        setErrorMsg(isEnglish ? 'Incorrect username or password. Please try again.' : 'Sai Tên đăng nhập hoặc Mật khẩu. Vui lòng thử lại.');
       }
     } catch (err: any) {
       console.error(err);
-      setErrorMsg('Đã xảy ra lỗi kết nối với hệ thống. Vui lòng thử lại.');
+      setErrorMsg(isEnglish ? 'A system connection error occurred. Please try again.' : 'Đã xảy ra lỗi kết nối với hệ thống. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -65,10 +67,10 @@ function LoginPageContent() {
           </div>
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-black text-neutral-900 tracking-tight">
-              Đăng nhập AgriTrust
+              {isEnglish ? 'Sign in to AgriTrust' : 'Đăng nhập AgriTrust'}
             </h1>
             <p className="text-sm text-neutral-500 max-w-md leading-relaxed">
-              Đăng nhập cổng giao dịch nông sản B2B thông minh bảo mật bằng Solana Blockchain.
+              {isEnglish ? 'Sign in to the secure B2B agriculture trading portal powered by Solana Blockchain.' : 'Đăng nhập cổng giao dịch nông sản B2B thông minh bảo mật bằng Solana Blockchain.'}
             </p>
           </div>
         </div>
@@ -87,7 +89,7 @@ function LoginPageContent() {
             {/* Input Tên đăng nhập */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                Tên đăng nhập
+                {isEnglish ? 'Username' : 'Tên đăng nhập'}
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
@@ -97,7 +99,7 @@ function LoginPageContent() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="nongdan hoặc thuonglai"
+                  placeholder={isEnglish ? 'nongdan or thuonglai' : 'nongdan hoặc thuonglai'}
                   className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
                   disabled={isLoading}
                   suppressHydrationWarning
@@ -108,7 +110,7 @@ function LoginPageContent() {
             {/* Input Mật khẩu */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                Mật khẩu
+                {isEnglish ? 'Password' : 'Mật khẩu'}
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
@@ -118,7 +120,7 @@ function LoginPageContent() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Nhập mật khẩu"
+                  placeholder={isEnglish ? 'Enter password' : 'Nhập mật khẩu'}
                   className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
                   disabled={isLoading}
                   suppressHydrationWarning
@@ -137,7 +139,7 @@ function LoginPageContent() {
               ) : (
                 <>
                   <LogIn size={16} />
-                  <span>Đăng nhập</span>
+                  <span>{isEnglish ? 'Sign in' : 'Đăng nhập'}</span>
                 </>
               )}
             </button>
@@ -147,15 +149,15 @@ function LoginPageContent() {
           <div className="p-3.5 bg-amber-50/65 border border-amber-200/60 rounded-xl space-y-1.5">
             <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800">
               <Sparkles size={13} />
-              <span>Gợi ý tài khoản Demo cho giám khảo:</span>
+              <span>{isEnglish ? 'Demo accounts for judges:' : 'Gợi ý tài khoản Demo cho giám khảo:'}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px] text-amber-700">
               <div>
-                <p className="font-semibold">Nông dân:</p>
+                <p className="font-semibold">{isEnglish ? 'Farmer:' : 'Nông dân:'}</p>
                 <code className="bg-amber-100/50 px-1 py-0.5 rounded text-[10px]">nongdan</code> / <code className="bg-amber-100/50 px-1 py-0.5 rounded text-[10px]">123</code>
               </div>
               <div>
-                <p className="font-semibold">Thương lái:</p>
+                <p className="font-semibold">{isEnglish ? 'Trader:' : 'Thương lái:'}</p>
                 <code className="bg-amber-100/50 px-1 py-0.5 rounded text-[10px]">thuonglai</code> / <code className="bg-amber-100/50 px-1 py-0.5 rounded text-[10px]">123</code>
               </div>
             </div>
@@ -163,9 +165,9 @@ function LoginPageContent() {
 
           <div className="text-center pt-2">
             <p className="text-[12px] text-slate-500">
-              Chưa có tài khoản?{' '}
+              {isEnglish ? 'No account yet? ' : 'Chưa có tài khoản? '}
               <Link href="/register" className="font-bold text-[#15803D] hover:underline">
-                Đăng ký ngay
+                {isEnglish ? 'Register now' : 'Đăng ký ngay'}
               </Link>
             </p>
           </div>
@@ -174,7 +176,7 @@ function LoginPageContent() {
         {/* Bottom info */}
         <div className="text-center text-[11px] text-slate-400 flex items-center justify-center gap-1">
           <ShieldCheck size={14} className="text-slate-400" />
-          <span>Bảo mật giao dịch bằng Solana Devnet Smart Contract</span>
+          <span>{isEnglish ? 'Secured by Solana Devnet Smart Contract' : 'Bảo mật giao dịch bằng Solana Devnet Smart Contract'}</span>
         </div>
 
       </div>

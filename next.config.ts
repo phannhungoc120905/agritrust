@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  turbopack: {
+    root: process.cwd(),
+  },
   // Fix Next.js dev server blocking ngrok and LAN
   // @ts-ignore
   allowedDevOrigins: [

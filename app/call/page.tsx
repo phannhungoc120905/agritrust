@@ -1568,13 +1568,13 @@ function CallPageContent() {
                   onClick={() => { setManualError(''); setIsManualOpen(true); }}
                   className="text-xs font-semibold px-3 py-1 rounded bg-amber-700/40 hover:bg-amber-700/50 text-white"
                 >
-                  Nhập mẫu hợp đồng
+                  Enter contract sample
                 </button>
                 <button
                   onClick={() => { setExtractError(''); triggerAIExtract(transcriptLinesRef.current); }}
                   className="text-xs font-semibold px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-white"
                 >
-                  Thử lại AI
+                  Retry AI
                 </button>
               </div>
             </div>
@@ -1596,8 +1596,8 @@ function CallPageContent() {
               <X size={18} />
             </button>
 
-            <h3 className="text-lg font-bold text-white mb-2">Nhập mẫu hợp đồng thủ công</h3>
-            <p className="text-sm text-neutral-400 mb-4">Dán JSON hợp đồng hoặc sửa mẫu bên dưới, sau đó nhấn Áp dụng để xem/xác nhận.</p>
+            <h3 className="text-lg font-bold text-white mb-2">Manual contract sample</h3>
+            <p className="text-sm text-neutral-400 mb-4">Paste contract JSON or edit the sample below, then click Apply to review/confirm.</p>
 
             <textarea
               value={manualText}
@@ -1611,7 +1611,7 @@ function CallPageContent() {
                 onClick={() => { setIsManualOpen(false); }}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-md text-sm"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 onClick={() => {
@@ -1653,7 +1653,7 @@ function CallPageContent() {
                 }}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-bold"
               >
-                Áp dụng mẫu
+                Apply Sample
               </button>
             </div>
           </div>
@@ -1675,7 +1675,7 @@ function CallPageContent() {
                 <div className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 ring-4 ring-emerald-500/30">
                   <CheckCircle2 size={50} className="text-emerald-400" />
                 </div>
-                <h2 className="text-3xl font-black text-white mb-4">Chốt Hợp Đồng Thành Công! 🎉</h2>
+                <h2 className="text-3xl font-black text-white mb-4">Contract Finalized Successfully!</h2>
                 <p className="text-neutral-400 max-w-lg mx-auto mb-10 text-base leading-relaxed">
                   Hai bên đã đồng ý với các điều khoản và quỹ đã được khóa an toàn trên Smart Contract. Các bạn có thể chào tạm biệt và kết thúc đàm phán tại đây.
                 </p>
@@ -1686,7 +1686,7 @@ function CallPageContent() {
                   }}
                   className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-lg transition-colors shadow-lg shadow-emerald-900/50 flex items-center gap-2"
                 >
-                  Kết thúc cuộc gọi & Chuyển sang Theo dõi hợp đồng
+                  End Call & Go to Contract Tracking
                 </button>
               </div>
             ) : (
@@ -1715,7 +1715,7 @@ function CallPageContent() {
                 onClick={() => setIsModalOpen(false)}
                 className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors"
               >
-                Đóng / Ẩn
+                Close / Hide
               </button>
               
               {!isContractFinalized && (
@@ -1730,18 +1730,18 @@ function CallPageContent() {
                   }}
                   className="px-5 py-2.5 bg-red-900/40 hover:bg-red-800/80 text-red-300 rounded-xl text-xs font-bold transition-colors mr-auto border border-red-800/30"
                 >
-                  Hủy Nháp & Đàm phán lại
+                  Discard Draft & Negotiate Again
                 </button>
               )}
 
               <div className="flex-1 max-w-[400px] flex items-center gap-2">
                 {partnerCount === 0 && !isDemoCall ? (
                   <button disabled className="w-full px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
-                    Chờ đối tác vào phòng...
+                    Waiting for partner to join...
                   </button>
                 ) : !buyerSignature || !sellerSignature ? (
                   <button disabled className="w-full px-5 py-2.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">
-                    Chờ cả 2 bên Ký...
+                    Waiting for both signatures...
                   </button>
                 ) : user?.vai_tro === 'thuong_lai' ? (
                   <ConfirmContractButton
@@ -1758,7 +1758,7 @@ function CallPageContent() {
                   />
                 ) : (
                   <button disabled className="w-full px-5 py-2.5 bg-emerald-900/50 text-emerald-400 border border-emerald-800/50 rounded-xl text-xs font-bold cursor-not-allowed text-center leading-tight">
-                    Đã ký! Chờ Thương lái khóa tiền...
+                    Signed. Waiting for trader to lock funds...
                   </button>
                 )}
               </div>

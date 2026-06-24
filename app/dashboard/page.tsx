@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import ConnectWalletButton from '../../components/shared/ConnectWalletButton';
 import WalletBalance from '../../components/shared/WalletBalance';
 import { useAuth } from '../../hooks/useAuth';
+import { useLanguage } from '../../lib/useLanguage';
 import { supabase } from '../../lib/supabase/client';
 import { encodeMeetingParams } from '../../lib/utils/url';
 import {
@@ -36,6 +37,7 @@ interface Listing {
 export default function DashboardPage() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const { isEnglish } = useLanguage();
 
   const [connections, setConnections] = useState<Listing[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
@@ -148,7 +150,7 @@ export default function DashboardPage() {
     return (
       <div className="flex-grow flex items-center justify-center bg-white text-neutral-400 min-h-screen gap-2">
         <Loader2 size={18} className="animate-spin text-[#15803D]" />
-        <span className="text-sm font-semibold">Đang tải Dashboard...</span>
+        <span className="text-sm font-semibold">{isEnglish ? 'Loading dashboard...' : 'Đang tải Dashboard...'}</span>
       </div>
     );
   }
@@ -184,10 +186,10 @@ export default function DashboardPage() {
 
             <nav className="hidden md:flex items-center gap-1.5">
               <Link href="/" className="btn-ghost gap-1.5 text-[13px] py-1.5 px-3">
-                <ShoppingBag size={14} /> Chợ Nông Sản B2B
+                <ShoppingBag size={14} /> {isEnglish ? 'B2B Produce Market' : 'Chợ Nông Sản B2B'}
               </Link>
               <Link href="/dashboard" className="btn-ghost gap-1.5 text-[13px] py-1.5 px-3 bg-neutral-100 text-neutral-900">
-                <FileText size={14} /> Quản lý Hợp đồng & Kết nối
+                <FileText size={14} /> {isEnglish ? 'Contracts & Connections' : 'Quản lý Hợp đồng & Kết nối'}
               </Link>
             </nav>
           </div>
@@ -199,13 +201,13 @@ export default function DashboardPage() {
               <div className="text-right">
                 <p className="text-[12px] font-bold text-neutral-700 leading-none">{user.ten_hien_thi}</p>
                 <p className={`text-[10px] mt-0.5 font-bold ${isNongDan ? 'text-[#15803D]' : 'text-indigo-650'}`}>
-                  {isNongDan ? 'Nông Dân' : 'Thương Lái'}
+                  {isNongDan ? (isEnglish ? 'Farmer' : 'Nông Dân') : (isEnglish ? 'Trader' : 'Thương Lái')}
                 </p>
               </div>
               <button
                 onClick={logout}
                 className="p-1.5 rounded-lg hover:bg-red-50 text-neutral-450 hover:text-red-600 transition-colors"
-                title="Đổi vai trò / Đăng xuất"
+                title={isEnglish ? 'Switch role / Log out' : 'Đổi vai trò / Đăng xuất'}
               >
                 <LogOut size={15} />
               </button>
@@ -218,7 +220,7 @@ export default function DashboardPage() {
       <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-8 space-y-8">
 
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">Dashboard Quản lý</h1>
+          <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">{isEnglish ? 'Management Dashboard' : 'Dashboard Quản lý'}</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

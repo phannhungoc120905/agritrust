@@ -51,17 +51,17 @@ export default function TimeoutClaimButton({
       >
         {loading ? (
           <>
-            <Loader2 size={14} className="animate-spin" /> Đang gửi yêu cầu...
+            <Loader2 size={14} className="animate-spin" /> Sending request...
           </>
         ) : (
           <>
-            <AlertCircle size={14} /> Yêu cầu giải ngân quá hạn (Timeout Claim)
+            <AlertCircle size={14} /> Request Timeout Claim
           </>
         )}
       </button>
       {!isDeadlinePassed && (
         <p className="text-[10px] text-neutral-400 text-center italic">
-          * Chỉ kích hoạt sau thời hạn: {new Date(deadlineIso).toLocaleString('vi-VN')}
+          * Available after deadline: {new Date(deadlineIso).toLocaleString('vi-VN')}
         </p>
       )}
       {errorMsg && <p className="text-xs text-red-500 text-center font-semibold mt-1">⚠️ {errorMsg}</p>}

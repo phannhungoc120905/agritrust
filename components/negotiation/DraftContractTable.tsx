@@ -107,7 +107,7 @@ export default function DraftContractTable({
   const totalSol = convertVndToUsdc(totalVnd);
 
   return (
-    <div style={{ fontFamily: "'Times New Roman', Times, serif" }} className="bg-[#fdfdfc] text-slate-900 p-8 md:p-12 rounded shadow-lg border border-slate-300 relative mx-auto max-w-4xl text-justify">
+    <div data-preserve-language="true" style={{ fontFamily: "'Times New Roman', Times, serif" }} className="bg-[#fdfdfc] text-slate-900 p-8 md:p-12 rounded shadow-lg border border-slate-300 relative mx-auto max-w-4xl text-justify">
       
       {/* WATERMARK */}
       <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none overflow-hidden">
@@ -118,7 +118,7 @@ export default function DraftContractTable({
       {partnerTyping && (
         <div className="absolute top-4 right-4 flex items-center gap-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-bold animate-pulse shadow-sm border border-indigo-200">
           <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
-          Đối tác đang chỉnh sửa...
+          Partner is editing...
         </div>
       )}
 
@@ -198,7 +198,7 @@ export default function DraftContractTable({
                   <th className="py-4 px-5 font-semibold w-2/5 border-r border-slate-300">Tên nông sản</th>
                   <td className="py-4 px-5 relative">
                     {partnerTypingField === 'san_pham' && (
-                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đối tác đang sửa...</span>
+                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Partner editing...</span>
                     )}
                     <input
                       type="text"
@@ -215,7 +215,7 @@ export default function DraftContractTable({
                   <td className="py-4 px-5 flex gap-4">
                     <div className="flex items-center gap-2 flex-1 relative">
                       {partnerTypingField === 'so_luong' && (
-                        <span className="absolute -top-6 left-0 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đối tác đang sửa...</span>
+                        <span className="absolute -top-6 left-0 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Partner editing...</span>
                       )}
                       <input
                         type="number"
@@ -228,7 +228,7 @@ export default function DraftContractTable({
                     </div>
                     <div className="flex items-center gap-2 w-28 relative">
                       {partnerTypingField === 'don_vi_tinh' && (
-                        <span className="absolute -top-6 left-0 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đang sửa...</span>
+                        <span className="absolute -top-6 left-0 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Editing...</span>
                       )}
                       <input
                         type="text"
@@ -245,7 +245,7 @@ export default function DraftContractTable({
                   <th className="py-4 px-5 font-semibold border-r border-slate-300">Đơn giá (VNĐ)</th>
                   <td className="py-4 px-5 relative">
                     {partnerTypingField === 'don_gia' && (
-                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đối tác đang sửa...</span>
+                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Partner editing...</span>
                     )}
                     <input
                       type="number"
@@ -273,7 +273,7 @@ export default function DraftContractTable({
                   <th className="py-4 px-5 font-semibold border-r border-slate-300">Hạn giao hàng muộn nhất</th>
                   <td className="py-4 px-5 relative">
                     {partnerTypingField === 'han_giao_hang' && (
-                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Đối tác đang sửa...</span>
+                      <span className="absolute -top-1 left-2 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow animate-pulse">Partner editing...</span>
                     )}
                     <input
                       type="datetime-local"
@@ -355,7 +355,7 @@ export default function DraftContractTable({
                           type="button"
                           onClick={() => handleRemoveQualityRule(idx)}
                           className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                          title="Xóa tiêu chí"
+                          title="Remove criterion"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -375,7 +375,7 @@ export default function DraftContractTable({
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-dashed border-slate-400 rounded transition-all shadow-sm bg-white"
               >
                 <Plus size={14} className="text-slate-500" />
-                Thêm tiêu chí kiểm định (Điều 2)
+                Add Inspection Criterion (Article 2)
               </button>
             </div>
           )}
@@ -411,20 +411,20 @@ export default function DraftContractTable({
                 <div className="flex flex-col items-center w-full px-4 gap-3 my-4">
                   <div className="w-24 h-24 border-4 border-dashed border-slate-300 rounded-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 mb-2">
                     <FileSignature size={24} className="mb-1 opacity-50" />
-                    <span className="text-[10px] uppercase font-semibold">Chờ ký</span>
+                    <span className="text-[10px] uppercase font-semibold">Pending Signature</span>
                   </div>
                   
                   {currentRole === 'nong_dan' && onSignSeller && !isLocked && (
                     <div className="w-full max-w-[220px] flex flex-col gap-2">
                       {partnerCount === 0 && !isDemoCall ? (
                         <p className="text-xs text-red-500 font-semibold italic text-center leading-normal">
-                          ⚠️ Chờ đối tác tham gia cuộc họp để ký hợp đồng
+                          Waiting for partner to join before signing
                         </p>
                       ) : (
                         <>
                           <input 
                             type="text" 
-                            placeholder="Nhập họ tên của bạn..." 
+                            placeholder="Enter your full name..." 
                             value={typedSellerName}
                             onChange={(e) => setTypedSellerName(e.target.value)}
                             className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:border-emerald-500 outline-none text-center bg-white shadow-inner"
@@ -434,14 +434,14 @@ export default function DraftContractTable({
                             onClick={() => onSignSeller(typedSellerName)}
                             className="w-full bg-[#ab9ff2] hover:bg-[#9789eb] text-white py-2 rounded-lg text-sm font-bold shadow disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                           >
-                            {isSigningSeller ? <span className="animate-pulse">Đang ký...</span> : 'Ký bằng Phantom'}
+                            {isSigningSeller ? <span className="animate-pulse">Signing...</span> : 'Sign with Phantom'}
                           </button>
                         </>
                       )}
                     </div>
                   )}
                   {currentRole !== 'nong_dan' && (
-                    <p className="text-sm text-slate-500 italic mt-2">Chờ đối tác ký xác nhận</p>
+                    <p className="text-sm text-slate-500 italic mt-2">Waiting for partner signature</p>
                   )}
                 </div>
               )}
@@ -469,20 +469,20 @@ export default function DraftContractTable({
                 <div className="flex flex-col items-center w-full px-4 gap-3 my-4">
                   <div className="w-24 h-24 border-4 border-dashed border-slate-300 rounded-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 mb-2">
                     <FileSignature size={24} className="mb-1 opacity-50" />
-                    <span className="text-[10px] uppercase font-semibold">Chờ ký</span>
+                    <span className="text-[10px] uppercase font-semibold">Pending Signature</span>
                   </div>
                   
                   {currentRole === 'thuong_lai' && onSignBuyer && !isLocked && (
                     <div className="w-full max-w-[220px] flex flex-col gap-2">
                       {partnerCount === 0 && !isDemoCall ? (
                         <p className="text-xs text-red-500 font-semibold italic text-center leading-normal">
-                          ⚠️ Chờ đối tác tham gia cuộc họp để ký hợp đồng
+                          Waiting for partner to join before signing
                         </p>
                       ) : (
                         <>
                           <input 
                             type="text" 
-                            placeholder="Nhập họ tên của bạn..." 
+                            placeholder="Enter your full name..." 
                             value={typedBuyerName}
                             onChange={(e) => setTypedBuyerName(e.target.value)}
                             className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:border-indigo-500 outline-none text-center bg-white shadow-inner"
@@ -492,14 +492,14 @@ export default function DraftContractTable({
                             onClick={() => onSignBuyer(typedBuyerName)}
                             className="w-full bg-[#ab9ff2] hover:bg-[#9789eb] text-white py-2 rounded-lg text-sm font-bold shadow disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                           >
-                            {isSigningBuyer ? <span className="animate-pulse">Đang ký...</span> : 'Ký bằng Phantom'}
+                            {isSigningBuyer ? <span className="animate-pulse">Signing...</span> : 'Sign with Phantom'}
                           </button>
                         </>
                       )}
                     </div>
                   )}
                   {currentRole !== 'thuong_lai' && (
-                    <p className="text-sm text-slate-500 italic mt-2">Chờ đối tác ký xác nhận</p>
+                    <p className="text-sm text-slate-500 italic mt-2">Waiting for partner signature</p>
                   )}
                 </div>
               )}

@@ -114,10 +114,10 @@ export default function ConfirmContractButton({
       {totalSol > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 text-center">
           <p className="text-xs text-amber-300 font-medium">
-            💰 Sẽ khóa <span className="font-bold text-amber-200">{totalSol.toFixed(6)} SOL</span> vào escrow
+            Funds to lock: <span className="font-bold text-amber-200">{totalSol.toFixed(6)} SOL</span>
           </p>
           <p className="text-[10px] text-amber-400/70 mt-0.5">
-            (≈ {totalVnd.toLocaleString('vi-VN')} VNĐ · Phantom sẽ yêu cầu xác nhận)
+            (≈ {totalVnd.toLocaleString('vi-VN')} VNĐ · Phantom will ask for confirmation)
           </p>
         </div>
       )}

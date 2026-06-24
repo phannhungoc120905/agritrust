@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useLanguage } from '../../lib/useLanguage';
 import { useAuth } from '../../hooks/useAuth';
 import { registerUser } from '../../lib/supabase/queries/auth';
 import { Keypair } from '@solana/web3.js';
@@ -22,6 +23,7 @@ import {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { isEnglish } = useLanguage();
   const { login } = useAuth();
   
   // Step 1
@@ -41,7 +43,7 @@ export default function RegisterPage() {
 
   const nextStep = () => {
     if (!username.trim() || !password || !displayName.trim()) {
-      setErrorMsg('Vui lòng điền đầy đủ các thông tin bắt buộc.');
+      setErrorMsg(isEnglish ? 'Please fill in all required information.' : 'Vui lòng điền đầy đủ các thông tin bắt buộc.');
       return;
     }
     setErrorMsg('');
@@ -56,7 +58,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !phone.trim()) {
-      setErrorMsg('Vui lòng điền Họ tên và Số điện thoại liên hệ.');
+      setErrorMsg(isEnglish ? 'Please fill in your full name and contact phone number.' : 'Vui lòng điền Họ tên và Số điện thoại liên hệ.');
       return;
     }
 
@@ -87,10 +89,10 @@ export default function RegisterPage() {
     } catch (err: any) {
       console.error(err);
       if (err.message && err.message.includes('duplicate key')) {
-        setErrorMsg('Tên đăng nhập đã tồn tại trong hệ thống.');
+        setErrorMsg(isEnglish ? 'That username already exists.' : 'Tên đăng nhập đã tồn tại trong hệ thống.');
         setStep(1); // Quay lại step 1 để sửa username
       } else {
-        setErrorMsg(err.message || 'Đã xảy ra lỗi đăng ký tài khoản. Vui lòng thử lại.');
+        setErrorMsg(err.message || (isEnglish ? 'An error occurred during registration. Please try again.' : 'Đã xảy ra lỗi đăng ký tài khoản. Vui lòng thử lại.'));
       }
     } finally {
       setIsLoading(false);
@@ -104,17 +106,17 @@ export default function RegisterPage() {
         {/* Logo + Heading */}
         <div className="flex flex-col items-center space-y-3">
           <Link href="/login" className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-[#15803D] transition-colors self-start mb-2">
-            <ArrowLeft size={14} /> Quay lại Đăng nhập
+            <ArrowLeft size={14} /> {isEnglish ? 'Back to Login' : 'Quay lại Đăng nhập'}
           </Link>
           <div className="w-14 h-14 rounded-2xl bg-[#15803D] flex items-center justify-center text-white font-black text-2xl shadow-lg hover:rotate-6 transition-transform">
             A
           </div>
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-black text-neutral-900 tracking-tight">
-              Đăng ký Tài khoản Mới
+              {isEnglish ? 'Create New Account' : 'Đăng ký Tài khoản Mới'}
             </h1>
             <p className="text-sm text-neutral-500 max-w-md leading-relaxed">
-              Tạo tài khoản để tham gia mạng lưới kết nối nông sản AgriTrust.
+              {isEnglish ? 'Create an account to join the AgriTrust agriculture network.' : 'Tạo tài khoản để tham gia mạng lưới kết nối nông sản AgriTrust.'}
             </p>
           </div>
         </div>
@@ -142,7 +144,7 @@ export default function RegisterPage() {
                 {/* Vai trò */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                    Vai trò của bạn <span className="text-red-500">*</span>
+                    {isEnglish ? 'Your role' : 'Vai trò của bạn'} <span className="text-red-500">*</span>
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -155,7 +157,7 @@ export default function RegisterPage() {
                       }`}
                     >
                       <User size={15} />
-                      <span>Nông dân / HTX</span>
+                      <span>{isEnglish ? 'Farmer / Coop' : 'Nông dân / HTX'}</span>
                     </button>
                     <button
                       type="button"
@@ -167,7 +169,7 @@ export default function RegisterPage() {
                       }`}
                     >
                       <Briefcase size={15} />
-                      <span>Thương lái / Thu mua</span>
+                      <span>{isEnglish ? 'Trader / Buyer' : 'Thương lái / Thu mua'}</span>
                     </button>
                   </div>
                 </div>
@@ -175,7 +177,7 @@ export default function RegisterPage() {
                 {/* Tên hiển thị */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                    Tên Doanh nghiệp / Trang trại (Tên hiển thị) <span className="text-red-500">*</span>
+                    {isEnglish ? 'Business / Farm name (Display name)' : 'Tên Doanh nghiệp / Trang trại (Tên hiển thị)'} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
@@ -185,7 +187,9 @@ export default function RegisterPage() {
                       type="text"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder={role === 'nong_dan' ? "Ví dụ: HTX Lúa Chín, Vườn Anh Ruộng..." : "Ví dụ: Công ty Nông sản Xanh..."}
+                      placeholder={role === 'nong_dan'
+                        ? (isEnglish ? 'Example: Lua Chin Coop, Anh Ruong Farm...' : "Ví dụ: HTX Lúa Chín, Vườn Anh Ruộng...")
+                        : (isEnglish ? 'Example: Green Agriculture Co., Ltd.' : "Ví dụ: Công ty Nông sản Xanh...")}
                       className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
                     />
                   </div>
@@ -194,7 +198,7 @@ export default function RegisterPage() {
                 {/* Tên đăng nhập */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                    Tên đăng nhập (Username) <span className="text-red-500">*</span>
+                    {isEnglish ? 'Username' : 'Tên đăng nhập (Username)'} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
@@ -204,7 +208,7 @@ export default function RegisterPage() {
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Nhập tên đăng nhập viết liền không dấu"
+                      placeholder={isEnglish ? 'Enter an unaccented username' : 'Nhập tên đăng nhập viết liền không dấu'}
                       className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
                     />
                   </div>
@@ -213,7 +217,7 @@ export default function RegisterPage() {
                 {/* Mật khẩu */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                    Mật khẩu <span className="text-red-500">*</span>
+                    {isEnglish ? 'Password' : 'Mật khẩu'} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400">
@@ -223,7 +227,7 @@ export default function RegisterPage() {
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Nhập mật khẩu truy cập"
+                      placeholder={isEnglish ? 'Enter access password' : 'Nhập mật khẩu truy cập'}
                       className="w-full pl-11 pr-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 focus:border-[#15803D] transition-all outline-none"
                     />
                   </div>
@@ -234,7 +238,7 @@ export default function RegisterPage() {
                   onClick={nextStep}
                   className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
                 >
-                  <span>Tiếp tục: Thông tin cá nhân</span>
+                  <span>{isEnglish ? 'Continue: Personal info' : 'Tiếp tục: Thông tin cá nhân'}</span>
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -243,7 +247,11 @@ export default function RegisterPage() {
             {step === 2 && (
               <div className="space-y-5 animate-fade-in">
                 <p className="text-sm text-slate-600 mb-2 font-medium">
-                  Vui lòng cung cấp thông tin người đại diện thực tế để AI tự động điền vào <b>Hợp Đồng Điện Tử</b>.
+                  {isEnglish ? (
+                    <>Please provide the actual representative details so AI can auto-fill the <b>Electronic Contract</b>.</>
+                  ) : (
+                    <>Vui lòng cung cấp thông tin người đại diện thực tế để AI tự động điền vào <b>Hợp Đồng Điện Tử</b>.</>
+                  )}
                 </p>
 
                 {/* Họ tên */}

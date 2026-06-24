@@ -14,6 +14,7 @@ import { createDraftContract, updateContractStatus } from '../lib/supabase/queri
 import { getRequestsForFarmer, getRequestsForTrader, createContactRequest, acceptRequest, rejectRequest, connectRequest } from '../lib/supabase/queries/contactRequests';
 import { supabase } from '../lib/supabase/client';
 import { encodeMeetingParams } from '../lib/utils/url';
+import { useLanguage, type Language } from '../lib/useLanguage';
 import {
   ShoppingBag,
   FileSignature,
@@ -50,8 +51,6 @@ import {
 import DisputeReportForm from '../components/dispute/DisputeReportForm';
 import SettlementProposal from '../components/dispute/SettlementProposal';
 import { DisputeReport } from '../types/disputeReport';
-
-type Language = 'vi' | 'en';
 
 const UI_TEXT = {
   vi: {
@@ -158,6 +157,161 @@ const UI_TEXT = {
   }
 };
 
+const STATIC_UI_EN: Record<string, string> = {
+  'Ví:': 'Wallet:',
+  'Quan tâm đến:': 'Interested in:',
+  'Đại diện:': 'Representative:',
+  'Công ty:': 'Company:',
+  'SĐT:': 'Phone:',
+  'Địa chỉ:': 'Address:',
+  'Lời nhắn:': 'Message:',
+  'Chờ phản hồi': 'Pending',
+  'Đã đồng ý': 'Accepted',
+  'Đã hẹn lịch': 'Scheduled',
+  'Đang đàm phán': 'Negotiating',
+  'Đã từ chối': 'Rejected',
+  'Từ chối': 'Reject',
+  'Bắt đầu đàm phán': 'Start Negotiation',
+  'Vào phòng đàm phán': 'Enter Negotiation Room',
+  'Tất cả': 'All',
+  'Đã khóa': 'Locked',
+  'Hoàn thành': 'Completed',
+  'Chỉ Yêu Thích': 'Favorites Only',
+  'Đang áp dụng:': 'Active filters:',
+  'Mục yêu thích': 'Favorites',
+  'Xóa tất cả bộ lọc': 'Clear all filters',
+  'Không tìm thấy nông dân nào phù hợp với bộ lọc.': 'No farmers match the current filters.',
+  'Chưa có đánh giá': 'No reviews yet',
+  'Đang chờ phản hồi': 'Pending response',
+  'Đang chờ': 'Pending',
+  'Liên hệ thêm SP mới': 'Contact for another product',
+  'Xem Hồ Sơ & Liên hệ': 'View Profile & Contact',
+  'Liên hệ': 'Contact',
+  'Xem Hồ Sơ': 'View Profile',
+  'Nông dân': 'Farmer',
+  'Thương lái': 'Trader',
+  'Quy mô:': 'Scale:',
+  'Chứng nhận:': 'Certification:',
+  'Kinh nghiệm:': 'Experience:',
+  'Đánh giá:': 'Rating:',
+  'Danh sách Nông sản': 'Product List',
+  'Chưa có sản phẩm nào được đăng tải.': 'No products have been posted yet.',
+  'Giá thương lượng': 'Negotiable price',
+  'Liên hệ chung, không chọn sản phẩm cụ thể': 'General contact, no specific product selected',
+  'Lời nhắn / Đề xuất (Tuỳ chọn)': 'Message / Proposal (Optional)',
+  'Gửi Yêu Cầu Liên Hệ': 'Send Contact Request',
+  'Số SOL đang bị khóa trong smart contract, sẽ giải phóng sau khi giao nhận xong': 'SOL locked in the smart contract will be released after delivery is completed',
+  'Chưa có cuộc đàm phán hay hợp đồng nào được tạo.': 'No negotiations or contracts have been created yet.',
+  'Đã chốt tất cả': 'All finalized',
+  'Đã Chốt & Khóa': 'Finalized & Locked',
+  'Đang Đàm phán...': 'Negotiating...',
+  'Đang Liên hệ...': 'Contacting...',
+  'Chốt nháp (Tạm dừng)': 'Draft finalized (Paused)',
+  'Tạm dừng': 'Paused',
+  'Gửi yêu cầu': 'Send Request',
+  'Đàm phán': 'Negotiation',
+  'Chốt & Khóa': 'Finalize & Lock',
+  'Giao nhận': 'Delivery',
+  'Tổng thương vụ': 'Total Deals',
+  'Tổng giá trị VNĐ': 'Total VND Value',
+  'Đang chờ xử lý': 'Pending',
+  'Phòng Đàm Phán:': 'Negotiation Room:',
+  'Thoát phòng': 'Leave Room',
+  'Hợp đồng nháp đã sẵn sàng!': 'Draft contract is ready!',
+  'AI đã tự động lập điều khoản nông sản và phạt chất lượng từ cuộc đàm thoại. Bấm để xem lại và ký quỹ.': 'AI generated agricultural terms and quality penalties from the conversation. Click to review and escrow.',
+  'Lịch sử Đàm Phán': 'Negotiation History',
+  'Đã kết thúc': 'Ended',
+  'ĐÃ KHÓA TRÊN SOLANA': 'LOCKED ON SOLANA',
+  'Theo dõi Giao Nhận': 'Delivery Tracking',
+  'Chưa có hợp đồng nào đang giao hàng.': 'No contracts are currently in delivery.',
+  'Đang vận chuyển': 'In Transit',
+  'Hàng đã tới - Chờ kiểm tra': 'Arrived - Awaiting Inspection',
+  'Đã hoàn tất thanh toán': 'Payment Completed',
+  '100% Tiền Đã Khóa': '100% Funds Locked',
+  'Quay lại danh sách': 'Back to List',
+  'Kiểm tra Hàng hóa': 'Inspect Goods',
+  'Xác nhận tình trạng lô hàng khi vận chuyển đến nơi.': 'Confirm the shipment condition when it arrives.',
+  'Hồ sơ nghiệm thu trực tuyến': 'Online Inspection Record',
+  'Sao chép': 'Copy',
+  'Xem chi tiết': 'View Details',
+  'Kiểm tra chất lượng hàng hóa': 'Goods Quality Check',
+  'Hàng hóa có đúng cam kết trong Hợp đồng không?': 'Do the goods match the contract commitments?',
+  'Hàng đã tới nơi. Đang chờ Thương lái nghiệm thu...': 'Goods have arrived. Waiting for trader inspection...',
+  'Thương lái sẽ tiến hành kiểm nghiệm thực tế và chọn xác nhận giải ngân 100% hoặc báo cáo lỗi nếu có hao hụt/sai sót.': 'The trader will inspect the goods and either confirm 100% release or report issues if there are shortages/defects.',
+  'Đạt Chuẩn': 'Passed',
+  'Giải ngân 100% cho Nông dân': 'Release 100% to Farmer',
+  'Hàng Có Lỗi': 'Issue Found',
+  'Báo cáo để AI phân xử phạt': 'Report for AI settlement',
+  'Hệ Thống Phân Xử Kỹ Thuật Số': 'Digital Arbitration System',
+  'Tạo Báo Cáo': 'Create Report',
+  'Xác Nhận': 'Confirm',
+  'Trọng Tài AI': 'AI Arbitration',
+  'Thực Thi SC': 'Execute SC',
+  'Thương lái đang điền Báo cáo Khiếu nại Chất lượng.': 'The trader is filling out the quality claim report.',
+  'Vui lòng chờ Thương lái gửi báo cáo lên hệ thống để bạn xác nhận.': 'Please wait for the trader to submit the report for your confirmation.',
+  'Demo: TL gửi báo cáo': 'Demo: Trader submits report',
+  'Chờ Nông dân xác nhận báo cáo': 'Waiting for farmer report confirmation',
+  'Thương lái đã gửi khiếu nại. Nông dân cần xác nhận tình trạng thực tế để AI phân xử.': 'The trader submitted a claim. The farmer must confirm the actual condition before AI arbitration.',
+  'Số lượng thực nhận:': 'Actual quantity received:',
+  'Chi tiết lỗi:': 'Issue details:',
+  'Nông Dân Xác Nhận': 'Farmer Confirms',
+  'Đang chờ Nông dân xác nhận': 'Waiting for farmer confirmation',
+  'Hệ thống AI đang phân tích...': 'AI system is analyzing...',
+  'Đang đối chiếu bằng chứng với các Điều khoản chất lượng đã ký quỹ trên Smart Contract.': 'Comparing evidence against the quality terms locked in the smart contract.',
+  'YÊU CẦU 2 BÊN XÁC NHẬN ĐỂ THỰC THI SMART CONTRACT': 'BOTH PARTIES MUST CONFIRM TO EXECUTE THE SMART CONTRACT',
+  'Nông dân Đồng ý': 'Farmer Agrees',
+  'Thương lái Đồng ý': 'Trader Agrees',
+  'Yêu cầu Đàm phán mới!': 'New Negotiation Request!',
+  'Đang tải ứng dụng...': 'Loading app...'
+};
+
+const STATIC_UI_EN_PATTERNS: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
+  [/^(.+) giao dịch$/, (match) => `${match[1]} transactions`],
+  [/^Xem thêm Nông dân \((.+) còn lại\)$/, (match) => `View more farmers (${match[1]} remaining)`],
+  [/^(.+) thương vụ$/, (match) => `${match[1]} deals`],
+  [/^Đã chốt tất cả \((.+)\)$/, (match) => `All finalized (${match[1]})`],
+  [/^Đang đàm phán \((.+)\)$/, (match) => `Negotiating (${match[1]})`],
+  [/^Vụ: (.+)$/, (match) => `Season: ${match[1]}`],
+  [/^Sản phẩm chính: (.+)$/, (match) => `Main product: ${match[1]}`],
+  [/^Quy mô: (.+)$/, (match) => `Scale: ${match[1]}`],
+  [/^Kinh nghiệm: (.+)$/, (match) => `Experience: ${match[1]}`],
+  [/^Đánh giá: (.+)$/, (match) => `Rating: ${match[1]}`]
+];
+
+function translateStaticUiToEnglish(root: HTMLElement) {
+  const preserveSelector = '[data-preserve-language="true"], input, textarea, script, style';
+  const translateValue = (value: string) => {
+    const trimmed = value.trim();
+    const direct = STATIC_UI_EN[trimmed];
+    if (direct) return value.replace(trimmed, direct);
+
+    for (const [pattern, replacer] of STATIC_UI_EN_PATTERNS) {
+      const match = trimmed.match(pattern);
+      if (match) return value.replace(trimmed, replacer(match));
+    }
+
+    return value;
+  };
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+
+  for (const node of textNodes) {
+    const parent = node.parentElement;
+    if (!parent || parent.closest(preserveSelector)) continue;
+    node.nodeValue = translateValue(node.nodeValue || '');
+  }
+
+  root.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label]').forEach((element) => {
+    if (element.closest('[data-preserve-language="true"]')) return;
+    for (const attribute of ['placeholder', 'title', 'aria-label']) {
+      const current = element.getAttribute(attribute);
+      if (current) element.setAttribute(attribute, translateValue(current));
+    }
+  });
+}
+
 function HomePageContent() {
   const searchParams = useSearchParams();
   const { user, loading, logout } = useAuth();
@@ -171,17 +325,17 @@ function HomePageContent() {
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<'market' | 'negotiation' | 'delivery' | 'map'>('market');
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window === 'undefined') return 'vi';
-    return localStorage.getItem('agritrust_language') === 'en' ? 'en' : 'vi';
-  });
+  const { language, setLanguage } = useLanguage();
   const [toastMsg, setToastMsg] = useState<{ text: string; negoId?: string } | null>(null);
+  const uiRootRef = useRef<HTMLDivElement>(null);
   const text = UI_TEXT[language];
 
   useEffect(() => {
-    localStorage.setItem('agritrust_language', language);
-    document.documentElement.lang = language;
-  }, [language]);
+    if (language !== 'en' || !uiRootRef.current) return;
+    requestAnimationFrame(() => {
+      if (uiRootRef.current) translateStaticUiToEnglish(uiRootRef.current);
+    });
+  });
 
   // Contact Requests Filters & Helpers
   const [contactFilter, setContactFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
@@ -1288,7 +1442,7 @@ function HomePageContent() {
   const countDelivery = negotiations.filter(n => n.status === 'da_chot' && n.deliveryStatus !== 'da_hoan_thanh').length;
 
   return (
-    <div className="flex-grow flex flex-col min-h-screen bg-slate-50 font-sans">
+    <div ref={uiRootRef} className="flex-grow flex flex-col min-h-screen bg-slate-50 font-sans">
 
       {/* HEADER & TABS */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-[8px] border-b border-slate-200 shadow-sm print:hidden">
@@ -1297,12 +1451,36 @@ function HomePageContent() {
             <div className="w-9 h-9 rounded-xl bg-[#15803D] flex items-center justify-center text-white font-black text-lg shadow-md shrink-0">A</div>
             <div className="flex flex-col">
               <span className="text-lg font-black tracking-tight text-slate-900 leading-none">AgriTrust</span>
-              <span className="text-[10px] text-slate-400 font-medium tracking-wide mt-0.5">Nền tảng nông nghiệp tin cậy</span>
+              <span className="text-[10px] text-slate-400 font-medium tracking-wide mt-0.5">{text.tagline}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             <ConnectWalletButton />
+
+            <div
+              role="tablist"
+              aria-label="Language"
+              className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1"
+            >
+              <Languages size={15} className="ml-1 text-slate-500" />
+              {(['vi', 'en'] as Language[]).map(option => (
+                <button
+                  key={option}
+                  type="button"
+                  role="tab"
+                  aria-selected={language === option}
+                  onClick={() => setLanguage(option)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all ${
+                    language === option
+                      ? 'bg-white text-[#2e7d32] shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {option.toUpperCase()}
+                </button>
+              ))}
+            </div>
 
             {/* Notification Bell */}
             <div className="relative">
@@ -1320,20 +1498,20 @@ function HomePageContent() {
               {isNotificationOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 py-3 z-50 animate-scaleUp">
                   <div className="px-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-                    <span className="font-extrabold text-sm text-slate-800">Thông báo mới ({unreadNotifications.length})</span>
+                    <span className="font-extrabold text-sm text-slate-800">{text.notifications} ({unreadNotifications.length})</span>
                     {unreadNotifications.length > 0 && (
                       <button 
                         onClick={() => setUnreadNotifications([])}
                         className="text-[10px] text-[#2e7d32] hover:underline font-bold"
                       >
-                        Đánh dấu tất cả đã đọc
+                        {text.markAllRead}
                       </button>
                     )}
                   </div>
                   <div className="max-h-64 overflow-y-auto mt-2">
                     {unreadNotifications.length === 0 ? (
                       <div className="px-4 py-6 text-center text-xs text-slate-400">
-                        Chưa có thông báo mới nào.
+                        {text.noNotifications}
                       </div>
                     ) : (
                       unreadNotifications.map(notif => (
@@ -1373,7 +1551,7 @@ function HomePageContent() {
                     {isNongDan ? 'Nông dân Nguyễn Văn Ruộng' : user.ten_hien_thi}
                   </p>
                   <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                    {isNongDan ? 'Nông dân' : 'Thương lái'}
+                    {isNongDan ? text.farmer : text.trader}
                   </span>
                 </div>
                 <ChevronDown size={14} className="text-slate-400 group-hover/menu:rotate-180 transition-transform duration-200" />
@@ -1384,15 +1562,15 @@ function HomePageContent() {
                 <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 flex flex-col overflow-hidden">
                   <Link href="/profile" className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-[#2e7d32] transition-all flex items-center gap-2.5">
                     <User size={14} className="text-slate-400" />
-                    <span>Hồ sơ</span>
+                    <span>{text.profile}</span>
                   </Link>
                   <Link href="/profile?tab=settings" className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-[#2e7d32] transition-all flex items-center gap-2.5">
                     <Award size={14} className="text-slate-400" />
-                    <span>Cài đặt</span>
+                    <span>{text.settings}</span>
                   </Link>
                   <button onClick={logout} className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all flex items-center gap-2.5 border-t border-slate-100 cursor-pointer">
                     <LogOut size={14} className="text-rose-450" />
-                    <span>Đăng xuất</span>
+                    <span>{text.logout}</span>
                   </button>
                 </div>
               </div>
@@ -1410,7 +1588,7 @@ function HomePageContent() {
             }`}
           >
             <ShoppingBag size={16} /> 
-            <span>Kết nối Đối tác</span>
+            <span>{text.tabs.market}</span>
             <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ml-1 ${
               activeTab === 'market' 
                 ? 'bg-[#2e7d32]/20 text-[#2e7d32]' 
@@ -1429,7 +1607,7 @@ function HomePageContent() {
             }`}
           >
             <MessageSquare size={16} /> 
-            <span>Đàm phán & Hợp đồng</span>
+            <span>{text.tabs.negotiation}</span>
             <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ml-1 ${
               activeTab === 'negotiation' 
                 ? 'bg-[#2e7d32]/20 text-[#2e7d32]' 
@@ -1448,7 +1626,7 @@ function HomePageContent() {
             }`}
           >
             <Truck size={16} /> 
-            <span>Giao nhận & Thanh toán</span>
+            <span>{text.tabs.delivery}</span>
             <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ml-1 ${
               activeTab === 'delivery' 
                 ? 'bg-[#2e7d32]/20 text-[#2e7d32]' 
@@ -1468,7 +1646,7 @@ function HomePageContent() {
             }`}
           >
             <Map size={16} /> 
-            <span>Bản đồ Nông trại</span>
+            <span>{text.tabs.map}</span>
             <span className={`absolute bottom-0 left-0 right-0 h-[3px] bg-[#2e7d32] rounded-t-full transition-transform duration-300 ${activeTab === 'map' ? 'scale-x-100' : 'scale-x-0'}`} />
           </button>
         </div>
@@ -1479,16 +1657,16 @@ function HomePageContent() {
         <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-8 animate-fade-in-up">
           <div className="mb-6 flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-black text-slate-900 border-l-4 border-[#2e7d32] pl-3">Kết nối Đối tác</h1>
+              <h1 className="text-2xl font-black text-slate-900 border-l-4 border-[#2e7d32] pl-3">{text.marketTitle}</h1>
               <p className="text-sm text-slate-500 mt-1">
                 {isNongDan
-                  ? 'Quản lý các yêu cầu liên hệ từ Thương lái quan tâm đến sản phẩm của bạn.'
-                  : 'Khám phá Nông dân và sản phẩm của họ. Gửi yêu cầu liên hệ để bắt đầu đàm phán.'}
+                  ? text.marketFarmerDesc
+                  : text.marketTraderDesc}
               </p>
             </div>
             {isNongDan && (
               <Link href="/profile" className="px-5 py-2.5 bg-[#15803D] hover:bg-[#166534] text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-md">
-                Cập nhật Nông sản (Profile)
+                {text.updateProducts}
               </Link>
             )}
           </div>
@@ -1508,22 +1686,22 @@ function HomePageContent() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-4">
                       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-bold">
                         <span className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm">
-                          📬 {countNewReqs} yêu cầu mới
+                          📬 {countNewReqs} {text.requestStats.new}
                         </span>
                         <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm">
-                          ✅ {countAcceptedReqs} đã đồng ý
+                          ✅ {countAcceptedReqs} {text.requestStats.accepted}
                         </span>
                         <span className="bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm">
-                          ⏳ {countNegotiatingReqs} đang đàm phán
+                          ⏳ {countNegotiatingReqs} {text.requestStats.negotiating}
                         </span>
                       </div>
                       
                       <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl shrink-0 self-start sm:self-center">
                         {[
-                          { id: 'all', label: 'Tất cả' },
-                          { id: 'pending', label: 'Chờ phản hồi' },
-                          { id: 'accepted', label: 'Đã đồng ý' },
-                          { id: 'rejected', label: 'Đã từ chối' }
+                          { id: 'all', label: text.filters.all },
+                          { id: 'pending', label: text.filters.pending },
+                          { id: 'accepted', label: text.filters.accepted },
+                          { id: 'rejected', label: text.filters.rejected }
                         ].map(tab => (
                           <button
                             key={tab.id}
@@ -1542,7 +1720,7 @@ function HomePageContent() {
 
                     {filtered.length === 0 ? (
                       <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 text-slate-500 font-bold">
-                        Chưa có yêu cầu liên hệ nào trong mục này.
+                        {text.emptyRequests}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1721,7 +1899,7 @@ function HomePageContent() {
                     <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Tìm kiếm Nông dân hoặc Nông sản chính..."
+                      placeholder={text.searchFarmers}
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:border-[#2e7d32] focus:ring-1 focus:ring-[#2e7d32] outline-none placeholder:text-slate-400/80 transition-all bg-slate-50/50"
@@ -1733,7 +1911,7 @@ function HomePageContent() {
                       onChange={e => setSelectedLocation(e.target.value)}
                       className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:border-[#2e7d32] focus:ring-1 focus:ring-[#2e7d32] outline-none bg-white transition-all cursor-pointer text-slate-700"
                     >
-                      <option value="">🗺️ Tất cả Vùng miền</option>
+                      <option value="">🗺️ {text.allRegions}</option>
                       {Array.from(new Set(farmerProfiles.map(f => f.khu_vuc).filter(Boolean))).map(loc => (
                         <option key={loc} value={loc}>{loc}</option>
                       ))}
@@ -1745,7 +1923,7 @@ function HomePageContent() {
                       onChange={e => setSelectedProductType(e.target.value)}
                       className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:border-[#2e7d32] focus:ring-1 focus:ring-[#2e7d32] outline-none bg-white transition-all cursor-pointer text-slate-700"
                     >
-                      <option value="">🌿 Tất cả Loại nông sản</option>
+                      <option value="">🌿 {text.allProducts}</option>
                       {Array.from(new Set(farmerProfiles.map(f => f.san_pham_chinh).filter(Boolean))).map(prod => (
                         <option key={prod} value={prod}>{prod}</option>
                       ))}
@@ -2366,9 +2544,9 @@ function HomePageContent() {
         <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-8 animate-fade-in-up">
           <div className="mb-6 flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-black text-slate-900 border-l-4 border-[#2e7d32] pl-3">Bản đồ Nông trại</h1>
+              <h1 className="text-2xl font-black text-slate-900 border-l-4 border-[#2e7d32] pl-3">{text.mapTitle}</h1>
               <p className="text-sm text-slate-500 mt-1">
-                Phân bố địa lý trực quan của các Nông trại và Nhà vườn trên bản đồ Việt Nam.
+                {text.mapDesc}
               </p>
             </div>
           </div>
@@ -2386,9 +2564,9 @@ function HomePageContent() {
                 return (
                   <>
                     <div className="flex justify-between items-center mb-1">
-                      <h3 className="font-extrabold text-sm text-slate-800 uppercase tracking-wider">Vị trí Nhà vườn</h3>
+                      <h3 className="font-extrabold text-sm text-slate-800 uppercase tracking-wider">{text.growerLocations}</h3>
                       <span className="text-[11px] font-black text-[#2e7d32] bg-[#2e7d32]/10 px-2.5 py-0.5 rounded-full">
-                        {filteredFarmers.length} Nhà vườn
+                        {filteredFarmers.length} {text.growers}
                       </span>
                     </div>
                     
@@ -2397,7 +2575,7 @@ function HomePageContent() {
                       <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                       <input
                         type="text"
-                        placeholder="Tìm nhanh nhà vườn, tỉnh thành..."
+                        placeholder={text.quickMapSearch}
                         value={mapSearchQuery}
                         onChange={e => setMapSearchQuery(e.target.value)}
                         className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:border-[#2e7d32] focus:ring-1 focus:ring-[#2e7d32] outline-none transition-all bg-slate-50/50"
@@ -2429,7 +2607,7 @@ function HomePageContent() {
                             <p className="text-[11px] text-[#2e7d32] font-semibold mt-0.5 flex items-center gap-1">
                               <MapPin size={12} /> {farmer.khu_vuc || 'Việt Nam'}
                             </p>
-                            <p className="text-[10px] text-slate-400 mt-0.5 truncate">Sản phẩm: {farmer.san_pham_chinh || 'Chưa cập nhật'}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5 truncate">{text.product}: {farmer.san_pham_chinh || text.notUpdated}</p>
                           </div>
                         </div>
                       ))}
@@ -2449,14 +2627,14 @@ function HomePageContent() {
                 <button
                   onClick={handleZoomIn}
                   className="w-10 h-10 rounded-xl bg-white border border-slate-250 text-[#2e7d32] font-black text-xl hover:bg-[#e8f5e9] hover:text-[#1b5e20] flex items-center justify-center shadow-md transition-all active:scale-95 cursor-pointer"
-                  title="Phóng to"
+                  title={text.zoomIn}
                 >
                   +
                 </button>
                 <button
                   onClick={handleZoomOut}
                   className="w-10 h-10 rounded-xl bg-white border border-slate-250 text-[#2e7d32] font-black text-xl hover:bg-[#e8f5e9] hover:text-[#1b5e20] flex items-center justify-center shadow-md transition-all active:scale-95 cursor-pointer"
-                  title="Thu nhỏ"
+                  title={text.zoomOut}
                 >
                   -
                 </button>
@@ -2466,9 +2644,9 @@ function HomePageContent() {
               <button
                 onClick={handleMyLocation}
                 className="absolute bottom-4 right-4 z-[1000] px-4 py-2.5 bg-white border border-slate-200 text-[#2e7d32] hover:bg-[#e8f5e9] hover:text-[#1b5e20] rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
-                title="Định vị vị trí của tôi"
+                title={text.myLocationTitle}
               >
-                <span className="text-sm">📍</span> Vị trí của tôi
+                <span className="text-sm">📍</span> {text.myLocation}
               </button>
             </div>
           </div>
@@ -2480,7 +2658,7 @@ function HomePageContent() {
         <div className="fixed bottom-6 right-6 z-[200] max-w-sm bg-slate-900 text-white p-5 rounded-2xl shadow-2xl border border-emerald-500/30 animate-fadeIn flex flex-col gap-3">
           <div className="flex justify-between items-start">
             <h5 className="font-extrabold text-sm text-emerald-400 flex items-center gap-1.5">
-              🚀 Hướng dẫn dùng AgriTrust
+              🚀 {text.onboardingTitle}
             </h5>
             <button onClick={() => { setShowOnboarding(false); localStorage.setItem('agritrust_onboarded', 'true'); }} className="text-slate-400 hover:text-white transition-colors">
               <X size={16} />
@@ -2496,7 +2674,7 @@ function HomePageContent() {
             onClick={() => { setShowOnboarding(false); localStorage.setItem('agritrust_onboarded', 'true'); }}
             className="w-full py-2.5 bg-gradient-to-r from-[#2e7d32] to-[#43a047] hover:brightness-110 text-white rounded-xl text-xs font-bold transition-all text-center cursor-pointer mt-1"
           >
-            Bắt đầu khám phá ngay!
+            {text.onboardingDone}
           </button>
         </div>
       )}
@@ -2508,7 +2686,7 @@ function HomePageContent() {
             // DANH SÁCH THƯƠNG VỤ
             <div className="animate-fade-in-up flex flex-col flex-grow">
               <div className="flex flex-col gap-4 mb-6">
-                <h1 className="text-2xl font-black text-slate-900">Quản lý Đàm phán & Hợp đồng</h1>
+                <h1 className="text-2xl font-black text-slate-900">{text.negotiationTitle}</h1>
 
                 {/* BANNER TỔNG TIỀN ĐANG KHÓA (Full-width Info Bar) */}
                 <div className="group relative w-full bg-gradient-to-r from-emerald-600 to-[#15803D] p-3.5 rounded-2xl text-white shadow-md flex items-center justify-between border border-emerald-500/30 transition-all duration-300 hover:shadow-lg">
@@ -2516,7 +2694,7 @@ function HomePageContent() {
                     <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner shrink-0">
                       <Lock size={18} className="text-white" />
                     </div>
-                    <span className="text-xs font-bold text-emerald-100 uppercase tracking-wider">Tổng tiền quỹ đang khóa</span>
+                    <span className="text-xs font-bold text-emerald-100 uppercase tracking-wider">{text.lockedEscrowTotal}</span>
                   </div>
                   
                   <div className="flex items-baseline gap-3">
@@ -2866,7 +3044,7 @@ function HomePageContent() {
                         className="mt-3 w-full py-2.5 bg-gradient-to-r from-emerald-600 to-[#15803D] hover:from-emerald-700 hover:to-[#166534] text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
                       >
                         <FileText size={14} />
-                        Xem hợp đồng nháp
+                        Review Draft Contract
                       </button>
                     </div>
                   </div>
@@ -2879,15 +3057,15 @@ function HomePageContent() {
                   <div className="w-full max-w-5xl bg-slate-50 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                     <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-white">
                       <div>
-                        <h2 className="font-black text-xl text-slate-900">Hợp Đồng Tự Động Ký Quỹ</h2>
-                        <p className="text-xs text-slate-500 mt-1">AI đã trích xuất thành công điều khoản từ hội thoại</p>
+                        <h2 className="font-black text-xl text-slate-900">Automated Escrow Contract</h2>
+                        <p className="text-xs text-slate-500 mt-1">AI extracted the terms from the conversation successfully</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <button onClick={() => setIsModalOpen(false)} className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all">
-                          Đóng Modal
+                          Close
                         </button>
                         <button onClick={handleLockEscrow} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-md transition-all">
-                          <ShieldCheck size={16} className="inline mr-2" /> Khóa Tiền & Chốt
+                          <ShieldCheck size={16} className="inline mr-2" /> Lock Funds & Finalize
                         </button>
                       </div>
                     </div>
@@ -2956,7 +3134,7 @@ function HomePageContent() {
               <div className="w-2/3 bg-slate-50 flex flex-col relative overflow-hidden">
                 <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between z-10 print:hidden shadow-sm">
                   <h2 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-                    Hợp Đồng Ký Quỹ
+                    Escrow Contract
                     {isContractLocked && (
                       <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
                         <Lock size={12} /> ĐÃ KHÓA TRÊN SOLANA
@@ -2966,7 +3144,7 @@ function HomePageContent() {
                   <div className="flex gap-2">
                     {isContractLocked && (
                       <button onClick={() => window.print()} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-2 border border-slate-200">
-                        <FileDown size={14} /> Xuất PDF
+                        <FileDown size={14} /> Export PDF
                       </button>
                     )}
                   </div>
@@ -3236,7 +3414,7 @@ function HomePageContent() {
 
                   <div className="flex gap-3">
                     <button onClick={() => setIsDisputeModalOpen(false)} className="flex-1 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-sm transition-colors">
-                      Đóng
+                      Close
                     </button>
                     {isNongDan ? (
                       <button onClick={handleSellerConfirmReport} className="flex-1 py-3 bg-emerald-600 text-white hover:bg-emerald-700 font-bold rounded-xl text-sm shadow-md transition-colors">
