@@ -43,12 +43,121 @@ import {
   Heart,
   Map,
   Grid,
-  List
+  List,
+  Languages
 } from 'lucide-react';
 
 import DisputeReportForm from '../components/dispute/DisputeReportForm';
 import SettlementProposal from '../components/dispute/SettlementProposal';
 import { DisputeReport } from '../types/disputeReport';
+
+type Language = 'vi' | 'en';
+
+const UI_TEXT = {
+  vi: {
+    tagline: 'Nền tảng nông nghiệp tin cậy',
+    notifications: 'Thông báo mới',
+    markAllRead: 'Đánh dấu tất cả đã đọc',
+    noNotifications: 'Chưa có thông báo mới nào.',
+    profile: 'Hồ sơ',
+    settings: 'Cài đặt',
+    logout: 'Đăng xuất',
+    farmer: 'Nông dân',
+    trader: 'Thương lái',
+    tabs: {
+      market: 'Kết nối Đối tác',
+      negotiation: 'Đàm phán & Hợp đồng',
+      delivery: 'Giao nhận & Thanh toán',
+      map: 'Bản đồ Nông trại'
+    },
+    marketTitle: 'Kết nối Đối tác',
+    marketFarmerDesc: 'Quản lý các yêu cầu liên hệ từ Thương lái quan tâm đến sản phẩm của bạn.',
+    marketTraderDesc: 'Khám phá Nông dân và sản phẩm của họ. Gửi yêu cầu liên hệ để bắt đầu đàm phán.',
+    updateProducts: 'Cập nhật Nông sản (Profile)',
+    requestStats: {
+      new: 'yêu cầu mới',
+      accepted: 'đã đồng ý',
+      negotiating: 'đang đàm phán'
+    },
+    filters: {
+      all: 'Tất cả',
+      pending: 'Chờ phản hồi',
+      accepted: 'Đã đồng ý',
+      rejected: 'Đã từ chối'
+    },
+    emptyRequests: 'Chưa có yêu cầu liên hệ nào trong mục này.',
+    searchFarmers: 'Tìm kiếm Nông dân hoặc Nông sản chính...',
+    allRegions: 'Tất cả Vùng miền',
+    allProducts: 'Tất cả Loại nông sản',
+    mapTitle: 'Bản đồ Nông trại',
+    mapDesc: 'Phân bố địa lý trực quan của các Nông trại và Nhà vườn trên bản đồ Việt Nam.',
+    growerLocations: 'Vị trí Nhà vườn',
+    growers: 'Nhà vườn',
+    quickMapSearch: 'Tìm nhanh nhà vườn, tỉnh thành...',
+    product: 'Sản phẩm',
+    notUpdated: 'Chưa cập nhật',
+    zoomIn: 'Phóng to',
+    zoomOut: 'Thu nhỏ',
+    myLocation: 'Vị trí của tôi',
+    myLocationTitle: 'Định vị vị trí của tôi',
+    onboardingTitle: 'Hướng dẫn dùng AgriTrust',
+    onboardingDone: 'Bắt đầu khám phá ngay!',
+    negotiationTitle: 'Quản lý Đàm phán & Hợp đồng',
+    lockedEscrowTotal: 'Tổng tiền quỹ đang khóa'
+  },
+  en: {
+    tagline: 'Trusted agriculture platform',
+    notifications: 'New notifications',
+    markAllRead: 'Mark all as read',
+    noNotifications: 'No new notifications.',
+    profile: 'Profile',
+    settings: 'Settings',
+    logout: 'Log out',
+    farmer: 'Farmer',
+    trader: 'Trader',
+    tabs: {
+      market: 'Partner Network',
+      negotiation: 'Negotiation & Contracts',
+      delivery: 'Delivery & Payment',
+      map: 'Farm Map'
+    },
+    marketTitle: 'Partner Network',
+    marketFarmerDesc: 'Manage contact requests from traders interested in your products.',
+    marketTraderDesc: 'Discover farmers and their products. Send a contact request to start negotiating.',
+    updateProducts: 'Update Products (Profile)',
+    requestStats: {
+      new: 'new requests',
+      accepted: 'accepted',
+      negotiating: 'negotiating'
+    },
+    filters: {
+      all: 'All',
+      pending: 'Pending',
+      accepted: 'Accepted',
+      rejected: 'Rejected'
+    },
+    emptyRequests: 'No contact requests in this section yet.',
+    searchFarmers: 'Search farmers or main products...',
+    allRegions: 'All Regions',
+    allProducts: 'All Product Types',
+    mapTitle: 'Farm Map',
+    mapDesc: 'A visual geographic view of farms and growers across Vietnam.',
+    growerLocations: 'Grower Locations',
+    growers: 'Growers',
+    quickMapSearch: 'Quick search by grower or province...',
+    product: 'Product',
+    notUpdated: 'Not updated',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    myLocation: 'My location',
+    myLocationTitle: 'Locate me',
+    onboardingTitle: 'AgriTrust Guide',
+    onboardingDone: 'Start exploring',
+    negotiationTitle: 'Negotiation & Contract Management',
+    lockedEscrowTotal: 'Total funds locked in escrow'
+  }
+};
+
 function HomePageContent() {
   const searchParams = useSearchParams();
   const { user, loading, logout } = useAuth();
@@ -62,7 +171,17 @@ function HomePageContent() {
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<'market' | 'negotiation' | 'delivery' | 'map'>('market');
+  const [language, setLanguage] = useState<Language>(() => {
+    if (typeof window === 'undefined') return 'vi';
+    return localStorage.getItem('agritrust_language') === 'en' ? 'en' : 'vi';
+  });
   const [toastMsg, setToastMsg] = useState<{ text: string; negoId?: string } | null>(null);
+  const text = UI_TEXT[language];
+
+  useEffect(() => {
+    localStorage.setItem('agritrust_language', language);
+    document.documentElement.lang = language;
+  }, [language]);
 
   // Contact Requests Filters & Helpers
   const [contactFilter, setContactFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
