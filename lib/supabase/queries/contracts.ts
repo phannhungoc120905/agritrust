@@ -1,5 +1,8 @@
 import { supabase } from '../client';
 
+// Helper check UUID hợp lệ
+const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+
 // Thêm hợp đồng mới (ở dạng dự thảo)
 export async function createDraftContract(contractData: {
   vi_nguoi_ban: string;
@@ -27,6 +30,7 @@ export async function createDraftContract(contractData: {
 
 // Cập nhật trạng thái hợp đồng (ví dụ: da_khoa_tien, da_xac_nhan, dang_tranh_chap...)
 export async function updateContractStatus(contractId: string, status: string, additionalFields: Record<string, any> = {}) {
+  if (!contractId || !isValidUUID(contractId)) return null;
   const { data, error } = await supabase
     .from('hop_dong')
     .update({
@@ -46,6 +50,7 @@ export async function updateContractStatus(contractId: string, status: string, a
 
 // Lấy thông tin chi tiết hợp đồng
 export async function getContractById(contractId: string) {
+  if (!contractId || !isValidUUID(contractId)) return null;
   const { data, error } = await supabase
     .from('hop_dong')
     .select('*')
@@ -69,6 +74,7 @@ export async function updateContractDraftData(contractId: string, contractData: 
   dieu_khoan_chat_luong: any;
   noi_dung_nhap_ai?: any;
 }) {
+  if (!contractId || !isValidUUID(contractId)) return null;
   // Fix lỗi Date invalid: Nếu rỗng thì truyền null
   const payloadToUpdate: any = { ...contractData };
   if (!payloadToUpdate.han_giao_hang || payloadToUpdate.han_giao_hang === '') {
@@ -104,6 +110,7 @@ export async function updateContractDraftData(contractId: string, contractData: 
 
 // Xóa hợp đồng nháp (dọn dẹp nếu 2 bên rời phòng không chốt)
 export async function deleteContract(contractId: string) {
+  if (!contractId || !isValidUUID(contractId)) return false;
   const { error } = await supabase
     .from('hop_dong')
     .delete()

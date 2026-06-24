@@ -92,13 +92,25 @@ function CallPageContent() {
     }
   };
 
-  const [referencePrice, setReferencePrice] = useState(() => {
-    const name = productParam.toLowerCase();
-    if (name.includes('sầu riêng') || name.includes('ri6')) return 120000000; // 120 triệu / tấn
-    if (name.includes('cà phê') || name.includes('robusta')) return 75000000; // 75 triệu / tấn
-    if (name.includes('thanh long')) return 22000000; // 22 triệu / tấn
-    return 8500000; // Mặc định lúa ST25: 8.5 triệu / tấn
-  });
+  const [referencePrice, setReferencePrice] = useState(0);
+
+  useEffect(() => {
+    async function fetchPrice() {
+      try {
+        const res = await fetch(`/api/market-price?product=${encodeURIComponent(productParam)}`);
+        const data = await res.json();
+        if (data.price) {
+          setReferencePrice(data.price);
+        } else {
+          setReferencePrice(6000); // Fallback mặc định Lúa (đồng/kg)
+        }
+      } catch (error) {
+        console.error("Lỗi lấy giá tham chiếu:", error);
+        setReferencePrice(6000);
+      }
+    }
+    fetchPrice();
+  }, [productParam]);
   const [loadingExtract, setLoadingExtract] = useState(false);
   const [contractDraft, setContractDraft] = useState<any>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -771,7 +783,7 @@ function CallPageContent() {
       const response = await fetch('/api/extract-terms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: transcriptText }),
+        body: JSON.stringify({ transcript: transcriptText, productName }),
       });
 
       const data = await response.json();
@@ -1303,8 +1315,8 @@ function CallPageContent() {
           <button
             onClick={handleShareLink}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${copiedLink
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
-                : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border-white/5'
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
+              : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border-white/5'
               }`}
           >
             <Share2 size={14} />
@@ -1412,8 +1424,8 @@ function CallPageContent() {
                         </span>
                         <div
                           className={`px-3 py-2.5 rounded-2xl text-xs font-semibold leading-relaxed ${isLineNongDan
-                              ? 'bg-emerald-950/60 border border-emerald-500/20 text-emerald-100 rounded-tl-none'
-                              : 'bg-indigo-950/60 border border-indigo-500/20 text-indigo-100 rounded-tr-none'
+                            ? 'bg-emerald-950/60 border border-emerald-500/20 text-emerald-100 rounded-tl-none'
+                            : 'bg-indigo-950/60 border border-indigo-500/20 text-indigo-100 rounded-tr-none'
                             }`}
                         >
                           {line.noi_dung}
@@ -1489,78 +1501,16 @@ function CallPageContent() {
             </div>
           )}
 
-          {/* FLOATING SUGGESTIONS PANEL */}
-          {inCall && showSuggestions && (
-            <div className="absolute top-24 left-4 z-40 w-80 bg-neutral-900/95 backdrop-blur-md border border-amber-500/30 p-5 rounded-2xl shadow-2xl text-white pointer-events-auto animate-fadeIn flex flex-col gap-3.5 max-h-[70vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-white/10 pb-2 flex-shrink-0">
-                <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
-                  <Sparkles size={14} className="animate-pulse" />
-                  <span>Nội dung nên đàm thoại</span>
-                </div>
-                <button
-                  onClick={() => setShowSuggestions(false)}
-                  className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </div>
 
-              <div className="text-[11px] text-neutral-300 leading-relaxed space-y-3 flex-grow">
-                <p>Nói to các câu sau để hệ thống AI nhận diện chính xác các điều khoản hợp đồng:</p>
-
-                <div className="space-y-3">
-                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
-                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">1. Sản phẩm & Số lượng</span>
-                    <p className="font-bold text-neutral-100 italic">
-                      &ldquo;Tôi muốn đàm phán mua/bán {suggestionData.qty} {suggestionData.productName}&rdquo;
-                    </p>
-                  </div>
-
-                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
-                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">2. Đơn giá chốt</span>
-                    <p className="font-bold text-neutral-100 italic">
-                      &ldquo;Giá tôi chốt là {suggestionData.price}&rdquo;
-                    </p>
-                  </div>
-
-                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
-                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">3. Hạn giao hàng</span>
-                    <p className="font-bold text-neutral-100 italic">
-                      &ldquo;Hạn giao hàng sẽ là trong vòng 7 ngày tới&rdquo;
-                    </p>
-                  </div>
-
-                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
-                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">4. Cam kết chất lượng</span>
-                    <p className="text-neutral-150 font-medium italic">
-                      &ldquo;Cam kết chất lượng: {suggestionData.quality}&rdquo;
-                    </p>
-                  </div>
-
-                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5 space-y-1">
-                    <span className="font-extrabold text-amber-300 text-[10px] uppercase tracking-wider block">5. Điều khoản đền bù</span>
-                    <p className="text-neutral-150 font-medium italic">
-                      &ldquo;Đền bù: {suggestionData.penalty}&rdquo;
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-white/5 flex items-center gap-1.5 text-emerald-400 font-extrabold text-[10px] uppercase tracking-wider">
-                  <Check size={12} className="flex-shrink-0" />
-                  <span>Nói "Chốt hợp đồng" để AI lập hợp đồng</span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* FLOATING CLOSED CAPTIONS (phụ đề) */}
           {(isRealSTTActive || isMockActive || sttError) && (
             <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 z-45 text-center pointer-events-none animate-fadeIn flex flex-col items-center">
               <div className={`bg-black/75 backdrop-blur-md px-5 py-3 rounded-2xl border shadow-2xl text-white inline-block max-w-full transition-all ${sttError
-                  ? 'border-red-500/30 bg-red-950/20 scale-100'
-                  : !displayedSubtitle
-                    ? 'border-white/10 opacity-60 scale-95'
-                    : 'border-white/10 scale-100'
+                ? 'border-red-500/30 bg-red-950/20 scale-100'
+                : !displayedSubtitle
+                  ? 'border-white/10 opacity-60 scale-95'
+                  : 'border-white/10 scale-100'
                 }`}>
                 {sttError ? (
                   <div className="flex flex-col items-center gap-1.5 justify-center py-1">
@@ -1598,19 +1548,7 @@ function CallPageContent() {
                 )}
               </div>
 
-              {/* Nút dấu sao gợi ý đàm thoại */}
-              <div className="mt-2.5 pointer-events-auto">
-                <button
-                  onClick={() => setShowSuggestions(!showSuggestions)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[10px] uppercase tracking-wider font-extrabold transition-all shadow-xl active:scale-95 cursor-pointer border ${showSuggestions
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-400'
-                      : 'bg-slate-900/90 text-amber-400 hover:text-amber-300 border-amber-500/20 hover:bg-slate-800'
-                    }`}
-                >
-                  <Sparkles size={12} className={showSuggestions ? '' : 'animate-pulse'} />
-                  Gợi ý nội dung đàm thoại
-                </button>
-              </div>
+
             </div>
           )}
 

@@ -36,7 +36,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const storedUser = localStorage.getItem('agritrust_session');
       if (storedUser) {
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+
+        // Đồng bộ thông tin profile mới nhất từ DB ở chế độ chạy ngầm
+        import('../lib/supabase/client').then(async ({ supabase }) => {
+          try {
+            const { data: latest } = await supabase
+              .from('nguoi_dung')
+              .select('*')
+              .eq('ten_dang_nhap', parsedUser.ten_dang_nhap)
+              .maybeSingle();
+
+            if (latest) {
+              const updatedUser = { ...parsedUser, ...latest };
+              setUser(updatedUser);
+              localStorage.setItem('agritrust_session', JSON.stringify(updatedUser));
+            }
+          } catch (e) {
+            console.warn('Lỗi khi đồng bộ profile nền:', e);
+          }
+        });
       }
     } catch (err) {
       console.error('Không thể phục hồi session:', err);

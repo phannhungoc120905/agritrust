@@ -162,7 +162,8 @@ export default function VideoCallFrame({
         }
 
         try {
-          videoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '720p_1' });
+          // Nâng cấp lên Full HD 1080p 30fps (1080p_2) để soi rõ nông sản
+          videoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '1080p_2' });
         } catch (videoErr) {
           console.warn('Không thể lấy quyền Camera (Agora):', videoErr);
           // Fallback: tự tạo video track từ getUserMedia native
@@ -193,7 +194,10 @@ export default function VideoCallFrame({
         if (tracksToPublish.length > 0) {
           try {
             if (client.connectionState === 'CONNECTED') {
-              await client.publish(tracksToPublish);
+              const unpublishedTracks = tracksToPublish.filter(t => !client.localTracks.includes(t));
+              if (unpublishedTracks.length > 0) {
+                await client.publish(unpublishedTracks);
+              }
             } else {
               console.warn('[Agora] Không thể publish vì trạng thái kết nối là:', client.connectionState);
             }
@@ -379,6 +383,10 @@ export default function VideoCallFrame({
 
           if (rtcClientRef.current && rtcClientRef.current.connectionState === 'CONNECTED') {
             try {
+              const existingAudio = rtcClientRef.current.localTracks.find((t: any) => t.trackMediaType === 'audio');
+              if (existingAudio) {
+                await rtcClientRef.current.unpublish([existingAudio]);
+              }
               await rtcClientRef.current.publish([newAudioTrack]);
             } catch (pubErr) {
               console.warn('[Mic] Lỗi khi publish audio track mới:', pubErr);
@@ -426,13 +434,18 @@ export default function VideoCallFrame({
       } else {
         // Xin lại quyền tạo Video Track nếu trước đó chưa có
         const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
-        const newVideoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '720p_1' });
+        // Nâng cấp lên Full HD 1080p 30fps (1080p_2)
+        const newVideoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '1080p_2' });
 
         if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
         localTracksRef.current.videoTrack = newVideoTrack;
 
         if (rtcClientRef.current && rtcClientRef.current.connectionState === 'CONNECTED') {
           try {
+            const existingVideo = rtcClientRef.current.localTracks.find((t: any) => t.trackMediaType === 'video');
+            if (existingVideo) {
+              await rtcClientRef.current.unpublish([existingVideo]);
+            }
             await rtcClientRef.current.publish([newVideoTrack]);
           } catch (pubErr) {
             console.warn('[Video] Lỗi khi publish video track mới:', pubErr);

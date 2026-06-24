@@ -2,11 +2,12 @@
 
 import React from 'react';
 import { Sparkles } from 'lucide-react';
+import { EXCHANGE_RATE_VND_USDC } from '../../lib/solana/convertVndUsdc';
 
 interface SettlementProposalProps {
   proposedRatio: number;      // Tỉ lệ giải ngân AI đề xuất
-  payoutAmount: number;       // Trả cho nông dân (USDC)
-  refundAmount: number;       // Hoàn trả thương lái (USDC)
+  payoutAmount: number;       // Trả cho nông dân (SOL)
+  refundAmount: number;       // Hoàn trả thương lái (SOL)
   note: string;
 }
 
@@ -23,7 +24,7 @@ export default function SettlementProposal({ proposedRatio, payoutAmount, refund
           Đề xuất Phân chia tiền cọc từ AI
         </h3>
         <span className="self-start sm:self-center text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded flex items-center gap-1 shadow-sm shrink-0">
-          ✨ Phân tích bởi Gemini AI
+          ✨ Phân tích bởi Minimax
         </span>
       </div>
 
@@ -33,18 +34,18 @@ export default function SettlementProposal({ proposedRatio, payoutAmount, refund
         {/* Payout to Seller */}
         <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3.5 text-center">
           <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block mb-1">Giải ngân cho Người bán</span>
-          <span className="text-xl font-extrabold text-neutral-800">{payoutAmount.toLocaleString('en-US')} USDC</span>
+          <span className="text-xl font-extrabold text-neutral-800">{payoutAmount.toLocaleString('en-US')} SOL</span>
           <span className="text-[10px] text-neutral-400 block mt-1">
-            (~ {(payoutAmount * 25000).toLocaleString('vi-VN')} VNĐ)
+            (~ {(payoutAmount * EXCHANGE_RATE_VND_USDC).toLocaleString('vi-VN')} VNĐ)
           </span>
         </div>
 
         {/* Refund to Buyer */}
         <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3.5 text-center">
           <span className="text-[10px] text-blue-650 font-bold uppercase tracking-wider block mb-1">Hoàn trả cho Người mua</span>
-          <span className="text-xl font-extrabold text-neutral-800">{refundAmount.toLocaleString('en-US')} USDC</span>
+          <span className="text-xl font-extrabold text-neutral-800">{refundAmount.toLocaleString('en-US')} SOL</span>
           <span className="text-[10px] text-neutral-400 block mt-1">
-            (~ {(refundAmount * 25000).toLocaleString('vi-VN')} VNĐ)
+            (~ {(refundAmount * EXCHANGE_RATE_VND_USDC).toLocaleString('vi-VN')} VNĐ)
           </span>
         </div>
       </div>

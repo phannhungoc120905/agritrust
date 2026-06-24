@@ -30,7 +30,7 @@ const AI_MODEL = process.env.AI_MODEL || 'MiniMax-M3';
  * @param transcript Toàn bộ cuộc hội thoại ghi nhận được
  * @returns JSON chứa các điều khoản hợp đồng
  */
-export async function extractContractTerms(transcript: string): Promise<ExtractedTermsWithMeta> {
+export async function extractContractTerms(transcript: string, expectedProduct?: string): Promise<ExtractedTermsWithMeta> {
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('YOUR_')) {
     console.warn('OPENAI_API_KEY chưa được cấu hình hoặc rỗng. Kích hoạt bộ heuristics dự phòng.');
     return fallbackExtract(transcript);
@@ -48,7 +48,8 @@ export async function extractContractTerms(transcript: string): Promise<Extracte
     throw new Error('INSUFFICIENT_DATA');
   }
 
-  const todayISO = new Date().toISOString().split('T')[0];
+  // Fix timezone: Lấy ngày hiện tại theo giờ Việt Nam để tránh lệch ngày do UTC
+  const todayVN = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -58,13 +59,17 @@ export async function extractContractTerms(transcript: string): Promise<Extracte
           {
             role: 'system',
             content: `Bạn là trợ lý AI chuyên phân tích hội thoại thương lượng nông sản B2B tiếng Việt.
-
+${expectedProduct ? `\nSẢN PHẨM ĐANG ĐƯỢC ĐÀM PHÁN: "${expectedProduct}".\nHãy ưu tiên nhận diện và trả về đúng tên sản phẩm này nếu cuộc hội thoại khớp ngữ cảnh.\n` : ''}
 Nhiệm vụ: Trích xuất thông tin hợp đồng thành JSON TUYỆT ĐỐI theo schema đã định.
 
 YÊU CẦU KĨ THUẬT:
 - Tuyệt đối chỉ trả về 1 object JSON duy nhất trong nội dung trả về (KHÔNG có lời giải thích, không có markdown, không có đoạn văn khác).
 - Bổ dung thêm các trường metadata: "confidence" (số từ 0.0 đến 1.0) và "evidence" (mảng chuỗi) giải thích cụ thể đoạn transcript nào hỗ trợ từng trường chính.
 - Nếu bạn không chắc về một trường nào đó, đặt giá trị "null" cho trường đó và giảm "confidence" tổng thể.
+
+QUY TẮC ĐỌC THEO LỚP (TRÌNH TỰ HỘI THOẠI):
+- Bạn phải đọc kỹ từng lớp tin nhắn/câu thoại THEO TRÌNH TỰ THỜI GIAN (từ trên xuống dưới).
+- Nếu có sự mặc cả, thay đổi ý kiến (Ví dụ: Lúc đầu nói 9 triệu, nhưng mấy câu sau thỏa thuận chốt 8 triệu rưỡi), BẮT BUỘC phải lấy thông tin ở NHỮNG CÂU THOẠI CUỐI CÙNG làm quyết định chốt. Đừng lấy nhầm giá/số lượng lúc ban đầu.
 
 QUY TẮC CHUYỂN ĐỔI SỐ:
 - "9 triệu" => 9000000
@@ -75,13 +80,15 @@ QUY TẮC CHUYỂN ĐỔI SỐ:
 QUY TẮC ĐƠN VỊ & SỐ LƯỢNG:
 - "3 tấn rưỡi" => 3.5 (tính theo tấn)
 - "nửa tấn" => 0.5
-- Giữ đơn vị nếu đối thoại nêu rõ (tấn/kg/bao)
+- BẮT BUỘC nhận diện rõ đơn vị ở trường "don_vi_tinh" là "tấn", "kg", hoặc "bao". Nếu thương lượng giá theo tấn (vd "7 triệu một tấn") thì "don_vi_tinh" phải là "tấn". Nếu thương lượng giá theo kg (vd "7 nghìn một ký") thì "don_vi_tinh" phải là "kg".
 
-QUY TẮC THỜI GIAN:
-- Chuyển các cụm như "5 ngày nữa", "tuần sau", "cuối tuần sau" thành ISO 8601 chính xác (tính từ ngày hôm nay ${todayISO}).
+QUY TẮC THỜI GIAN (LƯU Ý GIỜ VIỆT NAM GMT+7):
+- HÔM NAY là ngày: ${todayVN}. 
+- Chuyển các cụm như "5 ngày nữa", "tuần sau", "cuối tuần sau" thành chuẩn ISO 8601 kèm múi giờ Việt Nam (ví dụ: "2026-06-29T00:00:00+07:00"). Mọi tính toán phải dựa trên ngày ${todayVN}.
 
 QUY TẮC CHẤT LƯỢNG:
 - Tìm tất cả tiêu chí (ví dụ: độ ẩm, tỷ lệ lép, tạp chất). Mỗi tiêu chí phải có "tieu_chi", "nguong_phan_tram" (số) và "muc_phat" (mô tả).
+- LƯU Ý QUAN TRỌNG: Giá trị của "tieu_chi" PHẢI LÀ TIẾNG VIỆT CÓ DẤU, tự nhiên, dễ đọc. TUYỆT ĐỐI KHÔNG dùng định dạng mã code snake_case (Không dùng "ty_le_hu_hong" mà phải ghi rõ là "Tỷ lệ hư hỏng", không dùng "do_am" mà ghi là "Độ ẩm tối đa").
 
 OUTPUT (bắt buộc): JSON object với đúng cấu trúc sau (ví dụ minh hoạ):
 {
@@ -90,7 +97,7 @@ OUTPUT (bắt buộc): JSON object với đúng cấu trúc sau (ví dụ minh h
   "don_vi_tinh": "tấn",
   "don_gia": 9000000,
   "han_giao_hang": "2026-06-26T00:00:00.000Z",
-  "dieu_khoan_chat_luong": [ { "tieu_chi": "do_am", "nguong_phan_tram": 14, "muc_phat": "Trừ 2% mỗi % vượt" } ],
+  "dieu_khoan_chat_luong": [ { "tieu_chi": "Độ ẩm tối đa", "nguong_phan_tram": 14, "muc_phat": "Trừ 2% mỗi % vượt" } ],
   "confidence": 0.92,
   "evidence": ["Thương lái: Giá 9 triệu một tấn.", "Nông dân: Hạt lép dưới 10%"]
 }
@@ -149,6 +156,12 @@ HÃY TRẢ VỀ MỘT JSON HỢP LỆ DUY NHẤT.`
       if (attempt === 0) {
         console.log('Thử lại lần 2...');
         continue;
+      }
+
+      // NGĂN CHẶN HEURISTICS NẾU LỖI LÀ DO HẾT TIỀN (QUOTA)
+      if (err?.status === 403 || err?.code === 'insufficient_user_quota' || err?.error?.code === 'insufficient_user_quota') {
+        console.error("❌ Minimax API đã hết tiền (Quota Exceeded). KHÔNG DÙNG heuristics.");
+        throw new Error('API_QUOTA_EXCEEDED');
       }
 
       console.warn('Cả 2 lần trích xuất đều thất bại. Kích hoạt bộ heuristics dự phòng để tiếp tục demo.');

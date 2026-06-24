@@ -180,7 +180,7 @@ Hãy phân tích và trả về một đối tượng JSON hợp lệ duy nhất
       ty_le_giai_ngan: typeof parsedResult.ty_le_giai_ngan === 'number' ? parsedResult.ty_le_giai_ngan : (totalLockedUsdc > 0 ? (parsedResult.tien_giai_ngan_usdc / totalLockedUsdc) : 0),
       tien_giai_ngan_usdc: Math.round((parsedResult.tien_giai_ngan_usdc || 0) * 100) / 100,
       tien_hoan_usdc: Math.round((parsedResult.tien_hoan_usdc || 0) * 100) / 100,
-      ly_do: parsedResult.ly_do || `Gemini phân xử giải ngân ${(parsedResult.ty_le_giai_ngan * 100).toFixed(2)}% cho Nông dân.`
+      ly_do: parsedResult.ly_do || `Minimax phân xử giải ngân ${(parsedResult.ty_le_giai_ngan * 100).toFixed(2)}% cho Nông dân.`
     };
 
   } catch (error) {

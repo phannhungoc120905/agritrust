@@ -9,7 +9,11 @@ interface PriceWarningBannerProps {
 }
 
 export default function PriceWarningBanner({ proposedPrice, referencePrice, productName }: PriceWarningBannerProps) {
-  const percentageDiff = referencePrice > 0 ? ((proposedPrice - referencePrice) / referencePrice) * 100 : 0;
+  // Nếu proposedPrice quá lớn (> 1.000.000, ví dụ đàm phán triệu đồng/tấn hoặc tổng giá trị),
+  // ta chuẩn hóa về đồng/kg bằng cách chia cho 1.000 (quy đổi tấn -> kg) để so khớp với referencePrice.
+  const normalizedProposed = proposedPrice > 1000000 ? proposedPrice / 1000 : proposedPrice;
+
+  const percentageDiff = referencePrice > 0 ? ((normalizedProposed - referencePrice) / referencePrice) * 100 : 0;
   const isHigh = percentageDiff > 15;
   const isLow = percentageDiff < -15;
 
@@ -31,8 +35,8 @@ export default function PriceWarningBanner({ proposedPrice, referencePrice, prod
           </p>
           <p className="text-xs text-slate-400 mt-0.5">
             Sản phẩm: <span className="font-semibold text-white">{productName}</span> | 
-            Giá đề xuất: <span className="font-semibold text-white">{proposedPrice.toLocaleString('vi-VN')} đ</span> | 
-            Giá tham khảo: <span className="font-semibold text-white">{referencePrice.toLocaleString('vi-VN')} đ</span>
+            Giá đề xuất: <span className="font-semibold text-white">{normalizedProposed.toLocaleString('vi-VN')} đ/kg</span> | 
+            Giá tham khảo (Demo): <span className="font-semibold text-white">{referencePrice.toLocaleString('vi-VN')} đ/kg</span>
           </p>
           {(isHigh || isLow) && (
             <p className="text-xs text-red-400 font-medium mt-1">
@@ -44,3 +48,4 @@ export default function PriceWarningBanner({ proposedPrice, referencePrice, prod
     </div>
   );
 }
+

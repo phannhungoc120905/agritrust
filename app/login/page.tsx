@@ -40,9 +40,7 @@ function LoginPageContent() {
 
       if (user) {
         login({
-          dia_chi_vi: user.dia_chi_vi,
-          vai_tro: user.vai_tro,
-          ten_dang_nhap: user.ten_dang_nhap,
+          ...user,
           ten_hien_thi: user.ten_hien_thi || user.ten_dang_nhap,
         }, redirectPath || undefined);
       } else {

@@ -87,6 +87,10 @@ export default function ProfilePage() {
         const updated = await updateUserProfile(user.dia_chi_vi, { [field]: url });
         setDbUser(updated as UserProfile);
         setEditForm(prev => ({...prev, [field]: url}));
+        updateUser({
+          ...user,
+          ...updated,
+        } as any);
       } else {
         alert('Upload ảnh thất bại.');
       }
@@ -147,13 +151,11 @@ export default function ProfilePage() {
       const updatedProfile = await updateUserProfile(user.dia_chi_vi, editForm);
       setDbUser(updatedProfile as UserProfile);
       setIsEditing(false);
-      // Cập nhật session nếu có thay đổi tên
+      // Cập nhật session với toàn bộ thông tin mới
       updateUser({
         ...user,
-        ten_hien_thi: updatedProfile.ten_hien_thi || user.ten_hien_thi,
-        ho_ten: updatedProfile.ho_ten,
-        so_dien_thoai: updatedProfile.so_dien_thoai,
-      });
+        ...updatedProfile,
+      } as any);
     } catch (err) {
       alert('Không thể lưu thông tin: ' + (err as any).message);
     } finally {

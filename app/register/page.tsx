@@ -80,12 +80,8 @@ export default function RegisterPage() {
 
       if (newUser) {
         login({
-          dia_chi_vi: newUser.dia_chi_vi,
-          vai_tro: newUser.vai_tro,
-          ten_dang_nhap: newUser.ten_dang_nhap,
+          ...newUser,
           ten_hien_thi: newUser.ten_hien_thi || newUser.ten_dang_nhap,
-          ho_ten: newUser.ho_ten,
-          so_dien_thoai: newUser.so_dien_thoai,
         });
       }
     } catch (err: any) {

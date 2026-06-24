@@ -12,7 +12,7 @@ import { extractContractTerms } from '../../../lib/ai/extractContractTerms';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { transcript } = body;
+    const { transcript, productName } = body;
 
     if (!transcript || typeof transcript !== 'string' || transcript.trim().length === 0) {
       return Response.json(
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const terms = await extractContractTerms(transcript);
+      const terms = await extractContractTerms(transcript, productName);
 
       // If model returned low or missing confidence, surface partial terms but inform caller
       if (terms.confidence === null || typeof terms.confidence === 'number' && terms.confidence < 0.6) {
@@ -44,6 +44,9 @@ export async function POST(request: NextRequest) {
       }
       if (err?.message === 'AI_NOT_CONFIGURED') {
         return Response.json({ success: false, error: 'AI chưa được cấu hình trên server (OPENAI_API_KEY chưa đặt).' }, { status: 500 });
+      }
+      if (err?.message === 'API_QUOTA_EXCEEDED') {
+        return Response.json({ success: false, error: 'Tài khoản TokenRouter / Minimax đã hết tiền (Quota Exceeded). Vui lòng nạp thêm tiền hoặc đổi API Key khác trong .env.local' }, { status: 402 });
       }
       if (err?.message === 'AI_EXTRACTION_FAILED') {
         return Response.json({ success: false, error: 'Lỗi khi gọi dịch vụ AI — thử lại sau.' }, { status: 502 });
