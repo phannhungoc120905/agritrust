@@ -52,7 +52,7 @@ export class AgoraSTTClient {
         this.isListening = false;
         onError?.(
           'insecure-origin',
-          'Ứng dụng đang chạy trên kết nối không bảo mật (HTTP). Nhận diện giọng nói (STT) yêu cầu chạy HTTPS hoặc localhost để hoạt động.'
+          'HTTP'
         );
         return;
       }
@@ -90,7 +90,7 @@ export class AgoraSTTClient {
         this.startRealSTT(SpeechRecognition);
       } catch (e: any) {
         console.warn('[STT] Không thể khởi tạo Web Speech API:', e);
-        onError?.('init-failed', e.message || 'Không thể khởi tạo bộ nhận diện giọng nói SpeechRecognition.');
+        onError?.('init-failed', 'Lỗi');
         if (useMock) {
           this.usingMock = true;
           this.mockSTT();
@@ -102,7 +102,7 @@ export class AgoraSTTClient {
       console.warn('[STT] Trình duyệt không hỗ trợ Web Speech API.');
       onError?.(
         'not-supported',
-        'Trình duyệt này không hỗ trợ bộ nhận diện giọng nói của Web (Web Speech API). Khuyên dùng Google Chrome hoặc Microsoft Edge.'
+        'Kén'
       );
       if (useMock) {
         this.usingMock = true;
@@ -179,17 +179,17 @@ export class AgoraSTTClient {
       }
       console.warn('[STT] Cảnh báo nhận diện:', event.error);
       
-      let userFriendlyMessage = `Lỗi: ${event.error}`;
+      let userFriendlyMessage = 'Lỗi';
       if (event.error === 'not-allowed') {
-        userFriendlyMessage = 'Hãy cấp quyền truy cập Mic trong cài đặt trình duyệt.';
+        userFriendlyMessage = 'Chặn';
       } else if (event.error === 'audio-capture') {
-        userFriendlyMessage = 'Không tìm thấy Mic hoặc thiết bị bị chiếm dụng.';
+        userFriendlyMessage = 'Mic';
       } else if (event.error === 'service-not-available') {
-        userFriendlyMessage = 'Dịch vụ STT lỗi.';
+        userFriendlyMessage = 'STT';
       } else if (event.error === 'network') {
-        userFriendlyMessage = 'Lỗi kết nối mạng.';
+        userFriendlyMessage = 'Mạng';
       } else if (event.error === 'language-not-supported') {
-        userFriendlyMessage = 'Không hỗ trợ Tiếng Việt (vi-VN).';
+        userFriendlyMessage = 'Tiếng';
       }
 
       this.onErrorCallback?.(event.error, userFriendlyMessage);
@@ -210,7 +210,7 @@ export class AgoraSTTClient {
       console.log('[STT] Đã bắt đầu nhận diện giọng nói tiếng Việt.');
     } catch (e: any) {
       console.warn('[STT] Không thể bắt đầu recognition:', e);
-      this.onErrorCallback?.('start-failed', e.message || 'Không thể bắt đầu phiên nhận dạng giọng nói.');
+      this.onErrorCallback?.('start-failed', 'Lỗi');
       if (this.mockFallbackAllowed) {
         this.stopSTT();
         this.usingMock = true;

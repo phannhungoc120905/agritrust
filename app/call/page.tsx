@@ -1515,19 +1515,9 @@ function CallPageContent() {
                   : 'border-white/10 scale-100'
                 }`}>
                 {sttError ? (
-                  <div className="flex flex-col items-center gap-1.5 justify-center py-1">
-                    <div className="flex items-center gap-2 text-red-400">
-                      <span className="relative flex h-2 w-2">
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                      </span>
-                      <p className="text-xs font-bold uppercase tracking-wider">Lỗi Micro</p>
-                    </div>
-                    <p className="text-xs text-neutral-300 font-semibold max-w-md leading-relaxed">
-                      {sttError}
-                    </p>
-                    <p className="text-[10px] text-indigo-400 font-bold mt-1">
-                      💡 Mẹo: Bật ô Chat bên dưới để gõ đàm thoại.
-                    </p>
+                  <div className="flex items-center gap-2 text-red-400 py-0.5 px-1 text-xs font-black">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
+                    <span>{sttError}</span>
                   </div>
                 ) : displayedSubtitle ? (
                   <>
@@ -1545,7 +1535,7 @@ function CallPageContent() {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
-                    <p className="text-xs font-semibold">STT đang nghe... Bạn hãy thử nói gì đó!</p>
+                    <p className="text-xs font-semibold">Nghe...</p>
                   </div>
                 )}
               </div>
