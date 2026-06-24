@@ -19,7 +19,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, PublicKey, TransactionInstruction } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { ContractSignature } from '../../components/negotiation/DraftContractTable';
-import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft, MessageSquare, Send, Share2 } from 'lucide-react';
+import { LogOut, Loader2, FileSignature, Mic, MicOff, Sparkles, X, AlertTriangle, Check, UserCheck, ArrowLeft, MessageSquare, Send, Share2, CheckCircle2 } from 'lucide-react';
 
 interface TranscriptLine {
   id: string;

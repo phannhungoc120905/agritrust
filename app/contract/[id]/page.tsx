@@ -631,7 +631,21 @@ function ContractPageContent() {
                   <span className="text-xs font-bold text-red-650 uppercase tracking-wider flex items-center gap-1.5">
                     <AlertCircle size={14} /> Chi tiết lỗi nghiệm thu
                   </span>
-                  <span className="text-[10px] font-mono flex items-center">
+                  <div className="flex items-center gap-2">
+                    {!dispute.nguoi_ban_dong_y && !dispute.nguoi_mua_dong_y && dispute.trang_thai !== 'da_giai_ngan' && (
+                      <button
+                        onClick={async () => {
+                          const { supabase } = await import('../../../lib/supabase/client');
+                          await supabase.from('tranh_chap').delete().eq('id', dispute.id);
+                          setDispute(null);
+                          setInspectionDecision('undecided');
+                        }}
+                        className="px-2 py-0.5 rounded bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 text-[10px] font-bold transition-colors flex items-center gap-1"
+                      >
+                        🗑️ Hủy đề xuất & Nhờ AI tính lại
+                      </button>
+                    )}
+                    <span className="text-[10px] font-mono flex items-center">
                     {dispute.trang_thai === 'da_giai_ngan' ? (
                       <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold animate-pulse">
                         ✅ Đã Giải Ngân
@@ -643,6 +657,7 @@ function ContractPageContent() {
                     )}
                   </span>
                 </div>
+              </div>
 
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-150">
@@ -679,44 +694,57 @@ function ContractPageContent() {
               </div>
 
               {/* Nông dân xác nhận đồng ý với báo cáo nghiệm thu này để AI tính toán tiếp */}
-              {isNongDan && (
-                <ApproveReportButtons
-                  disputeId={dispute.id}
-                  isApproved={dispute.nguoi_ban_da_duyet}
-                  onUpdate={loadData}
-                />
-              )}
-
-              {/* AI Đề xuất phân phối cọc */}
-              {dispute.ty_le_giai_ngan_ai_de_xuat !== null && (
-                <SettlementProposal
-                  proposedRatio={dispute.ty_le_giai_ngan_ai_de_xuat}
-                  payoutAmount={dispute.so_tien_giai_ngan_de_xuat}
-                  refundAmount={dispute.so_tien_hoan_lai_de_xuat}
-                  note={dispute.ghi_chu_chat_luong || 'AI đã tính toán dựa trên độ ẩm, hạt lép và sản lượng hao hụt thực tế.'}
-                />
-              )}
-
-              {/* Nút bấm đồng thuận 2 bên để kích hoạt on-chain resolve_partial */}
-              {contract.trang_thai === 'dang_tranh_chap' && (
-                <div className="bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm space-y-4">
-                  <div className="text-center pb-2 border-b border-neutral-100">
-                    <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">Đồng thuận quyết định giải quyết</h4>
-                    <p className="text-[10px] text-neutral-400 mt-1">Cả nông dân và thương lái cần xác nhận để thực thi lệnh chia tiền ví tự động.</p>
+              {!dispute.nguoi_ban_da_duyet ? (
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm animate-pulse">
+                  <div className="text-orange-800 text-xs">
+                    <p className="font-bold flex items-center gap-1.5"><Clock size={14}/> Chờ xác nhận Báo cáo lỗi</p>
+                    <p className="text-[10px] mt-0.5 opacity-90">Nông dân cần xác nhận Báo cáo nghiệm thu thực tế này thì Trọng tài AI mới được quyền phân xử.</p>
                   </div>
-
-                  <AgreeButtons
-                    contractId={contract.id}
-                    disputeId={dispute.id}
-                    buyerAddress={contract.vi_nguoi_mua}
-                    sellerAddress={contract.vi_nguoi_ban}
-                    buyerAgreed={dispute.nguoi_mua_dong_y}
-                    sellerAgreed={dispute.nguoi_ban_dong_y}
-                    actualQty={dispute.so_luong_thuc_nhan}
-                    onSuccess={handleTxSuccess}
-                  />
+                  {isNongDan ? (
+                    <ApproveReportButtons
+                      disputeId={dispute.id}
+                      isApproved={dispute.nguoi_ban_da_duyet}
+                      onUpdate={loadData}
+                    />
+                  ) : null}
                 </div>
-              )}
+              ) : null}
+
+              {/* CHỈ HIỆN AI VÀ NÚT ĐỒNG THUẬN KHI NÔNG DÂN ĐÃ DUYỆT BÁO CÁO */}
+              {dispute.nguoi_ban_da_duyet ? (
+                <div className="space-y-6 animate-fadeIn">
+                  {/* AI Đề xuất phân phối cọc */}
+                  {dispute.ty_le_giai_ngan_ai_de_xuat !== null ? (
+                    <SettlementProposal
+                      proposedRatio={dispute.ty_le_giai_ngan_ai_de_xuat}
+                      payoutAmount={dispute.so_tien_giai_ngan_de_xuat}
+                      refundAmount={dispute.so_tien_hoan_lai_de_xuat}
+                      note={dispute.ghi_chu_chat_luong || 'AI đã tính toán dựa trên độ ẩm, hạt lép và sản lượng hao hụt thực tế.'}
+                    />
+                  ) : null}
+
+                  {/* Nút bấm đồng thuận 2 bên để kích hoạt on-chain resolve_partial */}
+                  {contract.trang_thai === 'dang_tranh_chap' ? (
+                    <div className="bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm space-y-4">
+                      <div className="text-center pb-2 border-b border-neutral-100">
+                        <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">Đồng thuận quyết định giải quyết</h4>
+                        <p className="text-[10px] text-neutral-400 mt-1">Cả nông dân và thương lái cần xác nhận để thực thi lệnh chia tiền ví tự động.</p>
+                      </div>
+
+                      <AgreeButtons
+                        contractId={contract.id}
+                        disputeId={dispute.id}
+                        buyerAddress={contract.vi_nguoi_mua}
+                        sellerAddress={contract.vi_nguoi_ban}
+                        buyerAgreed={dispute.nguoi_mua_dong_y}
+                        sellerAgreed={dispute.nguoi_ban_dong_y}
+                        actualQty={dispute.so_luong_thuc_nhan}
+                        onSuccess={handleTxSuccess}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
             </div>
           )}

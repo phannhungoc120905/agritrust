@@ -10,8 +10,12 @@ export async function addTranscriptLine(lineData: {
   den_canh_bao?: 'binh_thuong' | 'canh_bao_do';
   gia_thi_truong_luc_so_sanh?: number;
 }) {
-  // Bỏ qua lưu Database nếu đây là phòng Demo (ID không phải UUID hợp lệ)
-  if (lineData.id_hop_dong && !isValidUUID(lineData.id_hop_dong)) {
+  // Bỏ qua lưu Database nếu đây là phòng Demo hoặc ví Demo
+  if (
+    (lineData.id_hop_dong && !isValidUUID(lineData.id_hop_dong)) ||
+    lineData.vi_nguoi_noi.includes('demo') ||
+    lineData.vi_nguoi_noi === '11111111111111111111111111111111'
+  ) {
     return { ...lineData, id: Date.now() }; // Trả về fake data để UI không lỗi
   }
 
@@ -22,8 +26,9 @@ export async function addTranscriptLine(lineData: {
     .single();
 
   if (error) {
-    console.error('Lỗi khi ghi nhận transcript:', error);
-    throw error;
+    console.error('Lỗi khi ghi nhận transcript:', JSON.stringify(error));
+    // Không throw error để tránh làm sập luồng Khóa tiền
+    return null;
   }
   return data;
 }
