@@ -29,6 +29,46 @@ interface TranscriptLine {
   den_canh_bao?: 'binh_thuong' | 'canh_bao_do';
 }
 
+function detectProductInText(text: string): string | null {
+  if (!text) return null;
+  const normalized = text.toLowerCase();
+  
+  // Danh sách từ khóa map với tên sản phẩm trong CSDL
+  const mappings = [
+    { keywords: ["sầu riêng", "ri6", "monthong"], name: "Sầu riêng Ri6 (loại 1)" },
+    { keywords: ["thanh long"], name: "Thanh long ruột đỏ" },
+    { keywords: ["xoài"], name: "Xoài cát Chu" },
+    { keywords: ["mít"], name: "Mít Thái" },
+    { keywords: ["bưởi"], name: "Bưởi da xanh" },
+    { keywords: ["cam sành", "trái cam"], name: "Cam sành" },
+    { keywords: ["dưa hấu"], name: "Dưa hấu" },
+    { keywords: ["chuối"], name: "Chuối già Nam Mỹ" },
+    { keywords: ["chanh dây", "chanh leo"], name: "Chanh dây" },
+    { keywords: ["măng cụt"], name: "Măng cụt" },
+    { keywords: ["quả bơ", "trái bơ"], name: "Bơ sáp" },
+    { keywords: ["quả ổi", "trái ổi"], name: "Ổi lê" },
+    { keywords: ["dứa", "trái thơm", "quả thơm", "khóm"], name: "Dứa (Khóm)" },
+    { keywords: ["dừa"], name: "Dừa xiêm" },
+    { keywords: ["dưa leo", "dưa chuột"], name: "Dưa leo" },
+    { keywords: ["cà chua"], name: "Cà chua" },
+    { keywords: ["ớt"], name: "Ớt chỉ thiên" },
+    { keywords: ["tỏi"], name: "Tỏi khô" },
+    { keywords: ["gừng"], name: "Gừng" },
+    { keywords: ["rau muống"], name: "Rau muống" },
+    { keywords: ["cà phê", "robusta", "cafe", "arabica"], name: "Cà phê Robusta" },
+    { keywords: ["hồ tiêu", "hạt tiêu", "tiêu đen"], name: "Hồ tiêu đen" },
+    { keywords: ["lúa st25", "gạo st25", "st25"], name: "Lúa ST25" },
+    { keywords: ["lúa", "gạo"], name: "Lúa (chung)" }
+  ];
+
+  for (const item of mappings) {
+    if (item.keywords.some(k => normalized.includes(k))) {
+      return item.name;
+    }
+  }
+  return null;
+}
+
 function CallPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -96,8 +136,9 @@ function CallPageContent() {
 
   useEffect(() => {
     async function fetchPrice() {
+      if (!productName) return;
       try {
-        const res = await fetch(`/api/market-price?product=${encodeURIComponent(productParam)}`);
+        const res = await fetch(`/api/market-price?product=${encodeURIComponent(productName)}`);
         const data = await res.json();
         if (data.price) {
           setReferencePrice(data.price);
@@ -110,7 +151,18 @@ function CallPageContent() {
       }
     }
     fetchPrice();
-  }, [productParam]);
+  }, [productName]);
+
+  // Tự động đồng bộ tên sản phẩm đã nhận diện vào bản dự thảo hợp đồng
+  useEffect(() => {
+    if (productName && productName !== 'Liên hệ chung' && productName !== 'Nông sản') {
+      setContractDraft((prev: any) => {
+        if (!prev) return { san_pham: productName };
+        if (prev.san_pham === productName) return prev;
+        return { ...prev, san_pham: productName };
+      });
+    }
+  }, [productName]);
   const [loadingExtract, setLoadingExtract] = useState(false);
   const [contractDraft, setContractDraft] = useState<any>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -513,6 +565,12 @@ function CallPageContent() {
           setProposedPrice(parseInt(priceMatch[1]) * 1000000);
         }
 
+        const detected = detectProductInText(text);
+        if (detected) {
+          console.log('🔄 Đã phát hiện sản phẩm từ giọng nói đối tác:', detected);
+          setProductName(detected);
+        }
+
         const newLine: TranscriptLine = {
           id: Math.random().toString(36).substring(7),
           vi_nguoi_noi: userId,
@@ -530,6 +588,13 @@ function CallPageContent() {
           }
           return next;
         });
+      }
+    });
+
+    channel.on('broadcast', { event: 'product_update' }, ({ payload }) => {
+      if (payload && payload.productName) {
+        console.log('🔄 Nhận cập nhật tên sản phẩm đàm thoại:', payload.productName);
+        setProductName(payload.productName);
       }
     });
 
@@ -884,6 +949,12 @@ function CallPageContent() {
             setProposedPrice(parseInt(priceMatch[1]) * 1000000);
           }
 
+          const detected = detectProductInText(text);
+          if (detected) {
+            console.log('🔄 Đã phát hiện sản phẩm từ giả lập thoại:', detected);
+            setProductName(detected);
+          }
+
           const newLine: TranscriptLine = {
             id: Math.random().toString(36).substring(7),
             vi_nguoi_noi: userId,
@@ -966,6 +1037,19 @@ function CallPageContent() {
             setProposedPrice(parseInt(priceMatch[1]) * 1000000);
           }
 
+          const detected = detectProductInText(text);
+          if (detected) {
+            console.log('🔄 Đã phát hiện sản phẩm từ giọng nói của bạn:', detected);
+            setProductName(detected);
+            if (sttChannelRef.current) {
+              sttChannelRef.current.send({
+                type: 'broadcast',
+                event: 'product_update',
+                payload: { productName: detected }
+              });
+            }
+          }
+
           const newLine: TranscriptLine = {
             id: Math.random().toString(36).substring(7),
             vi_nguoi_noi: userId,
@@ -1046,6 +1130,19 @@ function CallPageContent() {
     const priceMatch = text.match(/(\d+)\s*(triệu|tr)/i);
     if (priceMatch) {
       setProposedPrice(parseInt(priceMatch[1]) * 1000000);
+    }
+
+    const detected = detectProductInText(text);
+    if (detected) {
+      console.log('🔄 Đã phát hiện sản phẩm từ tin nhắn chat của bạn:', detected);
+      setProductName(detected);
+      if (sttChannelRef.current) {
+        sttChannelRef.current.send({
+          type: 'broadcast',
+          event: 'product_update',
+          payload: { productName: detected }
+        });
+      }
     }
 
     const newLine: TranscriptLine = {

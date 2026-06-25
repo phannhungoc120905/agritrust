@@ -34,6 +34,7 @@ export default function VideoCallFrame({
   const [cameraOff, setCameraOff] = useState(false);
   const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
   const [isJoining, setIsJoining] = useState(false);
+  const [activeSpeaker, setActiveSpeaker] = useState<'me' | 'partner' | null>(null);
 
   // Sync remoteUsers with parent
   useEffect(() => {
@@ -114,6 +115,24 @@ export default function VideoCallFrame({
         setRemoteUsers((prev) => [...prev]);
       });
 
+      // 2b. Kích hoạt tính năng đo lường âm lượng & nhận diện người đang nói tích hợp của Agora
+      client.enableAudioVolumeIndicator();
+      client.on('volume-indicator', (volumes: any[]) => {
+        let maxVolume = 0;
+        let activeUid: string | number | null = null;
+        volumes.forEach((v) => {
+          if (v.level > 15 && v.level > maxVolume) {
+            maxVolume = v.level;
+            activeUid = v.uid;
+          }
+        });
+        if (activeUid !== null) {
+          setActiveSpeaker(activeUid === 0 ? 'me' : 'partner');
+        } else {
+          setActiveSpeaker(null);
+        }
+      });
+
       // 3. Đợi Token API resolve xong và Join Kênh NGAY LẬP TỨC
       const tokenData = await tokenPromise;
       const token = tokenData?.token || null;
@@ -142,7 +161,15 @@ export default function VideoCallFrame({
         }
 
         try {
-          audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          // Áp dụng các tính năng cao cấp của Agora: Acoustic Echo Cancellation (AEC), Active Noise Suppression (ANS), Automatic Gain Control (AGC)
+          // và cấu hình 'speech_standard' được tối ưu hóa riêng cho giọng nói của người nói để phục vụ nhận diện STT chuẩn xác hơn.
+          audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+            encoderConfig: 'speech_standard',
+            AEC: true,
+            ANS: true,
+            AGC: true
+          });
+          console.log('[Audio] Kết nối Micro thành công với các bộ lọc âm thanh cao cấp (AEC, ANS, AGC)!');
         } catch (audioErr: any) {
           console.warn('Không thể lấy quyền Micro (Agora):', audioErr);
           // Fallback: tự tạo audio track từ getUserMedia native
@@ -162,25 +189,40 @@ export default function VideoCallFrame({
         }
 
         try {
-          // Nâng cấp lên Full HD 1080p 30fps (1080p_2) để soi rõ nông sản
-          videoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '1080p_2' });
-        } catch (videoErr) {
-          console.warn('Không thể lấy quyền Camera (Agora):', videoErr);
-          // Fallback: tự tạo video track từ getUserMedia native
+          // Thử kết nối Camera độ phân giải 4K (3840x2160) để soi rõ nông sản chi tiết
+          console.log('[Agora] Đang khởi tạo Camera 4K (3840x2160)...');
+          videoTrack = await AgoraRTC.createCameraVideoTrack({
+            encoderConfig: {
+              width: 3840,
+              height: 2160,
+              frameRate: 30,
+              bitrateMax: 8000
+            }
+          });
+          console.log('[Agora] Kết nối Camera 4K thành công!');
+        } catch (err4k) {
+          console.warn('[Agora] Camera phần cứng không hỗ trợ 4K, tự động chuyển sang Full HD 1080p...', err4k);
           try {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-              const nativeStream = await navigator.mediaDevices.getUserMedia({ video: true });
-              const nativeVideoTrack = nativeStream.getVideoTracks()[0];
-              if (nativeVideoTrack) {
-                videoTrack = AgoraRTC.createCustomVideoTrack({ mediaStreamTrack: nativeVideoTrack });
-                console.log('[Video] Đã tạo video track từ getUserMedia native (fallback).');
+            videoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '1080p_2' });
+            console.log('[Agora] Kết nối Camera 1080p thành công!');
+          } catch (videoErr) {
+            console.warn('Không thể lấy quyền Camera (Agora):', videoErr);
+            // Fallback: tự tạo video track từ getUserMedia native
+            try {
+              if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                const nativeStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const nativeVideoTrack = nativeStream.getVideoTracks()[0];
+                if (nativeVideoTrack) {
+                  videoTrack = AgoraRTC.createCustomVideoTrack({ mediaStreamTrack: nativeVideoTrack });
+                  console.log('[Video] Đã tạo video track từ getUserMedia native (fallback).');
+                }
+              } else {
+                setCameraOff(true);
               }
-            } else {
+            } catch (nativeErr) {
+              console.warn('Không thể lấy camera từ getUserMedia native:', nativeErr);
               setCameraOff(true);
             }
-          } catch (nativeErr) {
-            console.warn('Không thể lấy camera từ getUserMedia native:', nativeErr);
-            setCameraOff(true);
           }
         }
 
@@ -358,7 +400,12 @@ export default function VideoCallFrame({
 
         // Bước 2: Thử Agora API
         try {
-          newAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          newAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+            encoderConfig: 'speech_standard',
+            AEC: true,
+            ANS: true,
+            AGC: true
+          });
         } catch (agoraErr) {
           console.warn('[Mic] Agora createMicrophoneAudioTrack thất bại, thử getUserMedia native:', agoraErr);
           lastError = agoraErr;
@@ -434,8 +481,23 @@ export default function VideoCallFrame({
       } else {
         // Xin lại quyền tạo Video Track nếu trước đó chưa có
         const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
-        // Nâng cấp lên Full HD 1080p 30fps (1080p_2)
-        const newVideoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '1080p_2' });
+        let newVideoTrack: any = null;
+        try {
+          console.log('[Agora-Toggle] Đang khởi tạo Camera 4K (3840x2160)...');
+          newVideoTrack = await AgoraRTC.createCameraVideoTrack({
+            encoderConfig: {
+              width: 3840,
+              height: 2160,
+              frameRate: 30,
+              bitrateMax: 8000
+            }
+          });
+          console.log('[Agora-Toggle] Kết nối Camera 4K thành công!');
+        } catch (err4k) {
+          console.warn('[Agora-Toggle] Camera phần cứng không hỗ trợ 4K, tự động chuyển sang Full HD 1080p...', err4k);
+          newVideoTrack = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '1080p_2' });
+          console.log('[Agora-Toggle] Kết nối Camera 1080p thành công!');
+        }
 
         if (!localTracksRef.current) localTracksRef.current = { audioTrack: null, videoTrack: null };
         localTracksRef.current.videoTrack = newVideoTrack;
@@ -533,8 +595,17 @@ export default function VideoCallFrame({
           {/* Main View: Đối tác (nếu có) hoặc Tôi (nếu một mình) */}
           {remoteUsers.length > 0 ? (
             // Hiển thị người đầu tiên trong mảng remoteUsers làm màn hình chính
-            <div className="absolute inset-0">
+            <div className={`absolute inset-0 transition-all duration-300 ${activeSpeaker === 'partner' ? 'ring-4 ring-indigo-500 ring-inset' : ''}`}>
               <RemoteVideoPlayer user={remoteUsers[0]} />
+              {activeSpeaker === 'partner' && (
+                <div className="absolute top-6 left-6 px-3 py-1.5 rounded-full bg-indigo-600/90 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg border border-indigo-400 animate-pulse z-30">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  {partnerRole} đang nói
+                </div>
+              )}
             </div>
           ) : (
             // Nếu chưa có ai vào, hiển thị màn hình chờ màu đen
@@ -548,11 +619,18 @@ export default function VideoCallFrame({
 
           {/* Picture-in-Picture (PiP) - Màn hình của tôi */}
           {/* PiP chỉ hiện khi đã có đối tác, HOẶC có thể hiện luôn nếu muốn giống Meet */}
-          <div className="absolute top-6 right-6 w-36 h-52 bg-neutral-800 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/10 z-20 cursor-move">
+          <div className={`absolute top-6 right-6 w-36 h-52 bg-neutral-800 rounded-2xl overflow-hidden shadow-2xl border-2 z-20 cursor-move transition-all duration-300 ${
+            activeSpeaker === 'me' ? 'border-indigo-500 ring-4 ring-indigo-500/50' : 'border-white/10'
+          }`}>
             <div ref={localVideoRef} className="w-full h-full object-cover absolute inset-0" />
             {cameraOff && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-900 text-white">
                 <VideoOff size={24} className="text-neutral-600" />
+              </div>
+            )}
+            {activeSpeaker === 'me' && (
+              <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-indigo-600/80 backdrop-blur-sm text-[9px] font-bold text-white z-20 flex items-center gap-1">
+                Đang nói
               </div>
             )}
             <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm text-[10px] font-medium text-white z-20">
