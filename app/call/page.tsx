@@ -1502,24 +1502,39 @@ function CallPageContent() {
             isChatOpen={isChatOpen}
             onRemoteUsersChange={(users) => setPartnerCount(users.length)}
             extraToolbarButtons={
-              inCall && activeStep === 1 ? (
-                contractDraft?.san_pham ? (
-                  <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="w-12 h-12 flex items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
-                    title="Xem lại Hợp Đồng"
-                  >
-                    <FileSignature size={20} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={forceExtract}
-                    className="w-12 h-12 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95 animate-pulse"
-                    title="Chốt hợp đồng bằng AI"
-                  >
-                    <FileSignature size={20} />
-                  </button>
-                )
+              inCall ? (
+                <div className="flex items-center gap-3">
+                  {/* Nút Chạy Giả Lập STT để Tester/Judge dễ dàng thử nghiệm tính năng */}
+                  {activeStep === 1 && !isRealSTTActive && !isMockActive && (
+                    <button
+                      onClick={startMockSTT}
+                      className="w-12 h-12 flex items-center justify-center rounded-full bg-amber-600 hover:bg-amber-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95 border border-amber-500/30"
+                      title="Chạy Giả Lập Hội Thoại (Test Flow)"
+                    >
+                      <Sparkles size={20} />
+                    </button>
+                  )}
+
+                  {activeStep === 1 && (
+                    contractDraft?.san_pham ? (
+                      <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="w-12 h-12 flex items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                        title="Xem lại Hợp Đồng"
+                      >
+                        <FileSignature size={20} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={forceExtract}
+                        className="w-12 h-12 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95 animate-pulse"
+                        title="Chốt hợp đồng bằng AI"
+                      >
+                        <FileSignature size={20} />
+                      </button>
+                    )
+                  )}
+                </div>
               ) : null
             }
           />
