@@ -19,22 +19,12 @@ npm install
 ```
 
 ### 2. Environment Configuration (`.env`)
-Create a `.env` file in the **root directory** of the project (at the same level as `package.json`). Copy and paste the configuration below. This configuration is shared among the project members for running local Agora Video Calls (with Tokens) and AI contract extraction (Llama 3.3 via Groq):
-
-```env
-# Supabase Config (Team Shared Database Connection)
-NEXT_PUBLIC_SUPABASE_URL=https://fjqbgxvzvmtvwhjkacsh.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqcWJneHZ6dm10dndoamthY3NoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NTg0MTAsImV4cCI6MjA5NzUzNDQxMH0.5eYU2Wuz0z4MnItwQGWbP5ylx7N9Z8ZgtaayihihO64
-
-# Agora Config (Required: Both App ID and Certificate to generate dynamic security tokens)
-NEXT_PUBLIC_AGORA_APP_ID=3c858b4f728949838273a8f4396037a7
-AGORA_APP_CERTIFICATE=0bfb63666c444bebb9b725b6adf6e6c8
-
-# OpenAI/Groq SDK Config (Calling Llama-3.3-70b-versatile via Groq API)
-OPENAI_API_KEY=gsk_YOUR_GROQ_API_KEY_PLACEHOLDER
-NEXT_PUBLIC_AI_BASE_URL=https://api.groq.com/openai/v1
-AI_MODEL=llama-3.3-70b-versatile
+Copy the `.env.example` file to create a `.env` file in the root directory:
+```bash
+cp .env.example .env
 ```
+Open `.env` and populate it with your Supabase, Agora, and Groq credentials.
+
 
 ### 3. Database Update & Seed Demo Data
 *   **Step 1 (Only one team member needs to execute on Supabase Dashboard):**
