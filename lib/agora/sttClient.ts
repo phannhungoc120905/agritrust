@@ -52,7 +52,7 @@ export class AgoraSTTClient {
         this.isListening = false;
         onError?.(
           'insecure-origin',
-          'HTTP'
+          'Yêu cầu kết nối bảo mật (HTTPS) hoặc chạy trên localhost để dùng STT.'
         );
         return;
       }
@@ -102,7 +102,7 @@ export class AgoraSTTClient {
       console.warn('[STT] Trình duyệt không hỗ trợ Web Speech API.');
       onError?.(
         'not-supported',
-        'Kén'
+        'Trình duyệt không hỗ trợ Web Speech API (Hãy sử dụng Google Chrome).'
       );
       if (useMock) {
         this.usingMock = true;
@@ -179,17 +179,17 @@ export class AgoraSTTClient {
       }
       console.warn('[STT] Cảnh báo nhận diện:', event.error);
       
-      let userFriendlyMessage = 'Lỗi';
+      let userFriendlyMessage = 'Lỗi dịch giọng nói';
       if (event.error === 'not-allowed') {
-        userFriendlyMessage = 'Chặn';
+        userFriendlyMessage = 'Micro bị chặn hoặc đang được ứng dụng khác sử dụng';
       } else if (event.error === 'audio-capture') {
-        userFriendlyMessage = 'Mic';
+        userFriendlyMessage = 'Không tìm thấy thiết bị Microphone kết nối';
       } else if (event.error === 'service-not-available') {
-        userFriendlyMessage = 'STT';
+        userFriendlyMessage = 'Dịch vụ dịch thuật của trình duyệt tạm thời không khả dụng';
       } else if (event.error === 'network') {
-        userFriendlyMessage = 'Mạng';
+        userFriendlyMessage = 'Lỗi mạng khi đang dịch giọng nói';
       } else if (event.error === 'language-not-supported') {
-        userFriendlyMessage = 'Tiếng';
+        userFriendlyMessage = 'Ngôn ngữ Tiếng Việt không được trình duyệt hỗ trợ';
       }
 
       this.onErrorCallback?.(event.error, userFriendlyMessage);
