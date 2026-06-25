@@ -120,7 +120,7 @@ export async function seedDemoProducts() {
       ten_san_pham: 'Xoài Cát Hòa Lộc',
       mo_ta: 'Xoài giòn, ngọt tự nhiên, không dùng thuốc ép chín.',
       so_luong_uoc_tinh: '2 tấn',
-      gia_tham_khao: '65.000 VNĐ/kg',
+      gia_tham_khao: '',
       hinh_anh: ['https://images.unsplash.com/photo-1553279768-865429fa0078?q=80&w=600&auto=format&fit=crop'],
       mua_vu: 'Hè 2026',
       trang_thai: 'dang_ban',
@@ -131,11 +131,11 @@ export async function seedDemoProducts() {
   for (const product of demoProducts) {
     try {
       const { data } = await supabase
-          .from('san_pham_nong_dan')
-          .select('id')
-          .eq('vi_nong_dan', product.vi_nong_dan)
-          .eq('ten_san_pham', product.ten_san_pham)
-          .maybeSingle();
+        .from('san_pham_nong_dan')
+        .select('id')
+        .eq('vi_nong_dan', product.vi_nong_dan)
+        .eq('ten_san_pham', product.ten_san_pham)
+        .maybeSingle();
 
       if (!data) {
         const { error } = await supabase.from('san_pham_nong_dan').insert([product]);
