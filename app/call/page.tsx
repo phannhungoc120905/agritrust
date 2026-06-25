@@ -69,6 +69,45 @@ function detectProductInText(text: string): string | null {
   return null;
 }
 
+function formatVietnamesePunctuation(text: string): string {
+  if (!text) return '';
+  let formatted = text.trim();
+  if (formatted.length === 0) return '';
+
+  // Viết hoa chữ cái đầu tiên
+  formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+
+  // Nếu câu chưa kết thúc bằng dấu câu chính (. hoặc ? hoặc !)
+  if (!/[.!?]$/.test(formatted)) {
+    const lowerText = formatted.toLowerCase();
+    
+    // Các cụm từ hỏi tiếng Việt phổ biến
+    const questionPatterns = [
+      /\bbao nhiêu\b/,
+      /\bđược không\b/,
+      /\bkhông\b$/,
+      /\bchưa\b$/,
+      /\bgì\b/,
+      /\bđâu\b/,
+      /\bsao\b/,
+      /\bthế nào\b/,
+      /\bai\b/,
+      /\bnhỉ\b$/,
+      /\bhả\b$/,
+      /\bcó phải\b/
+    ];
+
+    const isQuestion = questionPatterns.some(pattern => pattern.test(lowerText));
+    if (isQuestion) {
+      formatted += '?';
+    } else {
+      formatted += '.';
+    }
+  }
+
+  return formatted;
+}
+
 function CallPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -574,7 +613,7 @@ function CallPageContent() {
         const newLine: TranscriptLine = {
           id: Math.random().toString(36).substring(7),
           vi_nguoi_noi: userId,
-          noi_dung: text,
+          noi_dung: formatVietnamesePunctuation(text),
           thoi_gian_noi: new Date().toISOString(),
           den_canh_bao: 'binh_thuong',
         };
@@ -958,7 +997,7 @@ function CallPageContent() {
           const newLine: TranscriptLine = {
             id: Math.random().toString(36).substring(7),
             vi_nguoi_noi: userId,
-            noi_dung: text,
+            noi_dung: formatVietnamesePunctuation(text),
             thoi_gian_noi: new Date().toISOString(),
             den_canh_bao: 'binh_thuong',
           };
@@ -1053,7 +1092,7 @@ function CallPageContent() {
           const newLine: TranscriptLine = {
             id: Math.random().toString(36).substring(7),
             vi_nguoi_noi: userId,
-            noi_dung: text,
+            noi_dung: formatVietnamesePunctuation(text),
             thoi_gian_noi: new Date().toISOString(),
             den_canh_bao: 'binh_thuong',
           };
@@ -1066,7 +1105,7 @@ function CallPageContent() {
               m.addTranscriptLine({
                 id_hop_dong: channelName,
                 vi_nguoi_noi: user.dia_chi_vi,
-                noi_dung: text,
+                noi_dung: formatVietnamesePunctuation(text),
                 den_canh_bao: 'binh_thuong'
               }).catch(e => console.warn('Lỗi lưu STT:', e));
             });
