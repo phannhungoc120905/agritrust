@@ -567,6 +567,8 @@ function CallPageContent() {
   const sttChannelRef = useRef<any>(null);
   const transcriptLinesRef = useRef<TranscriptLine[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [isAgoraCloudSTTActive, setIsAgoraCloudSTTActive] = useState(false);
+  const agoraAgentIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isChatOpen) {
@@ -757,6 +759,13 @@ function CallPageContent() {
         // 2. TẢI HỢP ĐỒNG NHÁP
         const con = await getContractById(channelName);
         if (con) {
+          // Khôi phục trạng thái Agora STT Bot nếu có lưu trên DB
+          if (con.noi_dung_nhap_ai?.agora_stt_agent_id) {
+            agoraAgentIdRef.current = con.noi_dung_nhap_ai.agora_stt_agent_id;
+            setIsAgoraCloudSTTActive(true);
+            console.log('[Agora Cloud STT] Khôi phục Agent ID từ hợp đồng:', con.noi_dung_nhap_ai.agora_stt_agent_id);
+          }
+
           const hasDraftAgreed = con.don_gia > 0 ||
             (con.dieu_khoan_chat_luong && con.dieu_khoan_chat_luong.length > 0) ||
             con.noi_dung_nhap_ai?.buyerSignature ||
@@ -1029,11 +1038,172 @@ function CallPageContent() {
   }, [user, triggerAIExtract]);
 
   // ==========================================
+  // Agora Cloud STT Bot (API v7.x)
+  // ==========================================
+  const startAgoraCloudSTT = useCallback(async () => {
+    if (channelName === 'dam-phan-lua-st25' || channelName === 'dummy_id') {
+      // Bỏ qua gọi API trong chế độ demo cục bộ
+      return false;
+    }
+    try {
+      console.log(`[Agora Cloud STT] Khởi động STT Bot cho kênh: ${channelName}`);
+      const res = await fetch('/api/agora/stt/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelName })
+      });
+      
+      if (!res.ok) {
+        const errData = await res.json();
+        console.warn(`[Agora Cloud STT] Khởi động thất bại:`, errData.error);
+        return false;
+      }
+
+      const data = await res.json();
+      if (data.success && data.agentId) {
+        agoraAgentIdRef.current = data.agentId;
+        setIsAgoraCloudSTTActive(true);
+        console.log(`[Agora Cloud STT] Bot đã tham gia với Agent ID: ${data.agentId}`);
+        
+        // Đồng bộ Agent ID lên DB để đối tác biết và không cần khởi chạy lại
+        if (user) {
+          try {
+            const { data: con } = await supabase.from('hop_dong').select('noi_dung_nhap_ai').eq('id', channelName).single();
+            const currentAiContent = con?.noi_dung_nhap_ai || {};
+            await supabase.from('hop_dong').update({
+              noi_dung_nhap_ai: {
+                ...currentAiContent,
+                agora_stt_agent_id: data.agentId
+              }
+            }).eq('id', channelName);
+            console.log(`[Agora Cloud STT] Đã lưu Agent ID lên DB.`);
+            
+            // Phát tin qua Supabase realtime channel để đối tác cập nhật ngay lập tức
+            if (sttChannelRef.current) {
+              sttChannelRef.current.send({
+                type: 'broadcast',
+                event: 'stt_agent_active',
+                payload: { agentId: data.agentId }
+              });
+            }
+          } catch (dbErr) {
+            console.warn('[Agora Cloud STT] Lỗi cập nhật Agent ID lên DB:', dbErr);
+          }
+        }
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn(`[Agora Cloud STT] Lỗi kết nối API start:`, err);
+      return false;
+    }
+  }, [channelName, user]);
+
+  const stopAgoraCloudSTT = useCallback(async () => {
+    const agentId = agoraAgentIdRef.current;
+    if (!agentId) return;
+
+    try {
+      console.log(`[Agora Cloud STT] Đang tắt STT Bot với Agent ID: ${agentId}`);
+      const res = await fetch('/api/agora/stt/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId })
+      });
+
+      if (res.ok) {
+        console.log(`[Agora Cloud STT] Bot đã rời phòng thành công.`);
+      } else {
+        console.warn(`[Agora Cloud STT] Tắt Bot thất bại.`);
+      }
+    } catch (err) {
+      console.warn(`[Agora Cloud STT] Lỗi kết nối API stop:`, err);
+    } finally {
+      agoraAgentIdRef.current = null;
+      setIsAgoraCloudSTTActive(false);
+
+      // Dọn dẹp trên DB và phát broadcast báo tắt
+      if (channelName && channelName !== 'dam-phan-lua-st25' && channelName !== 'dummy_id') {
+        try {
+          const { data: con } = await supabase.from('hop_dong').select('noi_dung_nhap_ai').eq('id', channelName).single();
+          const currentAiContent = con?.noi_dung_nhap_ai || {};
+          const updatedAiContent = { ...currentAiContent };
+          delete updatedAiContent.agora_stt_agent_id;
+
+          await supabase.from('hop_dong').update({
+            noi_dung_nhap_ai: updatedAiContent
+          }).eq('id', channelName);
+
+          if (sttChannelRef.current) {
+            sttChannelRef.current.send({
+              type: 'broadcast',
+              event: 'stt_agent_inactive',
+              payload: {}
+            });
+          }
+        } catch (dbErr) {
+          console.warn('[Agora Cloud STT] Lỗi dọn dẹp Agent ID trên DB:', dbErr);
+        }
+      }
+    }
+  }, [channelName]);
+
+  const handleAgoraSTTMessage = useCallback((text: string, isFinal: boolean, speakerRole: 'nong_dan' | 'thuong_lai') => {
+    if (!text.trim()) return;
+
+    // Cập nhật phụ đề tức thời (realtime)
+    setDisplayedSubtitle({ text, role: speakerRole });
+
+    if (isFinal) {
+      // Ẩn phụ đề sau 3 giây nếu không có câu mới
+      setTimeout(() => {
+        setDisplayedSubtitle(prev => {
+          if (prev?.text === text && prev?.role === speakerRole) return null;
+          return prev;
+        });
+      }, 3000);
+
+      const priceMatch = text.match(/(\d+)\s*(triệu|tr)/i);
+      if (priceMatch) {
+        setProposedPrice(parseInt(priceMatch[1]) * 1000000);
+      }
+
+      const detected = detectProductInText(text);
+      if (detected) {
+        console.log('🔄 Đã phát hiện sản phẩm từ Agora STT:', detected);
+        setProductName(detected);
+      }
+
+      const newLine: TranscriptLine = {
+        id: Math.random().toString(36).substring(7),
+        vi_nguoi_noi: speakerRole,
+        noi_dung: formatVietnamesePunctuation(text),
+        thoi_gian_noi: new Date().toISOString(),
+        den_canh_bao: 'binh_thuong',
+      };
+
+      setTranscriptLines(prev => [...prev, newLine]);
+
+      // 💾 GHI LƯU STT LÊN DATABASE (chỉ người nói lưu của chính mình để tránh lưu trùng)
+      const userRole = user?.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai';
+      if (speakerRole === userRole && channelName && channelName !== 'dam-phan-lua-st25' && user) {
+        import('../../lib/supabase/queries/transcripts').then(m => {
+          m.addTranscriptLine({
+            id_hop_dong: channelName,
+            vi_nguoi_noi: user.dia_chi_vi,
+            noi_dung: formatVietnamesePunctuation(text),
+            den_canh_bao: 'binh_thuong'
+          }).catch(e => console.warn('Lỗi lưu STT:', e));
+        });
+      }
+    }
+  }, [channelName, user]);
+
+  // ==========================================
   // 2. STT THẬT (Web Speech API tiếng Việt qua STT Client)
   // ==========================================
-  const startRealSTT = useCallback((preserveHistory: boolean = false) => {
-    if (isRealSTTActiveRef.current || isMockActiveRef.current) return;
-    if (!sttClientRef.current) return;
+  const startRealSTT = useCallback(async (preserveHistory: boolean = false) => {
+    if (isRealSTTActiveRef.current || isMockActiveRef.current || isAgoraCloudSTTActive) return;
 
     if (!preserveHistory) {
       setTranscriptLines([]);
@@ -1043,6 +1213,25 @@ function CallPageContent() {
     setSttError(null);
     setDisplayedSubtitle(null);
     setActiveStep(1);
+
+    // 1. Thử khởi chạy Agora Cloud STT Bot trước
+    let cloudSTTStarted = false;
+    if (agoraAgentIdRef.current) {
+      cloudSTTStarted = true;
+      setIsAgoraCloudSTTActive(true);
+    } else {
+      cloudSTTStarted = await startAgoraCloudSTT();
+    }
+
+    if (cloudSTTStarted) {
+      console.log('[STT] Đã kích hoạt Agora Cloud STT Bot thành công. Không dùng Web Speech API.');
+      setIsRealSTTActive(true);
+      return;
+    }
+
+    // 2. Fallback sang Web Speech API (Local Browser) nếu Cloud STT không bật được
+    if (!sttClientRef.current) return;
+    console.log('[STT] Agora Cloud STT Bot không sẵn sàng. Fallback sang local Web Speech API...');
 
     const userRole = user?.vai_tro === 'nong_dan' ? 'nong_dan' : 'thuong_lai';
 
@@ -1127,7 +1316,7 @@ function CallPageContent() {
 
     setIsRealSTTActive(true);
     setIsMockActive(false);
-  }, [user]);
+  }, [user, isAgoraCloudSTTActive, startAgoraCloudSTT]);
 
   useEffect(() => {
     startRealSTTRef.current = startRealSTT;
@@ -1136,6 +1325,9 @@ function CallPageContent() {
 
 
   const stopRealSTT = useCallback(() => {
+    if (isAgoraCloudSTTActive) {
+      stopAgoraCloudSTT();
+    }
     if (sttClientRef.current) {
       sttClientRef.current.stopSTT();
     }
@@ -1148,7 +1340,7 @@ function CallPageContent() {
     if (allLines.length > 0 && activeStep === 1) {
       triggerAIExtract(allLines);
     }
-  }, [activeStep, triggerAIExtract]);
+  }, [activeStep, triggerAIExtract, isAgoraCloudSTTActive, stopAgoraCloudSTT]);
 
   const handleSendChat = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -1311,13 +1503,18 @@ function CallPageContent() {
 
   const handleToggleMute = useCallback((isMuted: boolean) => {
     if (isMockActiveRef.current) return; // Không ảnh hưởng tới Demo Mock
+    if (isAgoraCloudSTTActive) {
+      // Khi dùng Cloud STT, chỉ cần thay đổi trạng thái mic của mình trong Agora RTC (được VideoCallFrame tự động xử lý).
+      // Không cần tắt/bật Bot STT ở đây.
+      return;
+    }
     if (isMuted) {
       if (sttClientRef.current) sttClientRef.current.stopSTT();
       setIsRealSTTActive(false);
     } else {
       startRealSTT();
     }
-  }, [startRealSTT]);
+  }, [startRealSTT, isAgoraCloudSTTActive]);
 
   const handleJoinedStateChange = useCallback((joined: boolean, isDemo: boolean) => {
     setInCall(joined);
@@ -1334,6 +1531,7 @@ function CallPageContent() {
         }, 2000);
       }
     } else {
+      stopAgoraCloudSTT();
       if (sttClientRef.current) {
         sttClientRef.current.stopSTT();
       }
@@ -1344,9 +1542,10 @@ function CallPageContent() {
       // Cập nhật trạng thái cuộc gọi kết thúc lên DB
       setCallActiveInDb(false);
     }
-  }, [startMockSTT, startRealSTT, setCallActiveInDb]);
+  }, [startMockSTT, startRealSTT, setCallActiveInDb, stopAgoraCloudSTT]);
 
   const handleHangUp = useCallback(async () => {
+    await stopAgoraCloudSTT();
     if (sttClientRef.current) {
       sttClientRef.current.stopSTT();
     }
@@ -1369,7 +1568,7 @@ function CallPageContent() {
       }
     }
     router.push('/');
-  }, [router, channelName, setCallActiveInDb]);
+  }, [router, channelName, setCallActiveInDb, stopAgoraCloudSTT]);
 
   // ==========================================
   // LƯU HỢP ĐỒNG VÀ CHUYỂN TRANG
@@ -1501,6 +1700,7 @@ function CallPageContent() {
             onToggleMute={handleToggleMute}
             isChatOpen={isChatOpen}
             onRemoteUsersChange={(users) => setPartnerCount(users.length)}
+            onSTTMessage={handleAgoraSTTMessage}
             extraToolbarButtons={
               inCall ? (
                 <div className="flex items-center gap-3">

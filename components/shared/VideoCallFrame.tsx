@@ -14,6 +14,7 @@ interface VideoCallFrameProps {
   isChatOpen?: boolean;
   extraToolbarButtons?: React.ReactNode;
   onRemoteUsersChange?: (users: any[]) => void;
+  onSTTMessage?: (text: string, isFinal: boolean, speakerRole: 'nong_dan' | 'thuong_lai') => void;
 }
 
 export default function VideoCallFrame({ 
@@ -25,7 +26,8 @@ export default function VideoCallFrame({
   onToggleMute, 
   isChatOpen, 
   extraToolbarButtons,
-  onRemoteUsersChange
+  onRemoteUsersChange,
+  onSTTMessage
 }: VideoCallFrameProps) {
   const router = useRouter();
   const [inCall, setInCall] = useState(false);
@@ -44,6 +46,7 @@ export default function VideoCallFrame({
   const localVideoRef = useRef<HTMLDivElement>(null);
   const rtcClientRef = useRef<any>(null);
   const localTracksRef = useRef<{ videoTrack: any; audioTrack: any } | null>(null);
+  const localUidRef = useRef<number | null>(null);
 
   const onJoinedStateChangeRef = useRef(onJoinedStateChange);
   useEffect(() => {
@@ -81,6 +84,30 @@ export default function VideoCallFrame({
       // 2. Tạo Client thật nếu có App ID
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       rtcClientRef.current = client;
+
+      // Lắng nghe phụ đề được gửi từ Bot STT của Agora
+      client.on('stream-message', (uid: number, data: any) => {
+        console.log(`[Agora STT RTC] Nhận stream message từ UID STT Bot: ${uid}`);
+        try {
+          const uint8Data = new Uint8Array(data);
+          const parsed = decodeAgoraSTTProtobuf(uint8Data);
+          if (parsed && parsed.text.trim()) {
+            console.log(`[Agora STT Decoded] text: "${parsed.text}", isFinal: ${parsed.isFinal}, speakerUid: ${parsed.speakerUid}`);
+            
+            // Xác định vai trò của người nói dựa trên speakerUid
+            let speakerRole: 'nong_dan' | 'thuong_lai' = role; // Mặc định là vai trò của mình
+            if (parsed.speakerUid !== null && localUidRef.current !== null) {
+              if (parsed.speakerUid !== localUidRef.current) {
+                // Nếu khác UID cục bộ thì là đối tác
+                speakerRole = role === 'nong_dan' ? 'thuong_lai' : 'nong_dan';
+              }
+            }
+            onSTTMessage?.(parsed.text, parsed.isFinal, speakerRole);
+          }
+        } catch (decErr) {
+          console.warn('[Agora STT RTC] Lỗi chuyển đổi byte stream:', decErr);
+        }
+      });
 
       // Lắng nghe sự kiện người khác tham gia & stream video/audio
       client.on('user-joined', (user: any) => {
@@ -139,6 +166,7 @@ export default function VideoCallFrame({
 
       try {
         const uid = await client.join(appId, channelName, token, null);
+        localUidRef.current = typeof uid === 'number' ? uid : null;
         console.log(`Đã kết nối cuộc gọi thật thành công, UID: ${uid}`);
 
         // Cho phép vào phòng ngay lập tức (hiển thị UI) ngay khi join channel
@@ -721,3 +749,87 @@ function RemoteVideoPlayer({ user }: { user: any }) {
     </div>
   );
 }
+
+// Bộ giải mã dữ liệu nhị phân Protobuf của Agora STT (v7.x)
+// Trích xuất trực tiếp thông số từ luồng nhị phân mà không phụ thuộc thư viện protobufjs cồng kềnh.
+function decodeAgoraSTTProtobuf(buffer: Uint8Array): { text: string; isFinal: boolean; speakerUid: number | null } | null {
+  try {
+    let index = 0;
+    let textStr = '';
+    let isFinal = false;
+    let speakerUid: number | null = null;
+
+    // Đọc varint
+    const readVarint = () => {
+      let value = 0;
+      let shift = 0;
+      while (index < buffer.length) {
+        const byte = buffer[index++];
+        value |= (byte & 0x7f) << shift;
+        if ((byte & 0x80) === 0) break;
+        shift += 7;
+      }
+      return value;
+    };
+
+    while (index < buffer.length) {
+      const key = readVarint();
+      const tag = key >> 3;
+      const wireType = key & 0x07;
+
+      if (tag === 4 && wireType === 0) {
+        speakerUid = readVarint();
+      } else if (tag === 5 && wireType === 2) { // tag 5 is Text text (submessage)
+        const subMsgLen = readVarint();
+        const subMsgEnd = index + subMsgLen;
+
+        while (index < subMsgEnd) {
+          const subKey = readVarint();
+          const subTag = subKey >> 3;
+          const subWireType = subKey & 0x07;
+
+          if (subTag === 4 && subWireType === 2) { // tag 4 is string text
+            const strLen = readVarint();
+            const strBytes = buffer.slice(index, index + strLen);
+            textStr = new TextDecoder('utf-8').decode(strBytes);
+            index += strLen;
+          } else if (subTag === 6 && subWireType === 2) { // tag 6 is repeated Word words (submessage)
+            const wordMsgLen = readVarint();
+            const wordMsgEnd = index + wordMsgLen;
+            while (index < wordMsgEnd) {
+              const wKey = readVarint();
+              const wTag = wKey >> 3;
+              const wWireType = wKey & 0x07;
+              if (wTag === 4 && wWireType === 0) { // tag 4 is bool is_final
+                isFinal = readVarint() === 1;
+              } else {
+                if (wWireType === 0) readVarint();
+                else if (wWireType === 2) index += readVarint();
+                else if (wWireType === 1) index += 8;
+                else if (wWireType === 5) index += 4;
+              }
+            }
+          } else {
+            if (subWireType === 0) readVarint();
+            else if (subWireType === 2) index += readVarint();
+            else if (subWireType === 1) index += 8;
+            else if (subWireType === 5) index += 4;
+          }
+        }
+      } else {
+        if (wireType === 0) readVarint();
+        else if (wireType === 2) index += readVarint();
+        else if (wireType === 1) index += 8;
+        else if (wireType === 5) index += 4;
+      }
+    }
+
+    if (textStr) {
+      return { text: textStr, isFinal, speakerUid };
+    }
+  } catch (err) {
+    console.warn('[AgoraSTT Decoder] Gặp lỗi khi giải mã Protobuf:', err);
+  }
+  return null;
+}
+
