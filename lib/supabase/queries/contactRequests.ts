@@ -79,6 +79,9 @@ export async function getRequestsForFarmer(vi_nong_dan: string) {
       ),
       san_pham:san_pham_nong_dan!yeu_cau_lien_he_id_san_pham_fkey (
         id, ten_san_pham, mo_ta, so_luong_uoc_tinh, gia_tham_khao
+      ),
+      hop_dong:hop_dong!yeu_cau_lien_he_id_hop_dong_fkey (
+        id, trang_thai
       )
     `)
     .eq('vi_nong_dan', vi_nong_dan)
@@ -104,6 +107,9 @@ export async function getRequestsForTrader(vi_thuong_lai: string) {
       ),
       san_pham:san_pham_nong_dan!yeu_cau_lien_he_id_san_pham_fkey (
         id, ten_san_pham, mo_ta, so_luong_uoc_tinh, gia_tham_khao
+      ),
+      hop_dong:hop_dong!yeu_cau_lien_he_id_hop_dong_fkey (
+        id, trang_thai
       )
     `)
     .eq('vi_thuong_lai', vi_thuong_lai)

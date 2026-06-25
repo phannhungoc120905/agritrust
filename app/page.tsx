@@ -13,6 +13,7 @@ import { getAllFarmerProfiles } from '../lib/supabase/queries/auth';
 import { createDraftContract, updateContractStatus } from '../lib/supabase/queries/contracts';
 import { getRequestsForFarmer, getRequestsForTrader, createContactRequest, acceptRequest, rejectRequest, connectRequest } from '../lib/supabase/queries/contactRequests';
 import { supabase } from '../lib/supabase/client';
+import { toast } from 'react-hot-toast';
 import { encodeMeetingParams } from '../lib/utils/url';
 import { useLanguage, type Language } from '../lib/useLanguage';
 import {
@@ -45,7 +46,10 @@ import {
   Map,
   Grid,
   List,
-  Languages
+  Languages,
+  Calendar,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 
 import DisputeReportForm from '../components/dispute/DisputeReportForm';
@@ -362,12 +366,13 @@ function HomePageContent() {
         return req.trang_thai === 'cho_phan_hoi' || req.trang_thai === 'da_xem';
       }
       if (contactFilter === 'accepted') {
-        return req.trang_thai === 'da_dong_y' || req.trang_thai === 'da_hen_lich' || req.trang_thai === 'da_ket_noi';
+        return req.trang_thai === 'da_dong_y' || req.trang_thai === 'da_hen_lich';
       }
       if (contactFilter === 'rejected') {
         return req.trang_thai === 'tu_choi';
       }
-      return true; // all
+      // "all" filter: Hide completed/connected requests so they don't clutter the view
+      return req.trang_thai !== 'da_ket_noi' || (req.hop_dong && req.hop_dong.trang_thai === 'du_thao');
     });
   };
 
@@ -568,9 +573,131 @@ function HomePageContent() {
     }
   };
 
+  const loadDbContracts = async () => {
+    if (!user) return;
+    const userWallet = user.dia_chi_vi;
+    try {
+      const { data: dbContracts, error } = await supabase
+        .from('hop_dong')
+        .select('*, nguoi_ban:nguoi_dung!hop_dong_vi_nguoi_ban_fkey(ten_hien_thi), nguoi_mua:nguoi_dung!hop_dong_vi_nguoi_mua_fkey(ten_hien_thi)')
+        .or(`vi_nguoi_ban.eq.${userWallet},vi_nguoi_mua.eq.${userWallet}`);
+
+      if (error) throw error;
+
+      if (dbContracts) {
+        const mappedContracts = dbContracts.map((c: any) => {
+          const isSeller = c.vi_nguoi_ban === userWallet;
+          const partnerAddress = isSeller ? c.vi_nguoi_mua : c.vi_nguoi_ban;
+          const partnerInfo = isSeller ? c.nguoi_mua : c.nguoi_ban;
+          const partnerName = partnerInfo?.ten_hien_thi || `${partnerAddress.slice(0, 6)}...${partnerAddress.slice(-4)}`;
+
+          return {
+            id: c.id,
+            title: `Thương vụ: ${c.so_luong} ${c.don_vi_tinh} ${c.san_pham}`,
+            partnerName: partnerName,
+            partnerAddress: partnerAddress,
+            status: c.trang_thai === 'du_thao'
+              ? (c.noi_dung_nhap_ai?.is_seller_online === true && c.noi_dung_nhap_ai?.is_buyer_online === true
+                ? 'dang_dam_phan'
+                : (c.noi_dung_nhap_ai?.is_seller_online === true || c.noi_dung_nhap_ai?.is_buyer_online === true
+                  ? 'dang_lien_he'
+                  : (c.don_gia > 0 || (c.dieu_khoan_chat_luong && c.dieu_khoan_chat_luong.length > 0) || c.noi_dung_nhap_ai?.buyerSignature || c.noi_dung_nhap_ai?.sellerSignature ? 'da_chot_nhap_tam_dung' : 'dam_phan_tam_dung')))
+              : 'da_chot',
+            deliveryStatus: c.trang_thai === 'da_khoa_tien' ? 'dang_van_chuyen' :
+              c.trang_thai === 'dang_tranh_chap' ? 'cho_nghiem_thu' :
+                c.trang_thai === 'da_xac_nhan' || c.trang_thai === 'da_giai_quyet' ? 'da_hoan_thanh' : 'dang_van_chuyen',
+            contract: c,
+            stt: c.noi_dung_nhap_ai?.stt || [
+              { sender: 'thuong_lai', text: 'Chào anh, tôi muốn thương lượng lô hàng này.' },
+              { sender: 'nong_dan', text: 'Vâng chào anh, chúng ta cùng thống nhất điều khoản.' }
+            ]
+          };
+        });
+
+        setNegotiations(prev => {
+          const filteredPrev = prev.filter(p => !mappedContracts.some((m: any) => m.id === p.id));
+          return [...mappedContracts, ...filteredPrev];
+        });
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải hợp đồng từ database:', err);
+    }
+  };
+
   useEffect(() => {
     loadTab1Data();
     loadNotifications();
+    loadDbContracts();
+
+    if (!user) return;
+
+    // Real-time synchronization
+    const channelRequests = supabase.channel('homepage_requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'yeu_cau_lien_he' }, (payload) => {
+        loadTab1Data();
+        loadNotifications();
+        
+        if (payload.eventType === 'INSERT') {
+          if (user.vai_tro === 'nong_dan' && payload.new.vi_nong_dan === user.dia_chi_vi) {
+             toast.success('Có yêu cầu liên hệ mới từ Thương lái!', { duration: 5000 });
+          }
+        } else if (payload.eventType === 'UPDATE') {
+          // If Farmer accepts the request -> Notify Trader
+          if (
+            user.vai_tro === 'thuong_lai' && 
+            payload.new.vi_thuong_lai === user.dia_chi_vi && 
+            payload.new.trang_thai === 'da_dong_y' &&
+            payload.old?.trang_thai !== 'da_dong_y'
+          ) {
+            toast((t) => (
+              <div className="flex flex-col gap-2">
+                <span className="font-semibold">Nông dân đã đồng ý đàm phán!</span>
+                <span className="text-sm">Phòng đàm phán đã mở.</span>
+                <button 
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    if (payload.new.room_id) {
+                      const encoded = encodeMeetingParams({
+                        channel: payload.new.id_hop_dong || payload.new.room_id,
+                        scenario: 'A',
+                        product: payload.new.ten_san_pham_snapshot || 'Nông sản',
+                        partner: 'Nông dân'
+                      });
+                      router.push(`/call?p=${encoded}`);
+                    }
+                  }}
+                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                >
+                  Tham gia ngay
+                </button>
+              </div>
+            ), { duration: 10000 });
+          }
+        }
+      })
+      .subscribe();
+
+    const channelContracts = supabase.channel('homepage_contracts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hop_dong' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newDoc = payload.new as any;
+          if (newDoc.vi_nguoi_ban === user.dia_chi_vi && newDoc.trang_thai === 'du_thao') {
+            setToastMsg({ text: `Có Thương lái vừa yêu cầu đàm phán hợp đồng mua ${newDoc.san_pham}! Bấm để tham gia ngay.`, negoId: newDoc.id });
+            setTimeout(() => setToastMsg(null), 8000); // Ẩn sau 8s
+          }
+        }
+        loadDbContracts();
+        loadNotifications();
+        loadTab1Data();
+      })
+      .subscribe();
+
+    // Polling fallback to ensure real-time UI updates even without Supabase Replication enabled
+    const pollInterval = setInterval(() => {
+      loadTab1Data();
+      loadNotifications();
+      loadDbContracts();
+    }, 5000);
 
     // Check onboarding
     const onboarded = localStorage.getItem('agritrust_onboarded');
@@ -579,14 +706,18 @@ function HomePageContent() {
     }
 
     // Load favorites
-    if (user) {
-      const stored = localStorage.getItem(`agritrust_favorites_${user.dia_chi_vi}`);
-      if (stored) {
-        setFavorites(JSON.parse(stored));
-      } else {
-        setFavorites([]);
-      }
+    const stored = localStorage.getItem(`agritrust_favorites_${user.dia_chi_vi}`);
+    if (stored) {
+      setFavorites(JSON.parse(stored));
+    } else {
+      setFavorites([]);
     }
+
+    return () => {
+      supabase.removeChannel(channelRequests);
+      supabase.removeChannel(channelContracts);
+      clearInterval(pollInterval);
+    };
   }, [user]);
 
   const toggleFavorite = (wallet: string) => {
@@ -959,106 +1090,7 @@ function HomePageContent() {
   // Helper bị loại bỏ vì đã lấy trực tiếp từ DB
   // const getPartnerName = (walletAddress: string) => { ... }
 
-  useEffect(() => {
-    if (!user) return;
-    const userWallet = user.dia_chi_vi;
 
-    async function loadDbContracts() {
-      try {
-        const { data: dbContracts, error } = await supabase
-          .from('hop_dong')
-          .select('*, nguoi_ban:nguoi_dung!hop_dong_vi_nguoi_ban_fkey(ten_hien_thi), nguoi_mua:nguoi_dung!hop_dong_vi_nguoi_mua_fkey(ten_hien_thi)')
-          .or(`vi_nguoi_ban.eq.${userWallet},vi_nguoi_mua.eq.${userWallet}`);
-
-        if (error) throw error;
-
-        if (dbContracts) {
-          const mappedContracts = dbContracts.map((c: any) => {
-            const isSeller = c.vi_nguoi_ban === userWallet;
-            const partnerAddress = isSeller ? c.vi_nguoi_mua : c.vi_nguoi_ban;
-            const partnerInfo = isSeller ? c.nguoi_mua : c.nguoi_ban;
-            const partnerName = partnerInfo?.ten_hien_thi || `${partnerAddress.slice(0, 6)}...${partnerAddress.slice(-4)}`;
-
-            return {
-              id: c.id,
-              title: `Thương vụ: ${c.so_luong} ${c.don_vi_tinh} ${c.san_pham}`,
-              partnerName: partnerName,
-              partnerAddress: partnerAddress,
-              status: c.trang_thai === 'du_thao'
-                ? (c.noi_dung_nhap_ai?.is_seller_online === true && c.noi_dung_nhap_ai?.is_buyer_online === true
-                  ? 'dang_dam_phan'
-                  : (c.noi_dung_nhap_ai?.is_seller_online === true || c.noi_dung_nhap_ai?.is_buyer_online === true
-                    ? 'dang_lien_he'
-                    : (c.don_gia > 0 || (c.dieu_khoan_chat_luong && c.dieu_khoan_chat_luong.length > 0) || c.noi_dung_nhap_ai?.buyerSignature || c.noi_dung_nhap_ai?.sellerSignature ? 'da_chot_nhap_tam_dung' : 'dam_phan_tam_dung')))
-                : 'da_chot',
-              deliveryStatus: c.trang_thai === 'da_khoa_tien' ? 'dang_van_chuyen' :
-                c.trang_thai === 'dang_tranh_chap' ? 'cho_nghiem_thu' :
-                  c.trang_thai === 'da_xac_nhan' || c.trang_thai === 'da_giai_quyet' ? 'da_hoan_thanh' : 'dang_van_chuyen',
-              contract: c,
-              stt: c.noi_dung_nhap_ai?.stt || [
-                { sender: 'thuong_lai', text: 'Chào anh, tôi muốn thương lượng lô hàng này.' },
-                { sender: 'nong_dan', text: 'Vâng chào anh, chúng ta cùng thống nhất điều khoản.' }
-              ]
-            };
-          });
-
-          setNegotiations(prev => {
-            const filteredPrev = prev.filter(p => !mappedContracts.some((m: any) => m.id === p.id));
-            return [...mappedContracts, ...filteredPrev];
-          });
-        }
-      } catch (err) {
-        console.error('Lỗi khi tải hợp đồng từ database:', err);
-      }
-    }
-
-    loadDbContracts();
-
-    // Đăng ký realtime lắng nghe thay đổi trên bảng hop_dong để cập nhật tức thời
-    const channel = supabase
-      .channel('homepage_contracts')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'hop_dong',
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newDoc = payload.new as any;
-            if (newDoc.vi_nguoi_ban === user.dia_chi_vi && newDoc.trang_thai === 'du_thao') {
-              setToastMsg({ text: `Có Thương lái vừa yêu cầu đàm phán hợp đồng mua ${newDoc.san_pham}! Bấm để tham gia ngay.`, negoId: newDoc.id });
-              setTimeout(() => setToastMsg(null), 8000); // Ẩn sau 8s
-            }
-          }
-          loadDbContracts();
-          loadNotifications();
-        }
-      )
-      .subscribe();
-
-    const reqChannel = supabase
-      .channel('homepage_requests')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'yeu_cau_lien_he',
-        },
-        () => {
-          loadNotifications();
-          loadTab1Data();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(reqChannel);
-    };
-  }, [user]);
 
   // Load Lịch sử Đàm Phán cho hợp đồng đang chọn (nếu là thật)
   useEffect(() => {
@@ -1676,9 +1708,11 @@ function HomePageContent() {
             <div className="space-y-4">
               {/* Stats & Filter Bar */}
               {(() => {
+                const isRequestFinished = (r: any) => r.trang_thai === 'da_ket_noi' && r.hop_dong && r.hop_dong.trang_thai !== 'du_thao';
+                
                 const countNewReqs = contactRequests.filter(r => r.trang_thai === 'cho_phan_hoi' || r.trang_thai === 'da_xem').length;
-                const countAcceptedReqs = contactRequests.filter(r => r.trang_thai === 'da_dong_y' || r.trang_thai === 'da_hen_lich' || r.trang_thai === 'da_ket_noi').length;
-                const countNegotiatingReqs = contactRequests.filter(r => r.trang_thai === 'da_ket_noi').length;
+                const countAcceptedReqs = contactRequests.filter(r => (r.trang_thai === 'da_dong_y' || r.trang_thai === 'da_hen_lich' || r.trang_thai === 'da_ket_noi') && !isRequestFinished(r)).length;
+                const countNegotiatingReqs = contactRequests.filter(r => r.trang_thai === 'da_ket_noi' && !isRequestFinished(r)).length;
                 const filtered = getFilteredContactRequests();
 
                 return (
@@ -2855,20 +2889,47 @@ function HomePageContent() {
                                       
                                       <div className="min-w-0 flex-1">
                                         <h4 className="font-bold text-slate-700 text-sm group-hover:text-emerald-800 transition-colors truncate">{cleanTitle}</h4>
-                                        {/* SOL and VND Prices */}
-                                        {nego.contract && (nego.contract.don_gia > 0 || nego.contract.tong_tien_usdc_khoa > 0) && (
-                                          <div className="flex items-center gap-2 mt-1.5 font-mono text-[10.5px]">
-                                            <span className="text-indigo-655 bg-indigo-50 border border-indigo-150 px-1.5 py-0.5 rounded font-bold">
-                                              {nego.contract.tong_tien_usdc_khoa 
-                                                ? `${nego.contract.tong_tien_usdc_khoa.toLocaleString()} SOL` 
-                                                : `${((nego.contract.don_gia * nego.contract.so_luong) / 4000000).toLocaleString(undefined, {maximumFractionDigits: 4})} SOL (ước tính)`}
-                                            </span>
-                                            <span className="text-slate-400 font-normal">•</span>
-                                            <span className="text-slate-500 bg-slate-100/80 border border-slate-200/50 px-1.5 py-0.5 rounded font-semibold">
-                                              {nego.contract.tong_tien_usdc_khoa
-                                                ? (nego.contract.tong_tien_usdc_khoa * 4000000).toLocaleString('vi-VN')
-                                                : (nego.contract.don_gia * nego.contract.so_luong).toLocaleString('vi-VN')} VNĐ
-                                            </span>
+                                        
+                                        {/* Contract details: SOL/VND Prices, Deadline, Countdown */}
+                                        {nego.contract && (
+                                          <div className="flex flex-col gap-1.5 mt-2">
+                                            {/* Prices */}
+                                            {(nego.contract.don_gia > 0 || nego.contract.tong_tien_usdc_khoa > 0) && (
+                                              <div className="flex items-center gap-2 font-mono text-[10.5px]">
+                                                <span className="text-indigo-655 bg-indigo-50 border border-indigo-150 px-1.5 py-0.5 rounded font-bold">
+                                                  {nego.contract.tong_tien_usdc_khoa 
+                                                    ? `${nego.contract.tong_tien_usdc_khoa.toLocaleString()} SOL` 
+                                                    : `${((nego.contract.don_gia * nego.contract.so_luong) / 4000000).toLocaleString(undefined, {maximumFractionDigits: 4})} SOL (ước tính)`}
+                                                </span>
+                                                <span className="text-slate-400 font-normal">•</span>
+                                                <span className="text-slate-500 bg-slate-100/80 border border-slate-200/50 px-1.5 py-0.5 rounded font-semibold">
+                                                  {nego.contract.tong_tien_usdc_khoa
+                                                    ? (nego.contract.tong_tien_usdc_khoa * 4000000).toLocaleString('vi-VN')
+                                                    : (nego.contract.don_gia * nego.contract.so_luong).toLocaleString('vi-VN')} VNĐ
+                                                </span>
+                                              </div>
+                                            )}
+                                            
+                                            {/* Deadline & Countdown */}
+                                            {nego.contract.han_giao_hang && (
+                                              <div className="flex items-center gap-2 text-[10px]">
+                                                <span className="text-slate-500 flex items-center gap-1">
+                                                  <Calendar size={11} className="text-slate-400" />
+                                                  Hạn giao: <span className="font-semibold text-slate-600">{new Date(nego.contract.han_giao_hang).toLocaleDateString('vi-VN')}</span>
+                                                </span>
+                                                <span className="text-slate-300">•</span>
+                                                {new Date(nego.contract.han_giao_hang) > new Date() ? (
+                                                  <span className="text-amber-600 flex items-center gap-1 font-semibold">
+                                                    <Clock size={11} />
+                                                    Còn {Math.ceil((new Date(nego.contract.han_giao_hang).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} ngày
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-red-500 flex items-center gap-1 font-semibold">
+                                                    <AlertCircle size={11} /> Đã quá hạn
+                                                  </span>
+                                                )}
+                                              </div>
+                                            )}
                                           </div>
                                         )}
                                       </div>

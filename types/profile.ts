@@ -97,10 +97,13 @@ export interface ContactRequest {
   ngay_xem?: string;
   ngay_phan_hoi?: string;
 
-  // Joined data (khi query kèm bảng nguoi_dung)
   thuong_lai?: UserProfile;
   nong_dan?: UserProfile;
   san_pham?: FarmerProduct;
+  hop_dong?: {
+    id: string;
+    trang_thai: string;
+  };
 }
 
 // === THỐNG KÊ PROFILE ===

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletContextProvider } from "../components/shared/WalletContextProvider";
 import { AuthProvider } from "../hooks/useAuth";
+import { Toaster } from "react-hot-toast";
 import AgentationWrapper from "../components/AgentationWrapper";
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,6 +43,7 @@ export default function RootLayout({
   {process.env.NODE_ENV === "development" && (
     <AgentationWrapper />
   )}
+  <Toaster position="top-center" />
 </body>
     </html>
   );
